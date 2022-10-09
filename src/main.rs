@@ -1,17 +1,23 @@
 mod d3d;
+
+use std::io::Write;
+use std::process::{Command, Stdio};
 use std::sync::mpsc::channel;
-use std::time::Instant;
-use windows::core::{IInspectable, Result};
+use std::thread::sleep;
+use std::time::{Duration, Instant};
+use windows::core::{IInspectable, Interface, Result};
 use windows::Graphics::Capture::{Direct3D11CaptureFramePool, GraphicsCaptureItem};
 use windows::Win32::Foundation::{BOOL, LPARAM, RECT};
 use windows::Graphics::DirectX::DirectXPixelFormat;
 use windows::Foundation::TypedEventHandler;
+use windows::Win32::Graphics::Direct3D11::{D3D11_BIND_FLAG, D3D11_CPU_ACCESS_READ, D3D11_MAP_READ, D3D11_RESOURCE_MISC_FLAG, D3D11_TEXTURE2D_DESC, D3D11_USAGE_STAGING, ID3D11Resource, ID3D11Texture2D};
 use windows::Win32::Graphics::Gdi::{
     EnumDisplayMonitors, GetMonitorInfoW, HDC, HMONITOR, MONITORINFOEXW,
 };
 use windows::Win32::System::WinRT::{
     Graphics::Capture::IGraphicsCaptureItemInterop, RoInitialize, RO_INIT_MULTITHREADED,
 };
+
 #[derive(Clone)]
 pub struct DisplayInfo {
     pub handle: HMONITOR,
@@ -43,7 +49,7 @@ fn create_capture_item_for_monitor(monitor_handle: HMONITOR) -> Result<GraphicsC
     unsafe { interop.CreateForMonitor(monitor_handle) }
 }
 
-fn take_screenshot(item: &GraphicsCaptureItem) -> Result<()> {
+fn take_screenshot(item: &GraphicsCaptureItem, out: &mut dyn Write) -> Result<()> {
     let item_size = item.Size()?;
 
     let d3d_device = d3d::create_d3d_device()?;
@@ -82,14 +88,72 @@ fn take_screenshot(item: &GraphicsCaptureItem) -> Result<()> {
     let mut counter = 0;
     let start = Instant::now();
     while let Ok(frame) = receiver.recv() {
+        let (w,h) = (frame.ContentSize()?.Width, frame.ContentSize()?.Height);
         // println!("Got frame {}*{}", frame.ContentSize()?.Width, frame.ContentSize()?.Height);
         //let surface = frame.Surface()?;
         //session.Close()?;
        // println!("frame time {}", frame.SystemRelativeTime()?.Duration);
+        let texture = unsafe {
+            let source_texture: ID3D11Texture2D =
+                d3d::get_d3d_interface_from_object(&frame.Surface()?)?;
+            let mut desc = D3D11_TEXTURE2D_DESC::default();
+            source_texture.GetDesc(&mut desc);
+            desc.BindFlags = D3D11_BIND_FLAG(0);
+            desc.MiscFlags = D3D11_RESOURCE_MISC_FLAG(0);
+            desc.Usage = D3D11_USAGE_STAGING;
+            desc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+            let copy_texture = { d3d_device.CreateTexture2D(&desc, None)? };
+            let src: ID3D11Resource = source_texture.cast()?;
+            let dst: ID3D11Resource = copy_texture.cast()?;
+            d3d_context.CopyResource(&dst, &src);
+            copy_texture
+        };
+        //let texture: ID3D11Texture2D = d3d::get_d3d_interface_from_object(&frame.Surface()?)?;
+        let bits = unsafe {
+            let mut desc = D3D11_TEXTURE2D_DESC::default();
+            texture.GetDesc(&mut desc as *mut _);
+
+            let resource: ID3D11Resource = texture.cast()?;
+            let mapped = d3d_context.Map(&resource, 0, D3D11_MAP_READ, 0)?;
+
+            // Get a slice of bytes
+            let slice: &[u8] = {
+                std::slice::from_raw_parts(
+                    mapped.pData as *const _,
+                    (desc.Height * mapped.RowPitch) as usize,
+                )
+            };
+
+            let bytes_per_pixel = 4;
+            let mut bits = vec![0u8; (desc.Width * desc.Height * bytes_per_pixel) as usize];
+            for row in 0..desc.Height {
+                let data_begin = (row * (desc.Width * bytes_per_pixel)) as usize;
+                let data_end = ((row + 1) * (desc.Width * bytes_per_pixel)) as usize;
+                let slice_begin = (row * mapped.RowPitch) as usize;
+                let slice_end = slice_begin + (desc.Width * bytes_per_pixel) as usize;
+                bits[data_begin..data_end].copy_from_slice(&slice[slice_begin..slice_end]);
+            }
+
+            d3d_context.Unmap(&resource, 0);
+
+            bits
+        };
+        let stride = bits.len() / h as usize;
+        let rowlen = 4 * w as usize;
+        for row in bits.chunks(stride) {
+            let row = &row[..rowlen];
+            out.write_all(row).unwrap();
+        }
+        // sleep 1s
+        //std::thread::sleep(Duration::from_millis(1000));
         counter += 1;
-        if counter >= 1000 {
+        if counter % 100 == 0 {
             println!("FPS: {}", counter as f64 / start.elapsed().as_secs_f64());
+            println!("time elapsed: {:?}", start.elapsed());
+        }
+        if counter >= 1000 {
             session.Close();
+            frame_pool.Close();
             break;
         }
     }
@@ -97,29 +161,30 @@ fn take_screenshot(item: &GraphicsCaptureItem) -> Result<()> {
 }
 
 fn main() -> Result<()> {
+    use scrap::Display;
+    let d = Display::primary().unwrap();
+    let (w, h) = (d.width(), d.height());
+    println!("{}x{} screen", w, h);
+
+    let child = Command::new("C:\\Users\\Null\\Documents\\Projects\\mira_sharer\\ffplay.exe")
+    .args(&[
+        "-f", "rawvideo",
+        "-pixel_format", "bgr0",
+        "-video_size", &format!("{}x{}", w, h),
+        "-framerate", "60",
+        "-"
+    ])
+    .stdin(Stdio::piped())
+    .spawn()
+    .expect("This example requires ffplay.");
+    let mut out = child.stdin.unwrap();
 /*
-    use scrap::{Capturer, Display};
+    use scrap::{Capturer};
     use std::io::Write;
     use std::io::ErrorKind::WouldBlock;
     use std::process::{Command, Stdio};
 
-    let d = Display::primary().unwrap();
-    let (w, h) = (d.width(), d.height());
-    /*
-    let child = Command::new("C:\\Users\\Null\\Documents\\Projects\\mira_sharer\\ffplay.exe")
-        .args(&[
-            "-f", "rawvideo",
-            "-pixel_format", "bgr0",
-            "-video_size", &format!("{}x{}", w, h),
-            "-framerate", "60",
-            "-"
-        ])
-        .stdin(Stdio::piped())
-        .spawn()
-        .expect("This example requires ffplay.");
-    let out = child.stdin.unwrap();*/
-
-    let mut capturer = Capturer::new(d).unwrap();
+    let mut capturer = Capturer::new(Display::all().unwrap().into_iter().nth(1).unwrap()).unwrap();
 
     let mut counter = 0;
     let start = Instant::now();
@@ -134,14 +199,14 @@ fn main() -> Result<()> {
                 if counter >= 1000 {
                     break;
                 }
-                /*
+
                 // Write the frame, removing end-of-row padding.
                 let stride = frame.len() / h;
                 let rowlen = 4 * w;
                 for row in frame.chunks(stride) {
                     let row = &row[..rowlen];
-                    //out.write_all(row).unwrap();
-                }*/
+                    out.write_all(row).unwrap();
+                }
             }
             Err(ref e) if e.kind() == WouldBlock => {
                 // Wait for the frame.
@@ -154,8 +219,8 @@ fn main() -> Result<()> {
         }
     }
 
-    return Ok(());
-*/
+    return Ok(());*/
+
     let displays = unsafe {
         let displays = Box::into_raw(Box::new(Vec::<DisplayInfo>::new()));
         EnumDisplayMonitors(
@@ -169,9 +234,9 @@ fn main() -> Result<()> {
     for display in displays.iter() {
         println!("Display: {} {}", display.display_name, display.handle.0);
     }
-    let item = create_capture_item_for_monitor(displays[0].handle)?;
+    let item = create_capture_item_for_monitor(displays[1].handle)?;
     println!("Item: {:?}", item);
-    take_screenshot(&item)?;
+    take_screenshot(&item, &mut out)?;
     Ok(())
 }
 
