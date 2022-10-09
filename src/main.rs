@@ -85,7 +85,7 @@ fn take_screenshot(item: &GraphicsCaptureItem) -> Result<()> {
         // println!("Got frame {}*{}", frame.ContentSize()?.Width, frame.ContentSize()?.Height);
         //let surface = frame.Surface()?;
         //session.Close()?;
-        println!("frame time {}", frame.SystemRelativeTime()?.Duration);
+       // println!("frame time {}", frame.SystemRelativeTime()?.Duration);
         counter += 1;
         if counter >= 1000 {
             println!("FPS: {}", counter as f64 / start.elapsed().as_secs_f64());
@@ -97,6 +97,65 @@ fn take_screenshot(item: &GraphicsCaptureItem) -> Result<()> {
 }
 
 fn main() -> Result<()> {
+/*
+    use scrap::{Capturer, Display};
+    use std::io::Write;
+    use std::io::ErrorKind::WouldBlock;
+    use std::process::{Command, Stdio};
+
+    let d = Display::primary().unwrap();
+    let (w, h) = (d.width(), d.height());
+    /*
+    let child = Command::new("C:\\Users\\Null\\Documents\\Projects\\mira_sharer\\ffplay.exe")
+        .args(&[
+            "-f", "rawvideo",
+            "-pixel_format", "bgr0",
+            "-video_size", &format!("{}x{}", w, h),
+            "-framerate", "60",
+            "-"
+        ])
+        .stdin(Stdio::piped())
+        .spawn()
+        .expect("This example requires ffplay.");
+    let out = child.stdin.unwrap();*/
+
+    let mut capturer = Capturer::new(d).unwrap();
+
+    let mut counter = 0;
+    let start = Instant::now();
+    loop {
+        match capturer.frame() {
+            Ok(frame) => {
+                counter += 1;
+                let current = counter;
+                if current % 100 == 0 {
+                    println!("FPS: {}", current as f64 / start.elapsed().as_secs_f64());
+                }
+                if counter >= 1000 {
+                    break;
+                }
+                /*
+                // Write the frame, removing end-of-row padding.
+                let stride = frame.len() / h;
+                let rowlen = 4 * w;
+                for row in frame.chunks(stride) {
+                    let row = &row[..rowlen];
+                    //out.write_all(row).unwrap();
+                }*/
+            }
+            Err(ref e) if e.kind() == WouldBlock => {
+                // Wait for the frame.
+                //std::thread::sleep(std::time::Duration::from_millis(1));
+            }
+            Err(_) => {
+                // We're done here.
+                break;
+            }
+        }
+    }
+
+    return Ok(());
+*/
     let displays = unsafe {
         let displays = Box::into_raw(Box::new(Vec::<DisplayInfo>::new()));
         EnumDisplayMonitors(
