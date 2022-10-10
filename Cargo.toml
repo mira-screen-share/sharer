@@ -11,6 +11,7 @@ debug = true
 openh264 = "0.2.16"
 openh264-sys2 = "0.2.16"
 scrap = "0.5"
+x264-sys = "0.2.0"
 
 [dependencies.windows]
 version = "0.42.0"
