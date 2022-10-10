@@ -6,6 +6,8 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+openh264 = "0.2.16"
+openh264-sys2 = "0.2.16"
 scrap = "0.5"
 
 [dependencies.windows]
