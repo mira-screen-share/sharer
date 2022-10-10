@@ -4,11 +4,12 @@ use std::ffi::c_uchar;
 use std::fs::File;
 use std::io::Write;
 use std::process::{Command, Stdio};
+use std::ptr::null_mut;
 use std::sync::mpsc::channel;
 use std::thread::sleep;
 use std::time::{Duration, Instant};
 use openh264::formats::{RBGYUVConverter, YUVSource};
-use openh264_sys2::{ENCODER_OPTION_DATAFORMAT, SFrameBSInfo, SSourcePicture, videoFormatBGR};
+use openh264_sys2::{ENCODER_OPTION_DATAFORMAT, SFrameBSInfo, SSourcePicture, videoFormatBGR, videoFormatI420};
 use windows::core::{IInspectable, Interface, Result};
 use windows::Graphics::Capture::{Direct3D11CaptureFramePool, GraphicsCaptureItem};
 use windows::Win32::Foundation::{BOOL, LPARAM, RECT};
@@ -199,7 +200,7 @@ fn take_screenshot(item: &GraphicsCaptureItem) -> Result<()> {
     session.StartCapture()?;
     use openh264::encoder::{Encoder, EncoderConfig};
 
-    let config = EncoderConfig::new(3840, 2160);
+    let config = EncoderConfig::new(3840, 2160).max_frame_rate(60.0).enable_skip_frame(true).set_bitrate_bps(8*1024*1024);
     let mut encoder = Encoder::with_config(config).unwrap();
     let mut converter = BGR0YUVConverter::new(3840, 2160);
     let mut output = File::create("output.h264").unwrap();
@@ -230,7 +231,7 @@ fn take_screenshot(item: &GraphicsCaptureItem) -> Result<()> {
         };
         println!("texture time {}", timer.elapsed().as_millis());
         //let texture: ID3D11Texture2D = d3d::get_d3d_interface_from_object(&frame.Surface()?)?;
-        let bits = unsafe {
+        unsafe {
             let mut desc = D3D11_TEXTURE2D_DESC::default();
             texture.GetDesc(&mut desc as *mut _);
 
@@ -244,30 +245,50 @@ fn take_screenshot(item: &GraphicsCaptureItem) -> Result<()> {
                     (desc.Height * mapped.RowPitch) as usize,
                 )
             };
-            let data = SSourcePicture{
-                iColorFormat: videoFormatBGR,
-                iStride: [4, 4 , 4, 0],
-                pData: [ // bgr0 -> rgb
-                    (mapped.pData as *mut ::std::os::raw::c_uchar).offset(2),
-                    (mapped.pData as *mut ::std::os::raw::c_uchar).offset(1),
-                    (mapped.pData as *mut ::std::os::raw::c_uchar).offset(0),
-                    mapped.pData as *mut ::std::os::raw::c_uchar
+            println!("pre convert time {}", timer.elapsed().as_millis());
+            converter.convert(slice);
+            println!("post convert time {}", timer.elapsed().as_millis());
+
+            let data = SSourcePicture {
+                iColorFormat: videoFormatI420,
+                iStride: [converter.y_stride(), converter.u_stride(), converter.v_stride(), 0],
+                pData: [
+                    converter.y().as_ptr() as *mut c_uchar,
+                    converter.u().as_ptr() as *mut c_uchar,
+                    converter.v().as_ptr() as *mut c_uchar,
+                    null_mut(),
                 ],
                 iPicWidth: w,
                 iPicHeight: h,
                 uiTimeStamp: frame.SystemRelativeTime()?.Duration/10000,
-            };/*
-            println!("timestamp {:#?}", frame.SystemRelativeTime()?.Duration/10000);
-            println!("res {}",encoder.raw_api().encode_frame(&data, &mut info));
-            let mut info =  SFrameBSInfo::default();
-            encoder.raw_api().set_option(ENCODER_OPTION_DATAFORMAT, &videoFormatBGR as *const _ as *mut _);
-            */
-
+            };
+            let mut info = SFrameBSInfo::default();
+            //println!("timestamp {:#?}", frame.SystemRelativeTime()?.Duration/10000);
             println!("pre encoding time {}", timer.elapsed().as_millis());
-            converter.convert(slice);
-            println!("post convert time {}", timer.elapsed().as_millis());
-            let result = encoder.encode(&converter).unwrap();
+            encoder.raw_api().encode_frame(&data, &mut info);
             println!("post encoding time {}", timer.elapsed().as_millis());
+            for l in 0..info.iLayerNum {
+                let layer = &info.sLayerInfo[l as usize];
+
+                for n in 0..layer.iNalCount {
+                    let mut offset = 0;
+
+                    let slice = unsafe {
+                        for nal_idx in 0..n {
+                            let size = *layer.pNalLengthInByte.add(nal_idx as usize) as usize;
+                            offset += size;
+                        }
+
+                        let size = *layer.pNalLengthInByte.add(n as usize) as usize;
+                        std::slice::from_raw_parts(layer.pBsBuf.add(offset), size)
+                    };
+
+                    output.write_all(slice).expect("TODO: panic message");
+                }
+            }
+/*
+            converter.convert(slice);
+            let result = encoder.encode(&converter).unwrap();
             let info = result.raw_info();
 
             output.write_all(&*result.to_vec()).expect("failed to write");
@@ -279,7 +300,7 @@ fn take_screenshot(item: &GraphicsCaptureItem) -> Result<()> {
                          layer.eFrameType, layer.uiLayerType, layer.iNalCount,
                          layer.uiSpatialId, layer.uiTemporalId, layer.iSubSeqId, layer.uiQualityId,
                 );
-            }
+            }*/
 
             /*
             let bytes_per_pixel = 4;
@@ -305,7 +326,7 @@ fn take_screenshot(item: &GraphicsCaptureItem) -> Result<()> {
             println!("FPS: {}", counter as f64 / start.elapsed().as_secs_f64());
             println!("time elapsed: {:?}", start.elapsed());
         }
-        if counter >= 10*60 {
+        if counter >= 2*60 {
             session.Close();
             frame_pool.Close();
             break;
