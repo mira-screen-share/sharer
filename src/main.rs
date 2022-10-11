@@ -8,8 +8,6 @@ use std::sync::mpsc::channel;
 use std::thread::sleep;
 use std::time::{Duration, Instant};
 
-use openh264::formats::{RBGYUVConverter, YUVSource};
-use openh264_sys2::{ENCODER_OPTION_DATAFORMAT, SFrameBSInfo, SSourcePicture, videoFormatBGR, videoFormatI420};
 use windows::core::{IInspectable, Interface};
 use windows::Foundation::TypedEventHandler;
 use windows::Graphics::Capture::{Direct3D11CaptureFramePool, GraphicsCaptureItem};
@@ -70,13 +68,15 @@ unsafe fn take_screenshot(item: &GraphicsCaptureItem) -> Result<()> {
     par.b_annexb = true as i32;
 
     par.i_csp = X264_CSP_BGRA as i32;
-    let mut pic_in: x264_picture_t = mem::MaybeUninit::uninit().assume_init();
-    x264_picture_alloc(&mut pic_in, par.i_csp, par.i_width, par.i_height);
+    let mut pic_in = mem::MaybeUninit::<x264_picture_t>::uninit();
+    x264_picture_alloc(pic_in.as_mut_ptr(), par.i_csp, par.i_width, par.i_height);
+    let mut pic_in = pic_in.assume_init();
+
     let x = x264_encoder_open(&mut par);
 
-    let mut nal: *mut x264_nal_t = mem::MaybeUninit::uninit().assume_init();
+    let mut nal: *const x264_nal_t = null_mut();
     let mut nal_size = 0;
-    let mut pic_out: x264_picture_t = mem::MaybeUninit::uninit().assume_init();
+    let mut pic_out = mem::MaybeUninit::<x264_picture_t>::uninit();
 
     let mut output = File::create("output.h264").unwrap();
 
@@ -122,7 +122,7 @@ unsafe fn take_screenshot(item: &GraphicsCaptureItem) -> Result<()> {
             null_mut(),
         ];
         pic_in.i_pts = ((frame_ms - start_relative_time.unwrap()) as f64 / (1.0 / 60.0 * 1000.0)).round() as i64;
-        let frame_size = x264_encoder_encode(x, &mut nal as *mut *mut _, &mut nal_size, &mut pic_in, &mut pic_out);
+        let frame_size = x264_encoder_encode(x, &mut nal as *mut _ as *mut _, &mut nal_size, &mut pic_in, pic_out.as_mut_ptr());
         d3d_context.Unmap(&resource, 0);
         output.write_all(slice::from_raw_parts((*nal).p_payload, frame_size as usize)).expect("TODO: panic message");
 
@@ -148,17 +148,12 @@ unsafe fn take_screenshot(item: &GraphicsCaptureItem) -> Result<()> {
 }
 
 fn main() -> Result<()> {
-    use scrap::Display;
-    let d = Display::primary().unwrap();
-    let (w, h) = (d.width(), d.height());
-    println!("{}x{} screen", w, h);
-
     let displays = DisplayInfo::displays()?;
     for display in displays.iter() {
-        println!("Display: {} {}", display.display_name, display.handle.0);
+        println!("Display: {} {}x{}",
+                 display.display_name, display.resolution.0, display.resolution.1);
     }
     let item = displays[1].create_capture_item_for_monitor()?;
-    println!("Item: {:?}", item);
     unsafe { take_screenshot(&item)?; }
     Ok(())
 }

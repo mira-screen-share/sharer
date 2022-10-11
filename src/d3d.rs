@@ -71,5 +71,3 @@ pub fn get_d3d_interface_from_object<S: Interface, R: Interface + Abi>(object: &
     let object = unsafe { access.GetInterface::<R>()? };
     Ok(object)
 }
-
-pub fn create_direct3d_context() {}

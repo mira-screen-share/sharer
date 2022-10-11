@@ -11,7 +11,7 @@ use crate::result::Result;
 pub struct DisplayInfo {
     pub handle: HMONITOR,
     pub display_name: String,
-    pub size: (u32, u32),
+    pub resolution: (u32, u32),
 }
 
 impl DisplayInfo {
@@ -43,8 +43,8 @@ impl DisplayInfo {
         Ok(Self {
             handle: monitor_handle,
             display_name,
-            size: ((info.monitorInfo.rcMonitor.right - info.monitorInfo.rcMonitor.left) as u32,
-                   (info.monitorInfo.rcMonitor.bottom - info.monitorInfo.rcMonitor.top) as u32),
+            resolution: ((info.monitorInfo.rcMonitor.right - info.monitorInfo.rcMonitor.left) as u32,
+                         (info.monitorInfo.rcMonitor.bottom - info.monitorInfo.rcMonitor.top) as u32),
         })
     }
 
