@@ -23,6 +23,10 @@ use windows::Win32::Graphics::Gdi::{
 use windows::Win32::System::WinRT::{
     Graphics::Capture::IGraphicsCaptureItemInterop, RoInitialize, RO_INIT_MULTITHREADED,
 };
+use x264_sys::{
+    X264_CSP_BGRA, x264_nal_t,x264_picture_alloc, x264_picture_t , x264_param_default_preset,
+    x264_encoder_open, x264_encoder_close, x264_param_apply_profile, x264_encoder_encode
+};
 
 #[derive(Clone)]
 pub struct DisplayInfo {
@@ -57,23 +61,14 @@ fn create_capture_item_for_monitor(monitor_handle: HMONITOR) -> Result<GraphicsC
 
 unsafe fn take_screenshot(item: &GraphicsCaptureItem) -> Result<()> {
     let item_size = item.Size()?;
-
-    let d3d_device = d3d::create_d3d_device()?;
-    let d3d_context = unsafe {
-        let mut d3d_context = None;
-        d3d_device.GetImmediateContext(&mut d3d_context);
-        d3d_context.unwrap()
-    };
-    let device = d3d::create_direct3d_device(&d3d_device)?;
-    println!("device: {:?}", device);
+    let (device, d3d_device, d3d_context) = d3d::create_direct3d_devices_and_context()?;
     let frame_pool = Direct3D11CaptureFramePool::CreateFreeThreaded(
-        &device,
+        &d3d_device,
         DirectXPixelFormat::B8G8R8A8UIntNormalized,
         1,
         item_size,
     )?;
     let session = frame_pool.CreateCaptureSession(item)?;
-    println!("session: {:?}", session);
 
     let (sender, receiver) = channel();
 
@@ -88,9 +83,7 @@ unsafe fn take_screenshot(item: &GraphicsCaptureItem) -> Result<()> {
         }),
     )?;
 
-    println!("frame_pool: {:?}", frame_pool);
     session.StartCapture()?;
-    use x264_sys::{X264_CSP_BGRA, x264_nal_t,x264_picture_alloc, x264_picture_t , x264_param_default_preset, x264_encoder_open, x264_encoder_close, x264_param_apply_profile, x264_encoder_encode};
 
     let mut par = mem::MaybeUninit::uninit();
     x264_param_default_preset(
@@ -102,6 +95,7 @@ unsafe fn take_screenshot(item: &GraphicsCaptureItem) -> Result<()> {
     par.i_width = 3840;
     par.i_height = 2160;
     par.i_fps_num = 60;
+    par.b_annexb = true as i32;
 
     par.i_csp = X264_CSP_BGRA as i32;
     let mut pic_in : x264_picture_t = mem::MaybeUninit::uninit().assume_init();
@@ -115,10 +109,15 @@ unsafe fn take_screenshot(item: &GraphicsCaptureItem) -> Result<()> {
     let mut output = File::create("output.h264").unwrap();
 
     let mut counter = 0;
+    let mut start_relative_time = None;
+    let mut encoding_time = Vec::new();
     let start = Instant::now();
     while let Ok(frame) = receiver.recv() {
         let timer = Instant::now();
-        let (w,h) = (frame.ContentSize()?.Width, frame.ContentSize()?.Height);
+        let frame_ms = frame.SystemRelativeTime()?.Duration / 10000;
+        if start_relative_time.is_none() {
+            start_relative_time = Some(frame_ms);
+        }
         let texture = unsafe {
             let source_texture: ID3D11Texture2D =
                 d3d::get_d3d_interface_from_object(&frame.Surface()?)?;
@@ -128,59 +127,50 @@ unsafe fn take_screenshot(item: &GraphicsCaptureItem) -> Result<()> {
             desc.MiscFlags = D3D11_RESOURCE_MISC_FLAG(0);
             desc.Usage = D3D11_USAGE_STAGING;
             desc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
-            let copy_texture = { d3d_device.CreateTexture2D(&desc, None)? };
+            let copy_texture = { device.CreateTexture2D(&desc, None)? };
             let src: ID3D11Resource = source_texture.cast()?;
             let dst: ID3D11Resource = copy_texture.cast()?;
             d3d_context.CopyResource(&dst, &src);
             copy_texture
         };
-        //println!("texture time {}", timer.elapsed().as_millis());
-        //let texture: ID3D11Texture2D = d3d::get_d3d_interface_from_object(&frame.Surface()?)?;
         let mut desc = D3D11_TEXTURE2D_DESC::default();
         texture.GetDesc(&mut desc as *mut _);
 
         let resource: ID3D11Resource = texture.cast()?;
         let mapped = d3d_context.Map(&resource, 0, D3D11_MAP_READ, 0)?;
 
-        // Get a slice of bytes
-        let slice: &[u8] = {
-            std::slice::from_raw_parts(
-                mapped.pData as *const _,
-                (desc.Height * mapped.RowPitch) as usize,
-            )
-        };
-        //println!("timestamp {:#?}", frame.SystemRelativeTime()?.Duration/10000);
-        //println!("pre encoding time {}", timer.elapsed().as_millis());
+        let slice: &[u8] = slice::from_raw_parts(
+            mapped.pData as *const _,
+            (desc.Height * mapped.RowPitch) as usize,
+        );
         pic_in.img.plane=[
             (slice.as_ptr() as *mut u8).add(0),
             null_mut(),
             null_mut(),
             null_mut(),
         ];
-        //pic_in.img.i_stride = [0,1,2,0];
-        //pic_in.img.i_plane = 1;
-        pic_in.i_pts = counter;
+        pic_in.i_pts = ((frame_ms - start_relative_time.unwrap()) as f64 / (1.0/60.0*1000.0)).round() as i64;
         let frame_size = x264_encoder_encode(x, &mut nal as *mut *mut _, &mut nal_size, &mut pic_in, &mut pic_out);
-        //println!("post encoding time {}", timer.elapsed().as_millis());
-        //println!("nal {:#?}; size={:?}; pic_out={:#?}", *nal, nal_size, pic_out);
         d3d_context.Unmap(&resource, 0);
         output.write_all(slice::from_raw_parts((*nal).p_payload, frame_size as usize)).expect("TODO: panic message");
 
-        //println!("finish time {}", timer.elapsed().as_millis());
-
-        // sleep 1s
-        //std::thread::sleep(Duration::from_millis(1000));
+        encoding_time.push(timer.elapsed().as_millis());
         counter += 1;
         if counter % 100 == 0 {
-            println!("FPS: {}", counter as f64 / start.elapsed().as_secs_f64());
+            let expected_frames = (start.elapsed().as_millis() as f64)/(1.0/60.0*1000.0);
+            println!("fps: {}", counter as f64 / start.elapsed().as_secs_f64());
+            println!("loss: {} ({}%)", expected_frames - counter as f64, (expected_frames - counter as f64) / expected_frames * 100.0);
             println!("time elapsed: {:?}", start.elapsed());
         }
-        if counter >= 10*60 {
+        if counter >= 3000 {
             session.Close();
+            output.flush().expect("");
             frame_pool.Close();
             break;
         }
     }
+
+    println!("encoding time: avg {}, max {}, min {}", encoding_time.iter().sum::<u128>() as f64 / encoding_time.len() as f64, encoding_time.iter().max().unwrap(), encoding_time.iter().min().unwrap());
     x264_encoder_close(x);
     Ok(())
 }

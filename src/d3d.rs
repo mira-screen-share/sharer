@@ -8,6 +8,7 @@ use windows::Win32::Graphics::{
     },
     Dxgi::{IDXGIDevice, DXGI_ERROR_UNSUPPORTED},
 };
+use windows::Win32::Graphics::Direct3D11::ID3D11DeviceContext;
 use windows::Win32::System::WinRT::Direct3D11::{
     CreateDirect3D11DeviceFromDXGIDevice, IDirect3DDxgiInterfaceAccess,
 };
@@ -32,7 +33,7 @@ fn create_d3d_device_with_type(
     }
 }
 
-pub fn create_d3d_device() -> Result<ID3D11Device> {
+fn create_d3d_device() -> Result<ID3D11Device> {
     let mut device = None;
     let mut result = create_d3d_device_with_type(
         D3D_DRIVER_TYPE_HARDWARE,
@@ -52,10 +53,17 @@ pub fn create_d3d_device() -> Result<ID3D11Device> {
     Ok(device.unwrap())
 }
 
-pub fn create_direct3d_device(d3d_device: &ID3D11Device) -> Result<IDirect3DDevice> {
+pub fn create_direct3d_devices_and_context() -> Result<(ID3D11Device, IDirect3DDevice, ID3D11DeviceContext)> {
+    let d3d_device = create_d3d_device()?;
+    let d3d_context = unsafe {
+        let mut d3d_context = None;
+        d3d_device.GetImmediateContext(&mut d3d_context);
+        d3d_context.unwrap()
+    };
     let dxgi_device: IDXGIDevice = d3d_device.cast()?;
     let inspectable = unsafe { CreateDirect3D11DeviceFromDXGIDevice(&dxgi_device)? };
-    inspectable.cast()
+    let id3d_device: IDirect3DDevice = inspectable.cast()?;
+    Ok((d3d_device, id3d_device, d3d_context))
 }
 
 pub fn get_d3d_interface_from_object<S: Interface, R: Interface + Abi>(object: &S) -> Result<R> {
@@ -63,3 +71,5 @@ pub fn get_d3d_interface_from_object<S: Interface, R: Interface + Abi>(object: &
     let object = unsafe { access.GetInterface::<R>()? };
     Ok(object)
 }
+
+pub fn create_direct3d_context() {}
