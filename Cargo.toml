@@ -10,6 +10,7 @@ debug = true
 [dependencies]
 x264-sys = "0.2.0"
 failure = "0.1.8"
+clap = { version = "4.0.14", features = ["derive"] }
 
 [dependencies.windows]
 version = "0.42.0"
