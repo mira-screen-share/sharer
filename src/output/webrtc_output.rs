@@ -134,6 +134,7 @@ impl WebRTCOutput {
         // Makes an offer, sets the LocalDescription, and starts our UDP listeners
         let offer = peer_connection.create_offer(None).await?;
         debug!("Making an offer: {}", offer.sdp);
+        signaller.send_offer(&offer).await;
 
         info!("Waiting any answers from signaller");
         let answer = signaller.recv_answer().await.unwrap();
