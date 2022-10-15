@@ -1,5 +1,6 @@
 use std::sync::Arc;
 use std::time::Duration;
+use futures_util::SinkExt;
 
 use log::{debug, info};
 use tokio::io::BufReader;
@@ -129,23 +130,20 @@ impl WebRTCOutput {
             }))
             .await;
 
-        // Wait for the offer to be pasted
-        // TODO: GET THIS FROM SOMEWHERE
-        info!("Waiting offers from signaller");
-        let offer = signaller.recv_offer().await.unwrap();
-        debug!("Received offer: {:#?}", offer);
+
+        // Makes an offer, sets the LocalDescription, and starts our UDP listeners
+        let offer = peer_connection.create_offer(None).await?;
+        debug!("Making an offer: {}", offer.sdp);
+
+        info!("Waiting any answers from signaller");
+        let answer = signaller.recv_answer().await.unwrap();
+        debug!("Received answer: {}", answer.sdp);
 
         // Set the remote SessionDescription
-        peer_connection.set_remote_description(offer).await?;
-
-        // Create an answer
-        let answer = peer_connection.create_answer(None).await?;
+        peer_connection.set_remote_description(answer).await?;
 
         // Create channel that is blocked until ICE Gathering is complete
         let mut gather_complete = peer_connection.gathering_complete_promise().await;
-
-        // Sets the LocalDescription, and starts our UDP listeners
-        peer_connection.set_local_description(answer).await?;
 
         info!("Waiting for ICE gathering to complete");
         // Block until ICE Gathering is complete, disabling trickle ICE
@@ -153,18 +151,14 @@ impl WebRTCOutput {
         // in a production application you should exchange ICE Candidates via OnICECandidate
         let _ = gather_complete.recv().await;
 
-        // Output the answer in base64 so we can paste it in browser
-        // TODO: SEND TO THE PEERS
-        let local_desc = peer_connection.local_description().await.unwrap();
-        info!("Sending answer to signaller. Answer: {:#?}", local_desc);
-
         let (send_sample, mut recv_sample) = tokio::sync::mpsc::channel::<Sample>(1);
 
         tokio::spawn(async move {
             while let Some(sample) = recv_sample.recv().await {
                 video_track
                     .write_sample(&sample)
-                    .await.expect("Failed to write sample");
+                    .await
+                    .expect("Failed to write sample");
             }
         });
 

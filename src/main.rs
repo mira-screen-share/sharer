@@ -23,6 +23,9 @@ struct Args {
     /// Display index
     #[arg(short, long, default_value = "0")]
     display: usize,
+    /// signaller url
+    #[arg(short, long, default_value = "ws://localhost:8080")]
+    url: String,
 }
 
 #[tokio::main]
@@ -49,11 +52,10 @@ async fn main() -> Result<()> {
     let item = display.create_capture_item_for_monitor()?;
     let mut capture = capture::WGCScreenCapture::new(&item)?;
     let mut encoder = encoder::X264Encoder::new(display.resolution.0, display.resolution.1);
-    let mut output = output::FileOutput::new("output.h264");
     let config = WebRTCOutput::make_config(
-        &vec![String::from("stun:stun.l.google.com:19302")]
+        &[String::from("stun:stun.l.google.com:19302")]
     );
-    let mut signaller = signaller::WebSocketSignaller::new("ws://localhost:8080");
+    let mut signaller = signaller::WebSocketSignaller::new(&args.url).await?;
     let mut webrtc_output = WebRTCOutput::new(config, &mut signaller).await?;
 
     capture.capture(&mut encoder, &mut webrtc_output)?;
