@@ -4,7 +4,8 @@ use crate::result::Result;
 
 use x264_sys::{
     X264_CSP_BGRA, x264_encoder_close, x264_encoder_encode, x264_encoder_open, x264_picture_clean,
-    x264_param_default_preset, x264_picture_alloc, x264_t, x264_nal_t, x264_picture_t
+    x264_param_apply_profile, x264_param_default_preset, x264_picture_alloc, x264_t, x264_nal_t,
+    x264_picture_t,
 };
 
 pub trait Encoder {
@@ -28,10 +29,11 @@ impl X264Encoder {
                 b"ultrafast\0".as_ptr() as *const i8,
                 b"zerolatency\0".as_ptr() as *const i8,
             );
+            x264_param_apply_profile(par.as_mut_ptr(), b"baseline\0".as_ptr() as *const i8);
             let mut par = par.assume_init();
             par.i_width = w as i32;
             par.i_height = h as i32;
-            par.i_fps_num = 60;
+            par.i_fps_num = 30;
             par.i_threads = 4;
             par.b_annexb = true as i32;
             par.i_csp = X264_CSP_BGRA as i32;
