@@ -14,7 +14,7 @@ pub struct WebSocketSignaller {
 }
 
 impl WebSocketSignaller {
-    pub fn new() -> Self {
+    pub fn new(url: & str) -> Self {
         //serde_json::from_str::<RTCSessionDescription>(&desc_data)?
         let (sdp_sender, sdp_receiver) = tokio::sync::mpsc::channel::<RTCSessionDescription>(1);
         Self {

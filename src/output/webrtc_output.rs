@@ -1,5 +1,7 @@
 use std::sync::Arc;
 use std::time::Duration;
+
+use log::{debug, info};
 use tokio::io::BufReader;
 use tokio::signal;
 use tokio::sync::mpsc::Sender;
@@ -18,6 +20,7 @@ use webrtc::peer_connection::sdp::session_description::RTCSessionDescription;
 use webrtc::rtp_transceiver::rtp_codec::RTCRtpCodecCapability;
 use webrtc::track::track_local::track_local_static_sample::TrackLocalStaticSample;
 use webrtc::track::track_local::TrackLocal;
+
 use crate::OutputSink;
 use crate::Result;
 use crate::signaller::Signaller;
@@ -40,6 +43,7 @@ impl WebRTCOutput {
     }
 
     pub async fn new(config: RTCConfiguration, signaller: &mut dyn Signaller) -> Result<Self> {
+        info!("Initializing WebRTC");
         // Create a MediaEngine object to configure the supported codec
         let mut m = MediaEngine::default();
 
@@ -61,6 +65,7 @@ impl WebRTCOutput {
             .build();
 
         // Create a new RTCPeerConnection
+        debug!("Creating peer connection");
         let peer_connection = Arc::new(api.new_peer_connection(config).await?);
 
         let notify_tx = Arc::new(Notify::new());
@@ -69,6 +74,7 @@ impl WebRTCOutput {
         let (done_tx, mut done_rx) = tokio::sync::mpsc::channel::<()>(1);
         let video_done_tx = done_tx.clone();
 
+        debug!("Adding video track");
         // Create a video track
         let video_track = Arc::new(TrackLocalStaticSample::new(
             RTCRtpCodecCapability {
@@ -97,7 +103,7 @@ impl WebRTCOutput {
         // This will notify you when the peer has connected/disconnected
         peer_connection
             .on_ice_connection_state_change(Box::new(move |connection_state: RTCIceConnectionState| {
-                println!("Connection State has changed {}", connection_state);
+                info!("Connection State has changed {}", connection_state);
                 if connection_state == RTCIceConnectionState::Connected {
                     notify_tx.notify_waiters();
                 }
@@ -109,13 +115,13 @@ impl WebRTCOutput {
         // This will notify you when the peer has connected/disconnected
         peer_connection
             .on_peer_connection_state_change(Box::new(move |s: RTCPeerConnectionState| {
-                println!("Peer Connection State has changed: {}", s);
+                info!("Peer Connection State has changed: {}", s);
 
                 if s == RTCPeerConnectionState::Failed {
                     // Wait until PeerConnection has had no network activity for 30 seconds or another failure. It may be reconnected using an ICE Restart.
                     // Use webrtc.PeerConnectionStateDisconnected if you are interested in detecting faster timeout.
                     // Note that the PeerConnection may come back from PeerConnectionStateDisconnected.
-                    println!("Peer Connection has gone to failed exiting");
+                    info!("Peer Connection has gone to failed exiting");
                     let _ = done_tx.try_send(());
                 }
 
@@ -125,7 +131,9 @@ impl WebRTCOutput {
 
         // Wait for the offer to be pasted
         // TODO: GET THIS FROM SOMEWHERE
+        info!("Waiting offers from signaller");
         let offer = signaller.recv_offer().await.unwrap();
+        debug!("Received offer: {:#?}", offer);
 
         // Set the remote SessionDescription
         peer_connection.set_remote_description(offer).await?;
@@ -139,6 +147,7 @@ impl WebRTCOutput {
         // Sets the LocalDescription, and starts our UDP listeners
         peer_connection.set_local_description(answer).await?;
 
+        info!("Waiting for ICE gathering to complete");
         // Block until ICE Gathering is complete, disabling trickle ICE
         // we do this because we only can exchange one signaling message
         // in a production application you should exchange ICE Candidates via OnICECandidate
@@ -147,6 +156,7 @@ impl WebRTCOutput {
         // Output the answer in base64 so we can paste it in browser
         // TODO: SEND TO THE PEERS
         let local_desc = peer_connection.local_description().await.unwrap();
+        info!("Sending answer to signaller. Answer: {:#?}", local_desc);
 
         let (send_sample, mut recv_sample) = tokio::sync::mpsc::channel::<Sample>(1);
 
@@ -158,10 +168,11 @@ impl WebRTCOutput {
             }
         });
 
+        info!("WebRTC initialized");
         Ok(Self {
             api,
             peer_connection,
-            send_sample
+            send_sample,
         })
     }
 }
