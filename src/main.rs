@@ -4,6 +4,10 @@ use crate::capture::ScreenCapture;
 use crate::output::{OutputSink, WebRTCOutput};
 use crate::encoder::Encoder;
 use clap::Parser;
+use log::LevelFilter;
+
+#[macro_use]
+extern crate log;
 
 mod d3d;
 mod display;
@@ -21,12 +25,19 @@ struct Args {
     display: usize,
 }
 
-fn main() -> Result<()> {
+#[tokio::main]
+async fn main() -> Result<()> {
+    env_logger::Builder::new()
+        .filter_level(LevelFilter::Debug)
+        .parse_default_env()
+        .init();
+    info!("starting up");
+
     let args = Args::parse();
 
     let displays = DisplayInfo::displays()?;
     for (i, display) in displays.iter().enumerate() {
-        println!(
+        info!(
             "display: {} {}x{} {}",
             display.display_name,
             display.resolution.0,
@@ -42,6 +53,9 @@ fn main() -> Result<()> {
     let config = WebRTCOutput::make_config(
         &vec![String::from("stun:stun.l.google.com:19302")]
     );
-    capture.capture(&mut encoder, &mut output)?;
+    let mut signaller = signaller::WebSocketSignaller::new("ws://localhost:8080");
+    let mut webrtc_output = WebRTCOutput::new(config, &mut signaller).await?;
+
+    capture.capture(&mut encoder, &mut webrtc_output)?;
     Ok(())
 }

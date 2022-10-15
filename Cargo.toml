@@ -17,6 +17,8 @@ tokio-util = { version= "0.7.4", features = ["codec"] }
 webrtc = "0.5.1"
 serde_json = "1.0.70"
 async-trait = "0.1.51"
+log = "0.4.17"
+env_logger = "0.9.0"
 
 [dependencies.windows]
 version = "0.42.0"
