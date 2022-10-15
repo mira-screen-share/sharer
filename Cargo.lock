@@ -1135,6 +1135,7 @@ dependencies = [
 name = "mira_sharer"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "clap 4.0.14",
  "failure",
  "serde_json",

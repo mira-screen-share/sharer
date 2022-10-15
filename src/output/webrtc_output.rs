@@ -20,11 +20,11 @@ use webrtc::track::track_local::track_local_static_sample::TrackLocalStaticSampl
 use webrtc::track::track_local::TrackLocal;
 use crate::OutputSink;
 use crate::Result;
+use crate::signaller::Signaller;
 
 pub struct WebRTCOutput {
     api: webrtc::api::API,
     peer_connection: Arc<webrtc::peer_connection::RTCPeerConnection>,
-    video_track: Arc<TrackLocalStaticSample>,
     send_sample: Sender<Sample>,
 }
 
@@ -39,7 +39,7 @@ impl WebRTCOutput {
         }
     }
 
-    pub async fn new(config: RTCConfiguration) -> Result<Self> {
+    pub async fn new(config: RTCConfiguration, signaller: &mut dyn Signaller) -> Result<Self> {
         // Create a MediaEngine object to configure the supported codec
         let mut m = MediaEngine::default();
 
@@ -125,7 +125,7 @@ impl WebRTCOutput {
 
         // Wait for the offer to be pasted
         // TODO: GET THIS FROM SOMEWHERE
-        let offer = serde_json::from_str::<RTCSessionDescription>(&desc_data)?;
+        let offer = signaller.recv_offer().await.unwrap();
 
         // Set the remote SessionDescription
         peer_connection.set_remote_description(offer).await?;
@@ -161,7 +161,6 @@ impl WebRTCOutput {
         Ok(Self {
             api,
             peer_connection,
-            video_track,
             send_sample
         })
     }

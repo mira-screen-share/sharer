@@ -11,6 +11,7 @@ mod result;
 mod capture;
 mod encoder;
 mod output;
+mod signaller;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -39,7 +40,7 @@ fn main() -> Result<()> {
     let mut encoder = encoder::X264Encoder::new(display.resolution.0, display.resolution.1);
     let mut output = output::FileOutput::new("output.h264");
     let config = WebRTCOutput::make_config(
-        &vec![std::string::String("stun:stun.l.google.com:19302")]
+        &vec![String::from("stun:stun.l.google.com:19302")]
     );
     capture.capture(&mut encoder, &mut output)?;
     Ok(())
