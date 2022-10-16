@@ -10,6 +10,7 @@ use tokio::sync::Notify;
 use webrtc::api::APIBuilder;
 use webrtc::api::interceptor_registry::register_default_interceptors;
 use webrtc::api::media_engine::{MediaEngine, MIME_TYPE_H264};
+use webrtc::ice_transport::ice_candidate::{RTCIceCandidate, RTCIceCandidateInit};
 use webrtc::ice_transport::ice_connection_state::RTCIceConnectionState;
 use webrtc::ice_transport::ice_server::RTCIceServer;
 use webrtc::interceptor::registry::Registry;
@@ -24,7 +25,7 @@ use webrtc::track::track_local::TrackLocal;
 
 use crate::OutputSink;
 use crate::Result;
-use crate::signaller::Signaller;
+use crate::signaller::{Signaller, WebSocketSignaller};
 
 pub struct WebRTCOutput {
     api: webrtc::api::API,
@@ -112,6 +113,7 @@ impl WebRTCOutput {
             }))
             .await;
 
+
         // Set the handler for Peer connection state
         // This will notify you when the peer has connected/disconnected
         peer_connection
@@ -130,15 +132,46 @@ impl WebRTCOutput {
             }))
             .await;
 
+        let ice_channel =  signaller.recv_ice_channel();
+        let peer = peer_connection.clone();
+        // Handle ICE messages
+        tokio::spawn(async move {
+            let mut channel = ice_channel;
+            while let candidate = channel.recv().await {
+                debug!("received ICE candidate {:#?}", candidate);
+                if let Some(candidate) = candidate {
+                    peer.add_ice_candidate(candidate).await;
+                } else { break }
+            }
+        });
+
+        let mut send_channel = signaller.sender();
+        peer_connection.on_ice_candidate(Box::new(move |candidate: Option<RTCIceCandidate>| {
+            let mut send_channel = send_channel.clone();
+            Box::pin(async move {
+                if let Some(candidate) = candidate {
+                    debug!("ICE candidate {:#?}", candidate);
+                    WebSocketSignaller::send_ice(&candidate, &mut send_channel).await;
+                }
+            })
+        })).await;
+
+        info!("Starting session");
+        signaller.start(String::from("0")).await;
+
+        info!("Waiting for peer to join");
+        let peer_uuid = signaller.recv_join().await.unwrap();
+        debug!("Received peer uuid, {}", peer_uuid);
 
         // Makes an offer, sets the LocalDescription, and starts our UDP listeners
         let offer = peer_connection.create_offer(None).await?;
-        debug!("Making an offer: {}", offer.sdp);
-        signaller.send_offer(&offer).await;
+        peer_connection.set_local_description(offer.clone()).await?;
+        trace!("Making an offer: {}", offer.sdp);
+        signaller.send_offer(&offer, peer_uuid).await;
 
         info!("Waiting any answers from signaller");
         let answer = signaller.recv_answer().await.unwrap();
-        debug!("Received answer: {}", answer.sdp);
+        trace!("Received answer: {}", answer.sdp);
 
         // Set the remote SessionDescription
         peer_connection.set_remote_description(answer).await?;
@@ -156,11 +189,13 @@ impl WebRTCOutput {
 
         tokio::spawn(async move {
             while let Some(sample) = recv_sample.recv().await {
+                //debug!("Sending sample");
                 video_track
                     .write_sample(&sample)
                     .await
                     .expect("Failed to write sample");
             }
+            warn!("Video track closed");
         });
 
         info!("WebRTC initialized");
@@ -174,9 +209,9 @@ impl WebRTCOutput {
 
 impl OutputSink for WebRTCOutput {
     fn write(&mut self, input: &[u8]) -> Result<()> {
-        self.send_sample.send(Sample {
+        self.send_sample.try_send(Sample {
             data: input.to_vec().into(), // todo: avoid copy
-            duration: Duration::from_secs(1), // todo: timestamps
+            duration: Duration::from_millis(32), // todo: timestamps
             ..Default::default()
         });
         Ok(())

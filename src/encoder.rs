@@ -3,13 +3,13 @@ use std::ptr::null_mut;
 use crate::result::Result;
 
 use x264_sys::{
-    X264_CSP_BGRA, x264_encoder_close, x264_encoder_encode, x264_encoder_open, x264_picture_clean,
+    X264_CSP_I420, x264_encoder_close, x264_encoder_encode, x264_encoder_open, x264_picture_clean,
     x264_param_apply_profile, x264_param_default_preset, x264_picture_alloc, x264_t, x264_nal_t,
     x264_picture_t,
 };
 
 pub trait Encoder {
-    fn encode(&mut self, input: &[u8]) -> Result<&[u8]>;
+    fn encode(&mut self, y: &[u8], u: &[u8], v: &[u8]) -> Result<&[u8]>;
 }
 
 pub struct X264Encoder {
@@ -29,23 +29,24 @@ impl X264Encoder {
                 b"ultrafast\0".as_ptr() as *const i8,
                 b"zerolatency\0".as_ptr() as *const i8,
             );
-            x264_param_apply_profile(par.as_mut_ptr(), b"baseline\0".as_ptr() as *const i8);
             let mut par = par.assume_init();
+            x264_param_apply_profile(&mut par as *mut _, b"baseline\0".as_ptr() as *const i8);
+
             par.i_width = w as i32;
             par.i_height = h as i32;
-            par.i_fps_num = 30;
-            par.i_threads = 4;
+            //par.i_fps_num = 30;
+            //par.i_threads = 4;
             par.b_annexb = true as i32;
-            par.i_csp = X264_CSP_BGRA as i32;
+            //par.i_csp = X264_CSP_BGRA as i32;
+            par.i_csp = X264_CSP_I420 as i32;
             par
         };
-
+        warn!("test {}", par.i_bframe);
         let pic_in = unsafe {
             let mut pic_in = mem::MaybeUninit::<x264_picture_t>::uninit();
             x264_picture_alloc(pic_in.as_mut_ptr(), par.i_csp, par.i_width, par.i_height);
             pic_in.assume_init()
         };
-
         Self {
             encoder: unsafe { x264_encoder_open(&mut par) },
             pic_in,
@@ -57,11 +58,11 @@ impl X264Encoder {
 }
 
 impl Encoder for X264Encoder {
-    fn encode(&mut self, input: &[u8]) -> Result<&[u8]> {
+    fn encode(&mut self, y: &[u8], u: &[u8], v: &[u8]) -> Result<&[u8]> {
         self.pic_in.img.plane = [
-            input.as_ptr() as *mut u8,
-            null_mut(),
-            null_mut(),
+            y.as_ptr() as *mut u8,
+            u.as_ptr() as *mut u8,
+            v.as_ptr() as *mut u8,
             null_mut(),
         ];
         //pic_in.i_pts = ((frame_ms - start_relative_time.unwrap()) as f64 / (1.0 / 60.0 * 1000.0)).round() as i64;
