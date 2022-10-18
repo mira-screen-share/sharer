@@ -54,7 +54,7 @@ async fn main() -> Result<()> {
     let item = display.create_capture_item_for_monitor()?;
     let mut capture = capture::WGCScreenCapture::new(&item)?;
     let mut encoder = encoder::X264Encoder::new(display.resolution.0, display.resolution.1);
-    let config = WebRTCOutput::make_config(
+    let _config = WebRTCOutput::make_config(
         &[String::from("stun:stun.l.google.com:19302")]
     );
     //let mut signaller = signaller::WebSocketSignaller::new(&args.url).await?;

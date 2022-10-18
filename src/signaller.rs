@@ -1,15 +1,15 @@
 use tokio::sync::mpsc::{Sender, Receiver};
 use webrtc::peer_connection::sdp::session_description::RTCSessionDescription;
 use async_trait::async_trait;
-use tokio_tungstenite::{connect_async, MaybeTlsStream, tungstenite::protocol::Message, WebSocketStream};
-use futures_util::{future, pin_mut, Sink, SinkExt, StreamExt};
-use futures_util::stream::SplitSink;
+use tokio_tungstenite::{connect_async, tungstenite::protocol::Message};
+use futures_util::{SinkExt, StreamExt};
+
 use serde::{Deserialize, Serialize};
-use tokio::net::TcpStream;
-use tokio_tungstenite::tungstenite::Error as WsError;
-use webrtc::ice::candidate::Candidate;
+
+
+
 use webrtc::ice_transport::ice_candidate::{RTCIceCandidate, RTCIceCandidateInit};
-use webrtc::rtp_transceiver::rtp_receiver::RTCRtpReceiver;
+
 use crate::Result;
 
 #[async_trait]
@@ -48,7 +48,7 @@ impl WebSocketSignaller {
         let (ice_sender, ice_receiver) = tokio::sync::mpsc::channel::<RTCIceCandidateInit>(8);
         let (send_queue_sender, mut send_queue_receiver) = tokio::sync::mpsc::channel::<SignallerMessage>(8);
 
-        let url = url::Url::parse(&url).unwrap();
+        let url = url::Url::parse(url).unwrap();
         info!("Establishing websocket connection to {}", url);
         let (ws_stream, _) = connect_async(url).await?;
         debug!("Websocket connection established");
@@ -129,7 +129,7 @@ impl Signaller for WebSocketSignaller {
         self.join_receiver.recv().await
     }
     fn recv_ice_channel(&mut self) -> Receiver<RTCIceCandidateInit> {
-        return std::mem::replace(&mut self.ice_receiver, None).unwrap();
+        std::mem::replace(&mut self.ice_receiver, None).unwrap()
     }
     fn sender(&mut self) -> Sender<SignallerMessage> {
         self.send_queue.clone()

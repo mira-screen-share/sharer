@@ -3,22 +3,22 @@ use std::time::Duration;
 use futures_util::SinkExt;
 
 use log::{debug, info};
-use tokio::io::BufReader;
-use tokio::signal;
+
+
 use tokio::sync::mpsc::Sender;
 use tokio::sync::Notify;
 use webrtc::api::APIBuilder;
 use webrtc::api::interceptor_registry::register_default_interceptors;
 use webrtc::api::media_engine::{MediaEngine, MIME_TYPE_H264};
-use webrtc::ice_transport::ice_candidate::{RTCIceCandidate, RTCIceCandidateInit};
+use webrtc::ice_transport::ice_candidate::{RTCIceCandidate};
 use webrtc::ice_transport::ice_connection_state::RTCIceConnectionState;
 use webrtc::ice_transport::ice_server::RTCIceServer;
 use webrtc::interceptor::registry::Registry;
-use webrtc::media::io::h264_reader::H264Reader;
+
 use webrtc::media::Sample;
 use webrtc::peer_connection::configuration::RTCConfiguration;
 use webrtc::peer_connection::peer_connection_state::RTCPeerConnectionState;
-use webrtc::peer_connection::sdp::session_description::RTCSessionDescription;
+
 use webrtc::rtp_transceiver::rtp_codec::RTCRtpCodecCapability;
 use webrtc::track::track_local::track_local_static_sample::TrackLocalStaticSample;
 use webrtc::track::track_local::TrackLocal;
@@ -71,10 +71,10 @@ impl WebRTCOutput {
         let peer_connection = Arc::new(api.new_peer_connection(config).await?);
 
         let notify_tx = Arc::new(Notify::new());
-        let notify_video = notify_tx.clone();
+        let _notify_video = notify_tx.clone();
 
-        let (done_tx, mut done_rx) = tokio::sync::mpsc::channel::<()>(1);
-        let video_done_tx = done_tx.clone();
+        let (done_tx, _done_rx) = tokio::sync::mpsc::channel::<()>(1);
+        let _video_done_tx = done_tx.clone();
 
         debug!("Adding video track");
         // Create a video track
@@ -145,7 +145,7 @@ impl WebRTCOutput {
             }
         });
 
-        let mut send_channel = signaller.sender();
+        let send_channel = signaller.sender();
         peer_connection.on_ice_candidate(Box::new(move |candidate: Option<RTCIceCandidate>| {
             let mut send_channel = send_channel.clone();
             Box::pin(async move {
