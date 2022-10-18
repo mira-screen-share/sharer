@@ -20,12 +20,12 @@ impl BGR0YUVConverter {
     pub fn convert(&mut self, rgb: &[u8]) {
             let image_size = self.width * self.height as usize;
             let mut upos = image_size;
-            let mut vpos = upos + upos / 4 as usize;
-            let mut i = 0 as usize;
+            let mut vpos = upos + upos / 4_usize;
+            let mut i = 0_usize;
 
             for  line in 0..self.height {
                 if line % 2 != 0 {
-                    let mut x = 0 as usize;
+                    let mut x = 0_usize;
                     while x < self.width {
                         let b = Wrapping(rgb[4 * i] as u32);
                         let g = Wrapping(rgb[4 * i + 1] as u32);
@@ -48,7 +48,7 @@ impl BGR0YUVConverter {
                         x+=2;
                     }
                 } else {
-                    for x in 0..self.width{
+                    for _x in 0..self.width{
                         let b = Wrapping(rgb[4 * i] as u32);
                         let g = Wrapping(rgb[4 * i + 1] as u32);
                         let r = Wrapping(rgb[4 * i + 2] as u32);

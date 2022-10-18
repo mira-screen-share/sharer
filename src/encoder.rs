@@ -3,7 +3,7 @@ use std::ptr::null_mut;
 use crate::result::Result;
 
 use x264_sys::{
-    X264_CSP_I420, X264_CSP_I400, x264_encoder_close, x264_encoder_encode, x264_encoder_open, x264_picture_clean,
+    X264_CSP_I420, x264_encoder_close, x264_encoder_encode, x264_encoder_open, x264_picture_clean,
     x264_param_apply_profile, x264_param_default_preset, x264_picture_alloc, x264_t, x264_nal_t,
     x264_picture_t,
 };
