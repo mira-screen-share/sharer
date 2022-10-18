@@ -16,6 +16,7 @@ mod capture;
 mod encoder;
 mod output;
 mod signaller;
+mod yuv_converter;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
