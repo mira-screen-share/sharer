@@ -1,4 +1,4 @@
-use std::slice;
+use std::{mem, slice};
 use std::sync::mpsc::channel;
 use windows::core::{IInspectable, Interface};
 use windows::Foundation::TypedEventHandler;
@@ -10,6 +10,7 @@ use windows::Win32::Graphics::Direct3D11::{D3D11_BIND_FLAG, D3D11_CPU_ACCESS_REA
 use crate::result::Result;
 use crate::{d3d, OutputSink};
 use crate::encoder::Encoder;
+use crate::performance_profiler::PerformanceProfiler;
 use super::ScreenCapture;
 use crate::yuv_converter::BGR0YUVConverter;
 
@@ -19,6 +20,7 @@ pub struct WGCScreenCapture<'a> {
     d3d_context: ID3D11DeviceContext,
     frame_pool: Direct3D11CaptureFramePool,
 }
+
 
 impl<'a> WGCScreenCapture<'a> {
     unsafe fn surface_to_texture(&mut self, surface: &IDirect3DSurface) -> Result<ID3D11Texture2D> {
@@ -73,11 +75,13 @@ impl ScreenCapture for WGCScreenCapture<'_> {
 
         session.StartCapture()?;
 
-        let height = self.item.Size()?.Height as u32 ;
+        let height = self.item.Size()?.Height as u32;
         let width = self.item.Size()?.Width as u32;
+        let mut profiler = PerformanceProfiler::new();
         let mut yuv_converter = BGR0YUVConverter::new(width as usize, height as usize);
         while let Ok(frame) = receiver.recv() {
             unsafe {
+                profiler.accept_frame(frame.SystemRelativeTime()?.Duration);
                 let texture = self.surface_to_texture(&frame.Surface()?)?;
                 let resource: ID3D11Resource = texture.cast()?;
                 let mapped = self.d3d_context.Map(&resource, 0, D3D11_MAP_READ, 0)?;
@@ -85,10 +89,15 @@ impl ScreenCapture for WGCScreenCapture<'_> {
                     mapped.pData as *const _,
                     (height * mapped.RowPitch) as usize,
                 );
+                profiler.done_preprocessing();
                 yuv_converter.convert(frame);
+                profiler.done_conversion();
                 let encoded = encoder.encode(yuv_converter.y(), yuv_converter.u(), yuv_converter.v()).unwrap();
+                profiler.done_encoding();
                 output.write(encoded).unwrap();
                 self.d3d_context.Unmap(&resource, 0);
+                profiler.done_processing();
+                debug!("{}", profiler.generate_report());
             };
         }
         session.Close()?;
