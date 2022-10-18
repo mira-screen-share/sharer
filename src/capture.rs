@@ -1,7 +1,13 @@
 use crate::{Encoder, OutputSink, Result};
+use async_trait::async_trait;
 
+#[async_trait]
 pub trait ScreenCapture {
-    fn capture(&mut self, encoder: &mut dyn Encoder, output: &mut dyn OutputSink) -> Result<()>;
+    async fn capture(
+        &mut self,
+        mut encoder: Box<dyn Encoder + Send>,
+        mut output: Box<dyn OutputSink + Send>,
+    ) -> Result<()>;
 }
 
 mod wgc_capture;

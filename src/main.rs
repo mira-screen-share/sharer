@@ -1,23 +1,23 @@
-use crate::display::DisplayInfo;
-use crate::result::Result;
 use crate::capture::ScreenCapture;
-use crate::output::{FileOutput, OutputSink, WebRTCOutput};
+use crate::display::DisplayInfo;
 use crate::encoder::Encoder;
+use crate::output::{FileOutput, OutputSink, WebRTCOutput};
+use crate::result::Result;
 use clap::Parser;
 use log::LevelFilter;
 
 #[macro_use]
 extern crate log;
 
+mod capture;
 mod d3d;
 mod display;
-mod result;
-mod capture;
 mod encoder;
 mod output;
+mod performance_profiler;
+mod result;
 mod signaller;
 mod yuv_converter;
-mod performance_profiler;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -47,19 +47,20 @@ async fn main() -> Result<()> {
             display.display_name,
             display.resolution.0,
             display.resolution.1,
-            if i==args.display { "(selected)" } else { "" },
+            if i == args.display { "(selected)" } else { "" },
         );
     }
     let display = displays.iter().nth(args.display).unwrap();
     let item = display.create_capture_item_for_monitor()?;
     let mut capture = capture::WGCScreenCapture::new(&item)?;
-    let mut encoder = encoder::X264Encoder::new(display.resolution.0, display.resolution.1);
-    let _config = WebRTCOutput::make_config(
-        &[String::from("stun:stun.l.google.com:19302")]
-    );
+    let mut encoder = Box::new(encoder::X264Encoder::new(
+        display.resolution.0,
+        display.resolution.1,
+    ));
+    let _config = WebRTCOutput::make_config(&[String::from("stun:stun.l.google.com:19302")]);
     //let mut signaller = signaller::WebSocketSignaller::new(&args.url).await?;
     //let mut webrtc_output = WebRTCOutput::new(config, &mut signaller).await?;
-    let mut file_output = FileOutput::new("output.h264");
-    capture.capture(&mut encoder, &mut file_output)?;
+    let mut file_output = Box::new(FileOutput::new("output.h264"));
+    capture.capture(encoder, file_output).await?;
     Ok(())
 }

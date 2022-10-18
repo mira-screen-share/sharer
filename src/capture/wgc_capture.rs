@@ -1,18 +1,27 @@
-use std::{slice};
+use async_trait::async_trait;
+use std::slice;
 use std::sync::mpsc::channel;
+use std::time::Duration;
+use tokio::runtime::Handle;
 use windows::core::{IInspectable, Interface};
 use windows::Foundation::TypedEventHandler;
-use windows::Graphics::Capture::{Direct3D11CaptureFramePool, GraphicsCaptureItem};
+use windows::Graphics::Capture::{
+    Direct3D11CaptureFrame, Direct3D11CaptureFramePool, GraphicsCaptureItem,
+};
 use windows::Graphics::DirectX::Direct3D11::IDirect3DSurface;
 use windows::Graphics::DirectX::DirectXPixelFormat;
 
-use windows::Win32::Graphics::Direct3D11::{D3D11_BIND_FLAG, D3D11_CPU_ACCESS_READ, D3D11_MAP_READ, D3D11_RESOURCE_MISC_FLAG, D3D11_TEXTURE2D_DESC, D3D11_USAGE_STAGING, ID3D11Device, ID3D11DeviceContext, ID3D11Resource, ID3D11Texture2D};
-use crate::result::Result;
-use crate::{d3d, OutputSink};
+use super::ScreenCapture;
 use crate::encoder::Encoder;
 use crate::performance_profiler::PerformanceProfiler;
-use super::ScreenCapture;
+use crate::result::Result;
 use crate::yuv_converter::BGR0YUVConverter;
+use crate::{d3d, OutputSink};
+use windows::Win32::Graphics::Direct3D11::{
+    ID3D11Device, ID3D11DeviceContext, ID3D11Resource, ID3D11Texture2D, D3D11_BIND_FLAG,
+    D3D11_CPU_ACCESS_READ, D3D11_MAP_READ, D3D11_RESOURCE_MISC_FLAG, D3D11_TEXTURE2D_DESC,
+    D3D11_USAGE_STAGING,
+};
 
 pub struct WGCScreenCapture<'a> {
     item: &'a GraphicsCaptureItem,
@@ -20,7 +29,6 @@ pub struct WGCScreenCapture<'a> {
     d3d_context: ID3D11DeviceContext,
     frame_pool: Direct3D11CaptureFramePool,
 }
-
 
 impl<'a> WGCScreenCapture<'a> {
     unsafe fn surface_to_texture(&mut self, surface: &IDirect3DSurface) -> Result<ID3D11Texture2D> {
@@ -36,6 +44,20 @@ impl<'a> WGCScreenCapture<'a> {
         let dst: ID3D11Resource = copy_texture.cast()?;
         self.d3d_context.CopyResource(&dst, &src);
         Ok(copy_texture)
+    }
+
+    unsafe fn get_frame_content(
+        &mut self,
+        frame: Direct3D11CaptureFrame,
+    ) -> Result<(ID3D11Resource, &[u8])> {
+        let texture = self.surface_to_texture(&frame.Surface()?)?;
+        let resource: ID3D11Resource = texture.cast()?;
+        let mapped = self.d3d_context.Map(&resource, 0, D3D11_MAP_READ, 0)?;
+        let frame: &[u8] = slice::from_raw_parts(
+            mapped.pData as *const _,
+            (self.item.Size()?.Height as u32 * mapped.RowPitch) as usize,
+        );
+        Ok((resource, frame))
     }
 
     pub fn new(item: &'a GraphicsCaptureItem) -> Result<Self> {
@@ -56,22 +78,28 @@ impl<'a> WGCScreenCapture<'a> {
     }
 }
 
+#[async_trait]
 impl ScreenCapture for WGCScreenCapture<'_> {
-    fn capture(&mut self, encoder: &mut dyn Encoder, output: &mut dyn OutputSink) -> Result<()> {
+    async fn capture(
+        &mut self,
+        mut encoder: Box<dyn Encoder + Send>,
+        mut output: Box<dyn OutputSink + Send>,
+    ) -> Result<()> {
         let session = self.frame_pool.CreateCaptureSession(self.item)?;
 
-        let (sender, receiver) = channel();
+        let (sender, mut receiver) = tokio::sync::mpsc::channel::<Direct3D11CaptureFrame>(1);
 
-        self.frame_pool.FrameArrived(
-            &TypedEventHandler::<Direct3D11CaptureFramePool, IInspectable>::new({
-                move |frame_pool, _| {
-                    let frame_pool = frame_pool.as_ref().unwrap();
-                    let frame = frame_pool.TryGetNextFrame()?;
-                    sender.send(frame).unwrap();
-                    Ok(())
-                }
-            }),
-        )?;
+        self.frame_pool.FrameArrived(&TypedEventHandler::<
+            Direct3D11CaptureFramePool,
+            IInspectable,
+        >::new({
+            move |frame_pool, _| {
+                let frame_pool = frame_pool.as_ref().unwrap();
+                let frame = frame_pool.TryGetNextFrame()?;
+                sender.try_send(frame).unwrap();
+                Ok(())
+            }
+        }))?;
 
         session.StartCapture()?;
 
@@ -79,26 +107,24 @@ impl ScreenCapture for WGCScreenCapture<'_> {
         let width = self.item.Size()?.Width as u32;
         let mut profiler = PerformanceProfiler::new();
         let mut yuv_converter = BGR0YUVConverter::new(width as usize, height as usize);
-        while let Ok(frame) = receiver.recv() {
+        let mut ticker = tokio::time::interval(Duration::from_millis(33)); // 30 FPS
+        while let Some(frame) = receiver.recv().await {
+            profiler.accept_frame(frame.SystemRelativeTime()?.Duration);
+            let (resource, frame) = unsafe { self.get_frame_content(frame)? };
+            profiler.done_preprocessing();
+            yuv_converter.convert(frame);
+            profiler.done_conversion();
+            let encoded = encoder
+                .encode(yuv_converter.y(), yuv_converter.u(), yuv_converter.v())
+                .unwrap();
+            profiler.done_encoding();
+            output.write(encoded).unwrap();
             unsafe {
-                profiler.accept_frame(frame.SystemRelativeTime()?.Duration);
-                let texture = self.surface_to_texture(&frame.Surface()?)?;
-                let resource: ID3D11Resource = texture.cast()?;
-                let mapped = self.d3d_context.Map(&resource, 0, D3D11_MAP_READ, 0)?;
-                let frame: &[u8] = slice::from_raw_parts(
-                    mapped.pData as *const _,
-                    (height * mapped.RowPitch) as usize,
-                );
-                profiler.done_preprocessing();
-                yuv_converter.convert(frame);
-                profiler.done_conversion();
-                let encoded = encoder.encode(yuv_converter.y(), yuv_converter.u(), yuv_converter.v()).unwrap();
-                profiler.done_encoding();
-                output.write(encoded).unwrap();
                 self.d3d_context.Unmap(&resource, 0);
-                profiler.done_processing();
-                debug!("{}", profiler.generate_report());
-            };
+            }
+            profiler.done_processing();
+            debug!("{}", profiler.generate_report());
+            ticker.tick().await;
         }
         session.Close()?;
         Ok(())
@@ -110,4 +136,3 @@ impl Drop for WGCScreenCapture<'_> {
         self.frame_pool.Close().unwrap();
     }
 }
-

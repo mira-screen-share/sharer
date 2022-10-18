@@ -1,11 +1,11 @@
-use std::{mem, slice};
-use std::ptr::null_mut;
 use crate::result::Result;
+use std::ptr::null_mut;
+use std::{mem, slice};
 
 use x264_sys::{
-    X264_CSP_I420, x264_encoder_close, x264_encoder_encode, x264_encoder_open, x264_picture_clean,
-    x264_param_apply_profile, x264_param_default_preset, x264_picture_alloc, x264_t, x264_nal_t,
-    x264_picture_t,
+    x264_encoder_close, x264_encoder_encode, x264_encoder_open, x264_nal_t,
+    x264_param_apply_profile, x264_param_default_preset, x264_picture_alloc, x264_picture_clean,
+    x264_picture_t, x264_t, X264_CSP_I420,
 };
 
 pub trait Encoder {
@@ -19,6 +19,8 @@ pub struct X264Encoder {
     nal: *const x264_nal_t,
     nal_size: i32,
 }
+
+unsafe impl Send for X264Encoder {}
 
 impl X264Encoder {
     pub fn new(w: u32, h: u32) -> Self {
@@ -71,7 +73,7 @@ impl Encoder for X264Encoder {
                 &mut self.nal as *mut _ as *mut _,
                 &mut self.nal_size,
                 &mut self.pic_in,
-                self.pic_out.as_mut_ptr()
+                self.pic_out.as_mut_ptr(),
             )
         };
         return Ok(unsafe { slice::from_raw_parts((*self.nal).p_payload, frame_size as usize) });
