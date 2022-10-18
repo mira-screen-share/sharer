@@ -1,16 +1,15 @@
+use futures_util::SinkExt;
 use std::sync::Arc;
 use std::time::Duration;
-use futures_util::SinkExt;
 
 use log::{debug, info};
 
-
 use tokio::sync::mpsc::Sender;
 use tokio::sync::Notify;
-use webrtc::api::APIBuilder;
 use webrtc::api::interceptor_registry::register_default_interceptors;
 use webrtc::api::media_engine::{MediaEngine, MIME_TYPE_H264};
-use webrtc::ice_transport::ice_candidate::{RTCIceCandidate};
+use webrtc::api::APIBuilder;
+use webrtc::ice_transport::ice_candidate::RTCIceCandidate;
 use webrtc::ice_transport::ice_connection_state::RTCIceConnectionState;
 use webrtc::ice_transport::ice_server::RTCIceServer;
 use webrtc::interceptor::registry::Registry;
@@ -23,9 +22,9 @@ use webrtc::rtp_transceiver::rtp_codec::RTCRtpCodecCapability;
 use webrtc::track::track_local::track_local_static_sample::TrackLocalStaticSample;
 use webrtc::track::track_local::TrackLocal;
 
+use crate::signaller::{Signaller, WebSocketSignaller};
 use crate::OutputSink;
 use crate::Result;
-use crate::signaller::{Signaller, WebSocketSignaller};
 
 pub struct WebRTCOutput {
     api: webrtc::api::API,
@@ -104,15 +103,16 @@ impl WebRTCOutput {
         // Set the handler for ICE connection state
         // This will notify you when the peer has connected/disconnected
         peer_connection
-            .on_ice_connection_state_change(Box::new(move |connection_state: RTCIceConnectionState| {
-                info!("Connection State has changed {}", connection_state);
-                if connection_state == RTCIceConnectionState::Connected {
-                    notify_tx.notify_waiters();
-                }
-                Box::pin(async {})
-            }))
+            .on_ice_connection_state_change(Box::new(
+                move |connection_state: RTCIceConnectionState| {
+                    info!("Connection State has changed {}", connection_state);
+                    if connection_state == RTCIceConnectionState::Connected {
+                        notify_tx.notify_waiters();
+                    }
+                    Box::pin(async {})
+                },
+            ))
             .await;
-
 
         // Set the handler for Peer connection state
         // This will notify you when the peer has connected/disconnected
@@ -132,7 +132,7 @@ impl WebRTCOutput {
             }))
             .await;
 
-        let ice_channel =  signaller.recv_ice_channel();
+        let ice_channel = signaller.recv_ice_channel();
         let peer = peer_connection.clone();
         // Handle ICE messages
         tokio::spawn(async move {
@@ -140,21 +140,25 @@ impl WebRTCOutput {
             while let candidate = channel.recv().await {
                 debug!("received ICE candidate {:#?}", candidate);
                 if let Some(candidate) = candidate {
-                    peer.add_ice_candidate(candidate).await;
-                } else { break }
+                    peer.add_ice_candidate(candidate).await.unwrap();
+                } else {
+                    break;
+                }
             }
         });
 
         let send_channel = signaller.sender();
-        peer_connection.on_ice_candidate(Box::new(move |candidate: Option<RTCIceCandidate>| {
-            let mut send_channel = send_channel.clone();
-            Box::pin(async move {
-                if let Some(candidate) = candidate {
-                    debug!("ICE candidate {:#?}", candidate);
-                    WebSocketSignaller::send_ice(&candidate, &mut send_channel).await;
-                }
-            })
-        })).await;
+        peer_connection
+            .on_ice_candidate(Box::new(move |candidate: Option<RTCIceCandidate>| {
+                let mut send_channel = send_channel.clone();
+                Box::pin(async move {
+                    if let Some(candidate) = candidate {
+                        debug!("ICE candidate {:#?}", candidate);
+                        WebSocketSignaller::send_ice(&candidate, &mut send_channel).await;
+                    }
+                })
+            }))
+            .await;
 
         info!("Starting session");
         signaller.start(String::from("0")).await;
@@ -210,7 +214,7 @@ impl WebRTCOutput {
 impl OutputSink for WebRTCOutput {
     fn write(&mut self, input: &[u8]) -> Result<()> {
         self.send_sample.try_send(Sample {
-            data: input.to_vec().into(), // todo: avoid copy
+            data: input.to_vec().into(),         // todo: avoid copy
             duration: Duration::from_millis(32), // todo: timestamps
             ..Default::default()
         });
