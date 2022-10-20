@@ -38,11 +38,9 @@ impl X264Encoder {
             par.i_height = h as i32;
             //par.i_fps_num = 30;
             //par.i_threads = 4;
-            //par.b_annexb = true as i32;
             par.i_csp = X264_CSP_I420 as i32;
             par
         };
-        warn!("test {}", par.i_bframe);
         let pic_in = unsafe {
             let mut pic_in = mem::MaybeUninit::<x264_picture_t>::uninit();
             x264_picture_alloc(pic_in.as_mut_ptr(), par.i_csp, par.i_width, par.i_height);

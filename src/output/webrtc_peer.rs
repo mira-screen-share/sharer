@@ -77,16 +77,12 @@ impl WebRTCPeer {
         let peer_connection_ice = peer_connection.clone();
         let signaller_peer_ice_read = dyn_clone::clone_box(&*signaller_peer);
         tokio::spawn(async move {
-            while let candidate = signaller_peer_ice_read.recv_ice_message().await {
+            while let Some(candidate) = signaller_peer_ice_read.recv_ice_message().await {
                 debug!("received ICE candidate {:#?}", candidate);
-                if let Some(candidate) = candidate {
-                    peer_connection_ice
-                        .add_ice_candidate(candidate)
-                        .await
-                        .unwrap();
-                } else {
-                    break;
-                }
+                peer_connection_ice
+                    .add_ice_candidate(candidate)
+                    .await
+                    .unwrap();
             }
         });
 

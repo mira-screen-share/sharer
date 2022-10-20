@@ -1,6 +1,5 @@
 use async_trait::async_trait;
 use std::slice;
-use std::sync::Arc;
 use std::time::Duration;
 use windows::core::{IInspectable, Interface};
 use windows::Foundation::TypedEventHandler;
@@ -122,7 +121,7 @@ impl ScreenCapture for WGCScreenCapture<'_> {
                 self.d3d_context.Unmap(&resource, 0);
             }
             profiler.done_processing();
-            debug!("{}", profiler.generate_report());
+            trace!("{}", profiler.generate_report());
             ticker.tick().await;
         }
         session.Close()?;

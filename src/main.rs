@@ -26,16 +26,16 @@ struct Args {
     #[arg(short, long, default_value = "0")]
     display: usize,
     /// signaller url
-    #[arg(short, long, default_value = "ws://192.168.0.80:8443")]
+    #[arg(short, long, default_value = "ws://localhost:8443")]
     url: String,
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    env_logger::Builder::new()
-        .filter_level(LevelFilter::Debug)
-        .parse_default_env()
-        .init();
+    env_logger::init_from_env(
+        env_logger::Env::default().filter_or(env_logger::DEFAULT_FILTER_ENV, "debug"),
+    );
+
     info!("starting up");
 
     let args = Args::parse();
@@ -57,8 +57,8 @@ async fn main() -> Result<()> {
         display.resolution.0,
         display.resolution.1,
     ));
-    let mut webrtc_output = WebRTCOutput::new(
-        WebRTCOutput::make_config(&[String::from("stun:stun.l.google.com:19302")]),
+    let webrtc_output = WebRTCOutput::new(
+        WebRTCOutput::make_config(&["stun:stun.l.google.com:19302".into()]),
         Box::new(signaller::WebSocketSignaller::new(&args.url).await?),
     )
     .await?;
