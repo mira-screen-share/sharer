@@ -3,7 +3,7 @@ use async_trait::async_trait;
 use crate::Result;
 
 #[async_trait]
-pub trait OutputSink {
+pub trait OutputSink: Send + Sync + 'static {
     async fn write(&mut self, input: &[u8]) -> Result<()>;
 }
 

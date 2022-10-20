@@ -57,9 +57,11 @@ async fn main() -> Result<()> {
         display.resolution.0,
         display.resolution.1,
     ));
-    let config = WebRTCOutput::make_config(&[String::from("stun:stun.l.google.com:19302")]);
-    let mut signaller = signaller::WebSocketSignaller::new(&args.url).await?;
-    let mut webrtc_output = Box::new(WebRTCOutput::new(config, &mut signaller).await?);
+    let mut webrtc_output = WebRTCOutput::new(
+        WebRTCOutput::make_config(&[String::from("stun:stun.l.google.com:19302")]),
+        Box::new(signaller::WebSocketSignaller::new(&args.url).await?),
+    )
+    .await?;
     //let file_output = Box::new(FileOutput::new("output.h264"));
     capture.capture(encoder, webrtc_output).await?;
     Ok(())

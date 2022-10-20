@@ -1,5 +1,4 @@
 use async_trait::async_trait;
-use futures_util::SinkExt;
 use log::{debug, info};
 use std::sync::Arc;
 use std::time::Duration;
@@ -26,7 +25,7 @@ pub struct WebRTCPeer {
 impl WebRTCPeer {
     pub async fn new(
         peer_connection: Arc<webrtc::peer_connection::RTCPeerConnection>,
-        mut signaller_peer: Arc<Mutex<dyn SignallerPeer>>,
+        signaller_peer: Box<dyn SignallerPeer>,
     ) -> Result<Self> {
         debug!("Initializing a new WebRTC peer");
         debug!("Adding video track");
@@ -76,7 +75,7 @@ impl WebRTCPeer {
 
         // Handle ICE messages
         let peer_connection_ice = peer_connection.clone();
-        let mut signaller_peer_ice_read = dyn_clone::clone_box(&*signaller_peer);
+        let signaller_peer_ice_read = dyn_clone::clone_box(&*signaller_peer);
         tokio::spawn(async move {
             while let candidate = signaller_peer_ice_read.recv_ice_message().await {
                 debug!("received ICE candidate {:#?}", candidate);

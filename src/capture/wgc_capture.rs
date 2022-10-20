@@ -1,5 +1,6 @@
 use async_trait::async_trait;
 use std::slice;
+use std::sync::Arc;
 use std::time::Duration;
 use windows::core::{IInspectable, Interface};
 use windows::Foundation::TypedEventHandler;

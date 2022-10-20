@@ -1,11 +1,9 @@
 use async_trait::async_trait;
 use futures_util::{SinkExt, StreamExt};
 use std::collections::HashMap;
-use std::ops::DerefMut;
-use std::sync::{Arc, RwLock};
-use tokio::io::AsyncBufReadExt;
+use std::sync::Arc;
 use tokio::sync::mpsc::{Receiver, Sender};
-use tokio::sync::{mpsc, Mutex};
+use tokio::sync::{mpsc, Mutex, RwLock};
 use tokio_tungstenite::{connect_async, tungstenite::protocol::Message};
 use webrtc::ice_transport::ice_candidate::RTCIceCandidateInit;
 use webrtc::peer_connection::sdp::session_description::RTCSessionDescription;
@@ -38,7 +36,7 @@ pub struct WebSocketSignaller {
 
 impl WebSocketSignaller {
     pub async fn new(url: &str) -> Result<Self> {
-        let (mut peers_sender, peers_receiver) = mpsc::channel::<WebSocketSignallerPeer>(1);
+        let (peers_sender, peers_receiver) = mpsc::channel::<WebSocketSignallerPeer>(1);
         let (send_queue_sender, mut send_queue_receiver) = mpsc::channel::<SignallerMessage>(8);
         let peers = Arc::new(RwLock::new(HashMap::<
             String,
@@ -67,7 +65,7 @@ impl WebSocketSignaller {
                             mpsc::channel::<RTCSessionDescription>(1);
                         let (ice_sender, ice_receiver) = mpsc::channel::<RTCIceCandidateInit>(4);
 
-                        peers.write().unwrap().deref_mut().insert(
+                        peers.write().await.insert(
                             uuid.clone(),
                             Mutex::new(WebSocketSignallerSender {
                                 answer_sender,
@@ -86,7 +84,7 @@ impl WebSocketSignaller {
                     }
                     SignallerMessage::Answer { sdp, uuid } => {
                         let sender = {
-                            let peer = &peers.read().unwrap()[&uuid];
+                            let peer = &peers.read().await[&uuid];
                             let sender = &peer.try_lock().unwrap().answer_sender;
                             sender.clone()
                         };
@@ -95,7 +93,7 @@ impl WebSocketSignaller {
                     SignallerMessage::Ice { ice, uuid } => {
                         if uuid != "0" {
                             let sender = {
-                                let peer = &peers.read().unwrap()[&uuid];
+                                let peer = &peers.read().await[&uuid];
                                 let sender = &peer.try_lock().unwrap().ice_sender;
                                 sender.clone()
                             };
@@ -132,21 +130,21 @@ impl WebSocketSignaller {
 
 #[async_trait]
 impl Signaller for WebSocketSignaller {
-    async fn start(&mut self, uuid: String) {
+    async fn start(&self, uuid: String) {
         trace!("Starting session");
         self.send_queue
             .send(SignallerMessage::Start { uuid })
             .await
             .unwrap();
     }
-    async fn accept_peer(&mut self) -> Result<Box<WebSocketSignallerPeer>> {
-        Ok(Box::new(self.peers_receiver.recv().await.unwrap()))
+    async fn accept_peer(&mut self) -> Option<Box<dyn SignallerPeer>> {
+        Some(Box::new(self.peers_receiver.recv().await?))
     }
 }
 
 #[async_trait]
 impl SignallerPeer for WebSocketSignallerPeer {
-    async fn send_offer(&mut self, offer: &RTCSessionDescription) {
+    async fn send_offer(&self, offer: &RTCSessionDescription) {
         trace!("Sending offer");
         self.send_queue
             .send(SignallerMessage::Offer {
@@ -157,15 +155,15 @@ impl SignallerPeer for WebSocketSignallerPeer {
             .await
             .unwrap();
     }
-    async fn recv_answer(&mut self) -> Option<RTCSessionDescription> {
+    async fn recv_answer(&self) -> Option<RTCSessionDescription> {
         self.answer_receiver.lock().await.recv().await
     }
 
-    async fn recv_ice_message(&mut self) -> Option<RTCIceCandidateInit> {
+    async fn recv_ice_message(&self) -> Option<RTCIceCandidateInit> {
         self.ice_receiver.lock().await.recv().await
     }
 
-    async fn send_ice_message(&mut self, ice: RTCIceCandidateInit) {
+    async fn send_ice_message(&self, ice: RTCIceCandidateInit) {
         self.send_queue
             .send(SignallerMessage::Ice {
                 ice,

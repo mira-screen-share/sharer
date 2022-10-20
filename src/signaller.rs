@@ -6,26 +6,24 @@ use serde::{Deserialize, Serialize};
 use webrtc::ice_transport::ice_candidate::RTCIceCandidateInit;
 use webrtc::peer_connection::sdp::session_description::RTCSessionDescription;
 
-use crate::Result;
-
 #[async_trait]
 pub trait Signaller: Send + 'static {
     /// indicating the start of a session, and starts to accept viewers
-    async fn start(&mut self, uuid: String);
+    async fn start(&self, uuid: String);
     /// get a new peer
-    async fn accept_peer(&mut self) -> Result<Box<dyn SignallerPeer>>;
+    async fn accept_peer(&mut self) -> Option<Box<dyn SignallerPeer>>;
 }
 
 #[async_trait]
-pub trait SignallerPeer: DynClone + Send + 'static {
+pub trait SignallerPeer: DynClone + Send + Sync + 'static {
     /// send an offer to the peer
-    async fn send_offer(&mut self, offer: &RTCSessionDescription);
+    async fn send_offer(&self, offer: &RTCSessionDescription);
     /// receive an answer the that peer
-    async fn recv_answer(&mut self) -> Option<RTCSessionDescription>;
+    async fn recv_answer(&self) -> Option<RTCSessionDescription>;
     /// receive an ice message from the peer
-    async fn recv_ice_message(&mut self) -> Option<RTCIceCandidateInit>;
+    async fn recv_ice_message(&self) -> Option<RTCIceCandidateInit>;
     /// send an ice message to the peer
-    async fn send_ice_message(&mut self, ice: RTCIceCandidateInit);
+    async fn send_ice_message(&self, ice: RTCIceCandidateInit);
 }
 
 #[derive(Debug, Serialize, Deserialize)]
