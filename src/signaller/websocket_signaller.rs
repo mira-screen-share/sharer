@@ -31,17 +31,16 @@ struct WebSocketSignallerSender {
 pub struct WebSocketSignaller {
     send_queue: Sender<SignallerMessage>,
     peers_receiver: Receiver<WebSocketSignallerPeer>,
-    peers: Arc<RwLock<HashMap<String, Mutex<WebSocketSignallerSender>>>>, // uuid -> sender
+    peers: Arc<RwLock<HashMap<String, WebSocketSignallerSender>>>, // uuid -> sender
 }
 
 impl WebSocketSignaller {
     pub async fn new(url: &str) -> Result<Self> {
         let (peers_sender, peers_receiver) = mpsc::channel::<WebSocketSignallerPeer>(1);
         let (send_queue_sender, mut send_queue_receiver) = mpsc::channel::<SignallerMessage>(8);
-        let peers = Arc::new(RwLock::new(HashMap::<
-            String,
-            Mutex<WebSocketSignallerSender>,
-        >::new()));
+        let peers = Arc::new(RwLock::new(
+            HashMap::<String, WebSocketSignallerSender>::new(),
+        ));
 
         let url = url::Url::parse(url).unwrap();
         info!("Establishing websocket connection to {}", url);
@@ -67,10 +66,10 @@ impl WebSocketSignaller {
 
                         peers.write().await.insert(
                             uuid.clone(),
-                            Mutex::new(WebSocketSignallerSender {
+                            WebSocketSignallerSender {
                                 answer_sender,
                                 ice_sender,
-                            }),
+                            },
                         );
                         peers_sender
                             .send(WebSocketSignallerPeer {
@@ -85,7 +84,7 @@ impl WebSocketSignaller {
                     SignallerMessage::Answer { sdp, uuid } => {
                         let sender = {
                             let peer = &peers.read().await[&uuid];
-                            let sender = &peer.try_lock().unwrap().answer_sender;
+                            let sender = &peer.answer_sender;
                             sender.clone()
                         };
                         sender.send(sdp).await.unwrap();
@@ -94,7 +93,7 @@ impl WebSocketSignaller {
                         if uuid != "0" {
                             let sender = {
                                 let peer = &peers.read().await[&uuid];
-                                let sender = &peer.try_lock().unwrap().ice_sender;
+                                let sender = &peer.ice_sender;
                                 sender.clone()
                             };
                             sender.send(ice).await.unwrap();
