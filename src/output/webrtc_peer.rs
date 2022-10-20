@@ -1,30 +1,21 @@
+use async_trait::async_trait;
 use futures_util::SinkExt;
+use log::{debug, info};
 use std::sync::Arc;
 use std::time::Duration;
-
-use log::{debug, info};
-
 use tokio::sync::mpsc::Sender;
-use tokio::sync::Notify;
-use webrtc::api::interceptor_registry::register_default_interceptors;
-use webrtc::api::media_engine::{MediaEngine, MIME_TYPE_H264};
-use webrtc::api::APIBuilder;
+use webrtc::api::media_engine::MIME_TYPE_H264;
 use webrtc::ice_transport::ice_candidate::RTCIceCandidate;
 use webrtc::ice_transport::ice_connection_state::RTCIceConnectionState;
-use webrtc::ice_transport::ice_server::RTCIceServer;
-use webrtc::interceptor::registry::Registry;
-
 use webrtc::media::Sample;
-use webrtc::peer_connection::configuration::RTCConfiguration;
 use webrtc::peer_connection::peer_connection_state::RTCPeerConnectionState;
-
 use webrtc::rtp_transceiver::rtp_codec::RTCRtpCodecCapability;
 use webrtc::track::track_local::track_local_static_sample::TrackLocalStaticSample;
 use webrtc::track::track_local::TrackLocal;
 
-use crate::signaller::{Signaller, SignallerPeer, WebSocketSignaller};
+use crate::signaller::SignallerPeer;
+use crate::OutputSink;
 use crate::Result;
-use crate::{OutputSink, WebRTCOutput};
 
 pub struct WebRTCPeer {
     peer_connection: Arc<webrtc::peer_connection::RTCPeerConnection>,
@@ -33,9 +24,9 @@ pub struct WebRTCPeer {
 }
 
 impl WebRTCPeer {
-    pub async fn new<T: SignallerPeer + Send + Sync + Clone + 'static>(
+    pub async fn new(
         peer_connection: Arc<webrtc::peer_connection::RTCPeerConnection>,
-        mut signaller_peer: Box<T>,
+        mut signaller_peer: Arc<Mutex<dyn SignallerPeer>>,
     ) -> Result<Self> {
         debug!("Initializing a new WebRTC peer");
         debug!("Adding video track");
@@ -84,8 +75,8 @@ impl WebRTCPeer {
             .await;
 
         // Handle ICE messages
-        let mut peer_connection_ice = peer_connection.clone();
-        let mut signaller_peer_ice_read = signaller_peer.clone();
+        let peer_connection_ice = peer_connection.clone();
+        let mut signaller_peer_ice_read = dyn_clone::clone_box(&*signaller_peer);
         tokio::spawn(async move {
             while let candidate = signaller_peer_ice_read.recv_ice_message().await {
                 debug!("received ICE candidate {:#?}", candidate);
@@ -100,10 +91,10 @@ impl WebRTCPeer {
             }
         });
 
-        let mut signaller_peer_ice = signaller_peer.clone();
+        let signaller_peer_ice = dyn_clone::clone_box(&*signaller_peer);
         peer_connection
             .on_ice_candidate(Box::new(move |candidate: Option<RTCIceCandidate>| {
-                let mut signaller_peer_ice = signaller_peer_ice.clone();
+                let signaller_peer_ice = dyn_clone::clone_box(&*signaller_peer_ice);
                 Box::pin(async move {
                     if let Some(candidate) = candidate {
                         debug!("ICE candidate {:#?}", candidate);
@@ -159,15 +150,16 @@ impl WebRTCPeer {
     }
 }
 
+#[async_trait]
 impl OutputSink for WebRTCPeer {
-    fn write(&mut self, input: &[u8]) -> Result<()> {
+    async fn write(&mut self, input: &[u8]) -> Result<()> {
         self.send_sample
-            .try_send(Sample {
+            .send(Sample {
                 data: input.to_vec().into(),         // todo: avoid copy
                 duration: Duration::from_millis(32), // todo: timestamps
                 ..Default::default()
             })
-            .expect("TODO: panic message");
+            .await?;
         Ok(())
     }
 }

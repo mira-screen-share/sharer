@@ -1,8 +1,6 @@
 use async_trait::async_trait;
 use std::slice;
-use std::sync::mpsc::channel;
 use std::time::Duration;
-use tokio::runtime::Handle;
 use windows::core::{IInspectable, Interface};
 use windows::Foundation::TypedEventHandler;
 use windows::Graphics::Capture::{
@@ -82,8 +80,8 @@ impl<'a> WGCScreenCapture<'a> {
 impl ScreenCapture for WGCScreenCapture<'_> {
     async fn capture(
         &mut self,
-        mut encoder: Box<dyn Encoder + Send>,
-        mut output: Box<dyn OutputSink + Send>,
+        mut encoder: Box<impl Encoder + Send>,
+        mut output: Box<impl OutputSink + Send>,
     ) -> Result<()> {
         let session = self.frame_pool.CreateCaptureSession(self.item)?;
 
@@ -118,7 +116,7 @@ impl ScreenCapture for WGCScreenCapture<'_> {
                 .encode(yuv_converter.y(), yuv_converter.u(), yuv_converter.v())
                 .unwrap();
             profiler.done_encoding();
-            output.write(encoded).unwrap();
+            output.write(encoded).await.unwrap();
             unsafe {
                 self.d3d_context.Unmap(&resource, 0);
             }

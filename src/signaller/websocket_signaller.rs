@@ -1,20 +1,20 @@
 use async_trait::async_trait;
 use futures_util::{SinkExt, StreamExt};
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::ops::DerefMut;
 use std::sync::{Arc, RwLock};
+use tokio::io::AsyncBufReadExt;
 use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::sync::{mpsc, Mutex};
 use tokio_tungstenite::{connect_async, tungstenite::protocol::Message};
-use webrtc::ice_transport::ice_candidate::{RTCIceCandidate, RTCIceCandidateInit};
+use webrtc::ice_transport::ice_candidate::RTCIceCandidateInit;
 use webrtc::peer_connection::sdp::session_description::RTCSessionDescription;
 
 use crate::signaller::{Signaller, SignallerMessage, SignallerPeer};
 use crate::Result;
 
 /// ownership yielded to the user
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct WebSocketSignallerPeer {
     answer_receiver: Arc<Mutex<Receiver<RTCSessionDescription>>>,
     ice_receiver: Arc<Mutex<Receiver<RTCIceCandidateInit>>>,
@@ -38,9 +38,9 @@ pub struct WebSocketSignaller {
 
 impl WebSocketSignaller {
     pub async fn new(url: &str) -> Result<Self> {
-        let (peers_sender, peers_receiver) = mpsc::channel::<WebSocketSignallerPeer>(1);
+        let (mut peers_sender, peers_receiver) = mpsc::channel::<WebSocketSignallerPeer>(1);
         let (send_queue_sender, mut send_queue_receiver) = mpsc::channel::<SignallerMessage>(8);
-        let mut peers = Arc::new(RwLock::new(HashMap::<
+        let peers = Arc::new(RwLock::new(HashMap::<
             String,
             Mutex<WebSocketSignallerSender>,
         >::new()));
@@ -139,8 +139,8 @@ impl Signaller for WebSocketSignaller {
             .await
             .unwrap();
     }
-    async fn accept_peer(&mut self) -> Result<Box<dyn SignallerPeer>> {
-        todo!()
+    async fn accept_peer(&mut self) -> Result<Box<WebSocketSignallerPeer>> {
+        Ok(Box::new(self.peers_receiver.recv().await.unwrap()))
     }
 }
 
@@ -162,7 +162,7 @@ impl SignallerPeer for WebSocketSignallerPeer {
     }
 
     async fn recv_ice_message(&mut self) -> Option<RTCIceCandidateInit> {
-        todo!()
+        self.ice_receiver.lock().await.recv().await
     }
 
     async fn send_ice_message(&mut self, ice: RTCIceCandidateInit) {

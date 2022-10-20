@@ -1,17 +1,15 @@
-mod signaller;
+mod websocket_signaller;
 
 use async_trait::async_trait;
-use futures_util::{SinkExt, StreamExt};
+use dyn_clone::DynClone;
 use serde::{Deserialize, Serialize};
-use tokio::sync::mpsc::{Receiver, Sender};
-use tokio_tungstenite::{connect_async, tungstenite::protocol::Message};
-use webrtc::ice_transport::ice_candidate::{RTCIceCandidate, RTCIceCandidateInit};
+use webrtc::ice_transport::ice_candidate::RTCIceCandidateInit;
 use webrtc::peer_connection::sdp::session_description::RTCSessionDescription;
 
 use crate::Result;
 
 #[async_trait]
-pub trait Signaller {
+pub trait Signaller: Send + 'static {
     /// indicating the start of a session, and starts to accept viewers
     async fn start(&mut self, uuid: String);
     /// get a new peer
@@ -19,7 +17,7 @@ pub trait Signaller {
 }
 
 #[async_trait]
-pub trait SignallerPeer {
+pub trait SignallerPeer: DynClone + Send + 'static {
     /// send an offer to the peer
     async fn send_offer(&mut self, offer: &RTCSessionDescription);
     /// receive an answer the that peer
@@ -57,4 +55,4 @@ pub enum SignallerMessage {
     },
 }
 
-pub use signaller::WebSocketSignaller;
+pub use websocket_signaller::WebSocketSignaller;

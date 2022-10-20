@@ -1,7 +1,10 @@
+use async_trait::async_trait;
+
 use crate::Result;
 
+#[async_trait]
 pub trait OutputSink {
-    fn write(&mut self, input: &[u8]) -> Result<()>;
+    async fn write(&mut self, input: &[u8]) -> Result<()>;
 }
 
 mod file_output;
