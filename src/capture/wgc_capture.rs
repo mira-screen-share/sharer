@@ -121,7 +121,7 @@ impl ScreenCapture for WGCScreenCapture<'_> {
                 self.d3d_context.Unmap(&resource, 0);
             }
             profiler.done_processing();
-            trace!("{}", profiler.generate_report());
+            debug!("{}", profiler.generate_report(encoded.len()));
             ticker.tick().await;
         }
         session.Close()?;

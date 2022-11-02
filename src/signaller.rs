@@ -9,7 +9,7 @@ use webrtc::peer_connection::sdp::session_description::RTCSessionDescription;
 #[async_trait]
 pub trait Signaller: Send + 'static {
     /// indicating the start of a session, and starts to accept viewers
-    async fn start(&self, uuid: String);
+    async fn start(&self);
     /// get a new peer
     async fn accept_peer(&mut self) -> Option<Box<dyn SignallerPeer>>;
 }
@@ -47,6 +47,7 @@ pub enum SignallerMessage {
     Ice {
         ice: RTCIceCandidateInit,
         uuid: String,
+        to: String,
     },
     Leave {
         uuid: String,

@@ -32,6 +32,7 @@ pub struct WebSocketSignaller {
     send_queue: Sender<SignallerMessage>,
     peers_receiver: Receiver<WebSocketSignallerPeer>,
     peers: Arc<RwLock<HashMap<String, WebSocketSignallerSender>>>, // uuid -> sender
+    uuid: String,
 }
 
 impl WebSocketSignaller {
@@ -43,6 +44,7 @@ impl WebSocketSignaller {
         ));
 
         let url = url::Url::parse(url).unwrap();
+        let my_uuid = "00000000-0000-0000-0000-000000000000".to_string(); //uuid::Uuid::new_v4().to_string();
         info!("Establishing websocket connection to {}", url);
         let (ws_stream, _) = connect_async(url).await?;
         debug!("Websocket connection established");
@@ -89,15 +91,13 @@ impl WebSocketSignaller {
                         };
                         sender.send(sdp).await.unwrap();
                     }
-                    SignallerMessage::Ice { ice, uuid } => {
-                        if uuid != "0" {
-                            let sender = {
-                                let peer = &peers.read().await[&uuid];
-                                let sender = &peer.ice_sender;
-                                sender.clone()
-                            };
-                            sender.send(ice).await.unwrap();
-                        }
+                    SignallerMessage::Ice { ice, uuid, to } => {
+                        let sender = {
+                            let peer = &peers.read().await[&uuid];
+                            let sender = &peer.ice_sender;
+                            sender.clone()
+                        };
+                        sender.send(ice).await.unwrap();
                     }
                     SignallerMessage::Leave { uuid } => {
                         info!("Peer {} left", uuid);
@@ -123,16 +123,19 @@ impl WebSocketSignaller {
             send_queue: send_queue_sender,
             peers: peers_clone,
             peers_receiver,
+            uuid: my_uuid,
         })
     }
 }
 
 #[async_trait]
 impl Signaller for WebSocketSignaller {
-    async fn start(&self, uuid: String) {
+    async fn start(&self) {
         trace!("Starting session");
         self.send_queue
-            .send(SignallerMessage::Start { uuid })
+            .send(SignallerMessage::Start {
+                uuid: self.uuid.clone(),
+            })
             .await
             .unwrap();
     }
@@ -167,6 +170,7 @@ impl SignallerPeer for WebSocketSignallerPeer {
             .send(SignallerMessage::Ice {
                 ice,
                 uuid: "0".to_string(),
+                to: self.uuid.clone(),
             })
             .await
             .unwrap();

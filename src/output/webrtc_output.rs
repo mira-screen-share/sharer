@@ -61,7 +61,7 @@ impl WebRTCOutput {
         });
         let api2 = output.api.clone();
         let peers2 = output.peers.clone();
-        signaller.start("0".into()).await;
+        signaller.start().await;
         tokio::spawn(async move {
             while let Some(peer) = signaller.accept_peer().await {
                 peers2.lock().await.push(
