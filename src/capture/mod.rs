@@ -10,6 +10,9 @@ pub trait ScreenCapture {
     ) -> Result<()>;
 }
 
+mod d3d;
+pub mod display;
 mod wgc_capture;
+mod yuv_converter;
 
 pub use wgc_capture::WGCScreenCapture;

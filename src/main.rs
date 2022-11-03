@@ -1,23 +1,19 @@
 use crate::capture::ScreenCapture;
-use crate::display::DisplayInfo;
 use crate::encoder::Encoder;
 use crate::output::{FileOutput, OutputSink, WebRTCOutput};
 use crate::result::Result;
+use capture::display::DisplayInfo;
 use clap::Parser;
-use log::LevelFilter;
 
 #[macro_use]
 extern crate log;
 
 mod capture;
-mod d3d;
-mod display;
 mod encoder;
 mod output;
 mod performance_profiler;
 mod result;
 mod signaller;
-mod yuv_converter;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -26,7 +22,7 @@ struct Args {
     #[arg(short, long, default_value = "0")]
     display: usize,
     /// signaller url
-    #[arg(short, long, default_value = "ws://localhost:8443")]
+    #[arg(short, long, default_value = "ws://localhost:8080")]
     url: String,
 }
 
@@ -60,7 +56,8 @@ async fn main() -> Result<()> {
     let webrtc_output = WebRTCOutput::new(
         WebRTCOutput::make_config(&["stun:stun.l.google.com:19302".into()]),
         Box::new(signaller::WebSocketSignaller::new(&args.url).await?),
-    ).await?;
+    )
+    .await?;
     //let file_output = Box::new(FileOutput::new("output.h264"));
     capture.capture(encoder, webrtc_output).await?;
     Ok(())

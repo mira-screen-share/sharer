@@ -44,15 +44,6 @@ impl WebRTCPeer {
             .add_track(Arc::clone(&video_track) as Arc<dyn TrackLocal + Send + Sync>)
             .await?;
 
-        // Read incoming RTCP packets
-        // Before these packets are returned they are processed by interceptors. For things
-        // like NACK this needs to be called.
-        tokio::spawn(async move {
-            let mut rtcp_buf = vec![0u8; 1500];
-            while let Ok((_, _)) = rtp_sender.read(&mut rtcp_buf).await {}
-            Result::<()>::Ok(())
-        });
-
         // Set the handler for ICE connection state
         // This will notify you when the peer has connected/disconnected
         peer_connection
@@ -78,7 +69,7 @@ impl WebRTCPeer {
         let signaller_peer_ice_read = dyn_clone::clone_box(&*signaller_peer);
         tokio::spawn(async move {
             while let Some(candidate) = signaller_peer_ice_read.recv_ice_message().await {
-                debug!("received ICE candidate {:#?}", candidate);
+                trace!("received ICE candidate {:#?}", candidate);
                 peer_connection_ice
                     .add_ice_candidate(candidate)
                     .await
@@ -92,7 +83,7 @@ impl WebRTCPeer {
                 let signaller_peer_ice = dyn_clone::clone_box(&*signaller_peer_ice);
                 Box::pin(async move {
                     if let Some(candidate) = candidate {
-                        debug!("ICE candidate {:#?}", candidate);
+                        trace!("ICE candidate {:#?}", candidate);
                         signaller_peer_ice
                             .send_ice_message(candidate.to_json().await.unwrap())
                             .await;
@@ -114,20 +105,10 @@ impl WebRTCPeer {
         // Set the remote SessionDescription
         peer_connection.set_remote_description(answer).await?;
 
-        // Create channel that is blocked until ICE Gathering is complete
-        let mut gather_complete = peer_connection.gathering_complete_promise().await;
-
-        info!("Waiting for ICE gathering to complete");
-        // Block until ICE Gathering is complete, disabling trickle ICE
-        // we do this because we only can exchange one signaling message
-        // in a production application you should exchange ICE Candidates via OnICECandidate
-        let _ = gather_complete.recv().await;
-
         let (send_sample, mut recv_sample) = tokio::sync::mpsc::channel::<Sample>(1);
 
         tokio::spawn(async move {
             while let Some(sample) = recv_sample.recv().await {
-                //debug!("Sending sample");
                 video_track
                     .write_sample(&sample)
                     .await
@@ -156,11 +137,5 @@ impl OutputSink for WebRTCPeer {
             })
             .await?;
         Ok(())
-    }
-}
-
-impl Drop for WebRTCPeer {
-    fn drop(&mut self) {
-        self.peer_connection.close();
     }
 }
