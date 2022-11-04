@@ -1,3 +1,4 @@
+use crate::inputs::InputHandler;
 use async_trait::async_trait;
 use log::{debug, info};
 use std::sync::atomic::AtomicBool;
@@ -29,6 +30,7 @@ impl WebRTCPeer {
         peer_connection: Arc<RTCPeerConnection>,
         signaller_peer: Box<dyn SignallerPeer>,
         mut encoder_force_idr: Arc<AtomicBool>,
+        mut input_handler: Arc<InputHandler>,
     ) -> Result<Self> {
         debug!("Initializing a new WebRTC peer");
         // Create a video track
@@ -45,6 +47,16 @@ impl WebRTCPeer {
         let _rtp_sender = peer_connection
             .add_track(Arc::clone(&video_track) as Arc<dyn TrackLocal + Send + Sync>)
             .await?;
+
+        let data_channel = peer_connection.create_data_channel("control", None).await?;
+        let input_handler = input_handler.clone();
+        data_channel.on_message(Box::new(move |msg| {
+            let input_handler = input_handler.clone();
+            Box::pin(async move {
+                input_handler.sender.send(msg.data).await.unwrap();
+                ()
+            })
+        }));
 
         // Set the handler for Peer connection state
         // This will notify you when the peer has connected/disconnected

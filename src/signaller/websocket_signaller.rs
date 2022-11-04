@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::sync::{mpsc, Mutex, RwLock};
+use tokio::time::timeout;
 use tokio_tungstenite::{connect_async, tungstenite::protocol::Message};
 use webrtc::ice_transport::ice_candidate::RTCIceCandidateInit;
 use webrtc::peer_connection::sdp::session_description::RTCSessionDescription;
@@ -158,7 +159,13 @@ impl SignallerPeer for WebSocketSignallerPeer {
             .unwrap();
     }
     async fn recv_answer(&self) -> Option<RTCSessionDescription> {
-        self.answer_receiver.lock().await.recv().await
+        timeout(
+            tokio::time::Duration::from_secs(3),
+            self.answer_receiver.lock().await.recv(),
+        )
+        .await
+        .ok()
+        .flatten()
     }
 
     async fn recv_ice_message(&self) -> Option<RTCIceCandidateInit> {

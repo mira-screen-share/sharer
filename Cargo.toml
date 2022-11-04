@@ -22,6 +22,8 @@ futures-util = { version = "0.3", default-features = false, features = ["sink", 
 chrono = "0.4.22"
 dyn-clone = "1.0.4"
 uuid = "1.2.1"
+bytes = "1.2.1"
+enigo = "0.0.14"
 
 [dependencies.windows]
 version = "0.42.0"

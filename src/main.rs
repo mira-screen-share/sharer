@@ -4,12 +4,14 @@ use crate::output::{FileOutput, OutputSink, WebRTCOutput};
 use crate::result::Result;
 use capture::display::DisplayInfo;
 use clap::Parser;
+use std::sync::Arc;
 
 #[macro_use]
 extern crate log;
 
 mod capture;
 mod encoder;
+mod inputs;
 mod output;
 mod performance_profiler;
 mod result;
@@ -53,10 +55,12 @@ async fn main() -> Result<()> {
         display.resolution.0,
         display.resolution.1,
     ));
+    let mut input_handler = Arc::new(inputs::InputHandler::new());
     let webrtc_output = WebRTCOutput::new(
         WebRTCOutput::make_config(&["stun:stun.l.google.com:19302".into()]),
         Box::new(signaller::WebSocketSignaller::new(&args.url).await?),
         &mut encoder.force_idr,
+        input_handler.clone(),
     )
     .await?;
     //let file_output = Box::new(FileOutput::new("output.h264"));
