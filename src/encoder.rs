@@ -1,11 +1,13 @@
 use crate::result::Result;
 use std::ptr::null_mut;
+use std::sync::atomic::AtomicBool;
+use std::sync::Arc;
 use std::{mem, slice};
 
 use x264_sys::{
     x264_encoder_close, x264_encoder_encode, x264_encoder_open, x264_nal_t,
     x264_param_apply_profile, x264_param_default_preset, x264_picture_alloc, x264_picture_clean,
-    x264_picture_t, x264_t, X264_CSP_I420, X264_TYPE_IDR,
+    x264_picture_t, x264_t, X264_CSP_I420, X264_TYPE_AUTO, X264_TYPE_IDR,
 };
 
 pub trait Encoder {
@@ -18,6 +20,7 @@ pub struct X264Encoder {
     pic_out: mem::MaybeUninit<x264_picture_t>,
     nal: *const x264_nal_t,
     nal_size: i32,
+    pub force_idr: Arc<AtomicBool>,
 }
 
 unsafe impl Send for X264Encoder {}
@@ -52,6 +55,7 @@ impl X264Encoder {
             pic_out: mem::MaybeUninit::<x264_picture_t>::uninit(),
             nal: null_mut(),
             nal_size: 0,
+            force_idr: Arc::new(AtomicBool::new(false)),
         }
     }
 }
@@ -64,9 +68,15 @@ impl Encoder for X264Encoder {
             v.as_ptr() as *mut u8,
             null_mut(),
         ];
-        // x264 force key frame
-        //self.pic_in.i_type = X264_TYPE_IDR as i32;
-        //pic_in.i_pts = ((frame_ms - start_relative_time.unwrap()) as f64 / (1.0 / 60.0 * 1000.0)).round() as i64;
+        // force key frame as needed
+        self.pic_in.i_type = if self
+            .force_idr
+            .swap(false, std::sync::atomic::Ordering::Relaxed)
+        {
+            X264_TYPE_IDR as i32
+        } else {
+            X264_TYPE_AUTO as i32
+        };
         let frame_size = unsafe {
             x264_encoder_encode(
                 self.encoder,
