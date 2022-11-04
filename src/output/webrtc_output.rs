@@ -1,6 +1,7 @@
 use async_trait::async_trait;
 use futures_util::future::join_all;
 use log::info;
+use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use webrtc::api::interceptor_registry::register_default_interceptors;
@@ -34,6 +35,7 @@ impl WebRTCOutput {
     pub async fn new(
         config: RTCConfiguration,
         mut signaller: Box<dyn Signaller>,
+        mut encoder_force_idr: &mut Arc<AtomicBool>,
     ) -> Result<Box<WebRTCOutput>> {
         info!("Initializing WebRTC");
         // Create a MediaEngine object to configure the supported codec
@@ -59,15 +61,17 @@ impl WebRTCOutput {
             ),
             peers: Arc::new(Mutex::new(Vec::new())),
         });
-        let api2 = output.api.clone();
-        let peers2 = output.peers.clone();
+        let api_clone = output.api.clone();
+        let peers_clone = output.peers.clone();
+        let encoder_force_idr = encoder_force_idr.clone();
         signaller.start().await;
         tokio::spawn(async move {
             while let Some(peer) = signaller.accept_peer().await {
-                peers2.lock().await.push(
+                peers_clone.lock().await.push(
                     WebRTCPeer::new(
-                        Arc::new(api2.new_peer_connection(config.clone()).await?),
+                        Arc::new(api_clone.new_peer_connection(config.clone()).await?),
                         peer,
+                        encoder_force_idr.clone(),
                     )
                     .await?,
                 );

@@ -49,13 +49,14 @@ async fn main() -> Result<()> {
     let display = displays.iter().nth(args.display).unwrap();
     let item = display.create_capture_item_for_monitor()?;
     let mut capture = capture::WGCScreenCapture::new(&item)?;
-    let encoder = Box::new(encoder::X264Encoder::new(
+    let mut encoder = Box::new(encoder::X264Encoder::new(
         display.resolution.0,
         display.resolution.1,
     ));
     let webrtc_output = WebRTCOutput::new(
         WebRTCOutput::make_config(&["stun:stun.l.google.com:19302".into()]),
         Box::new(signaller::WebSocketSignaller::new(&args.url).await?),
+        &mut encoder.force_idr,
     )
     .await?;
     //let file_output = Box::new(FileOutput::new("output.h264"));

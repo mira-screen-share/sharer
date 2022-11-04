@@ -1,5 +1,6 @@
 use async_trait::async_trait;
 use log::{debug, info};
+use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::mpsc::Sender;
@@ -8,6 +9,7 @@ use webrtc::ice_transport::ice_candidate::RTCIceCandidate;
 use webrtc::ice_transport::ice_connection_state::RTCIceConnectionState;
 use webrtc::media::Sample;
 use webrtc::peer_connection::peer_connection_state::RTCPeerConnectionState;
+use webrtc::peer_connection::RTCPeerConnection;
 use webrtc::rtp_transceiver::rtp_codec::RTCRtpCodecCapability;
 use webrtc::track::track_local::track_local_static_sample::TrackLocalStaticSample;
 use webrtc::track::track_local::TrackLocal;
@@ -17,18 +19,18 @@ use crate::OutputSink;
 use crate::Result;
 
 pub struct WebRTCPeer {
-    peer_connection: Arc<webrtc::peer_connection::RTCPeerConnection>,
+    peer_connection: Arc<RTCPeerConnection>,
     signaller_peer: Box<dyn SignallerPeer>,
     send_sample: Sender<Sample>,
 }
 
 impl WebRTCPeer {
     pub async fn new(
-        peer_connection: Arc<webrtc::peer_connection::RTCPeerConnection>,
+        peer_connection: Arc<RTCPeerConnection>,
         signaller_peer: Box<dyn SignallerPeer>,
+        mut encoder_force_idr: Arc<AtomicBool>,
     ) -> Result<Self> {
         debug!("Initializing a new WebRTC peer");
-        debug!("Adding video track");
         // Create a video track
         let video_track = Arc::new(TrackLocalStaticSample::new(
             RTCRtpCodecCapability {
@@ -40,26 +42,21 @@ impl WebRTCPeer {
         ));
 
         // Add this newly created track to the PeerConnection
-        let rtp_sender = peer_connection
+        let _rtp_sender = peer_connection
             .add_track(Arc::clone(&video_track) as Arc<dyn TrackLocal + Send + Sync>)
             .await?;
 
-        // Set the handler for ICE connection state
-        // This will notify you when the peer has connected/disconnected
-        peer_connection
-            .on_ice_connection_state_change(Box::new(
-                move |connection_state: RTCIceConnectionState| {
-                    info!("Connection State has changed {}", connection_state);
-                    Box::pin(async {})
-                },
-            ))
-            .await;
-
         // Set the handler for Peer connection state
         // This will notify you when the peer has connected/disconnected
+        let encoder_force_idr = encoder_force_idr.clone();
         peer_connection
             .on_peer_connection_state_change(Box::new(move |s: RTCPeerConnectionState| {
                 info!("Peer Connection State has changed: {}", s);
+                if s == RTCPeerConnectionState::Connected {
+                    // send a keyframe for the newly connected peer so they can
+                    // start streaming immediately
+                    encoder_force_idr.store(true, std::sync::atomic::Ordering::Relaxed);
+                }
                 Box::pin(async {})
             }))
             .await;
