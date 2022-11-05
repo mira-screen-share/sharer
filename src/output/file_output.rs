@@ -1,7 +1,8 @@
-use std::fs::File;
-use std::io::Write;
 use crate::OutputSink;
 use crate::Result;
+use async_trait::async_trait;
+use std::fs::File;
+use std::io::Write;
 
 pub struct FileOutput {
     file: File,
@@ -15,8 +16,9 @@ impl FileOutput {
     }
 }
 
+#[async_trait]
 impl OutputSink for FileOutput {
-    fn write(&mut self, input: &[u8]) -> Result<()> {
+    async fn write(&mut self, input: &[u8]) -> Result<()> {
         self.file.write_all(input)?;
         Ok(())
     }

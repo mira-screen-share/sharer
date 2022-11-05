@@ -1,8 +1,6 @@
 use async_trait::async_trait;
 use std::slice;
-use std::sync::mpsc::channel;
 use std::time::Duration;
-use tokio::runtime::Handle;
 use windows::core::{IInspectable, Interface};
 use windows::Foundation::TypedEventHandler;
 use windows::Graphics::Capture::{
@@ -12,11 +10,12 @@ use windows::Graphics::DirectX::Direct3D11::IDirect3DSurface;
 use windows::Graphics::DirectX::DirectXPixelFormat;
 
 use super::ScreenCapture;
+use crate::capture::d3d;
+use crate::capture::yuv_converter::BGR0YUVConverter;
 use crate::encoder::Encoder;
 use crate::performance_profiler::PerformanceProfiler;
 use crate::result::Result;
-use crate::yuv_converter::BGR0YUVConverter;
-use crate::{d3d, OutputSink};
+use crate::OutputSink;
 use windows::Win32::Graphics::Direct3D11::{
     ID3D11Device, ID3D11DeviceContext, ID3D11Resource, ID3D11Texture2D, D3D11_BIND_FLAG,
     D3D11_CPU_ACCESS_READ, D3D11_MAP_READ, D3D11_RESOURCE_MISC_FLAG, D3D11_TEXTURE2D_DESC,
@@ -82,8 +81,8 @@ impl<'a> WGCScreenCapture<'a> {
 impl ScreenCapture for WGCScreenCapture<'_> {
     async fn capture(
         &mut self,
-        mut encoder: Box<dyn Encoder + Send>,
-        mut output: Box<dyn OutputSink + Send>,
+        mut encoder: Box<impl Encoder + Send>,
+        mut output: Box<impl OutputSink + Send>,
     ) -> Result<()> {
         let session = self.frame_pool.CreateCaptureSession(self.item)?;
 
@@ -118,12 +117,12 @@ impl ScreenCapture for WGCScreenCapture<'_> {
                 .encode(yuv_converter.y(), yuv_converter.u(), yuv_converter.v())
                 .unwrap();
             profiler.done_encoding();
-            output.write(encoded).unwrap();
+            output.write(encoded).await.unwrap();
             unsafe {
                 self.d3d_context.Unmap(&resource, 0);
             }
             profiler.done_processing();
-            debug!("{}", profiler.generate_report());
+            debug!("{}", profiler.generate_report(encoded.len()));
             ticker.tick().await;
         }
         session.Close()?;

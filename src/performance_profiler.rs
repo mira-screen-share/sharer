@@ -56,7 +56,7 @@ impl PerformanceProfiler {
         }
     }
 
-    pub fn generate_report(&self) -> String {
+    pub fn generate_report(&self, size: usize) -> String {
         let pre_processing_time = (self.pre_processing_time - self.frame_time) as f64
             / self.counter_frequency as f64
             * 1000.0;
@@ -72,7 +72,7 @@ impl PerformanceProfiler {
             (self.total_time - self.frame_time) as f64 / self.counter_frequency as f64 * 1000.0;
 
         format!(
-            "Total time {:.1}ms ({:.1} p, {:.1} c, {:.1} e, {:.1} s) {:.1}% at 30FPS. Current FPS: {}/{:.1}",
+            "Total time {:.1}ms ({:.1} p, {:.1} c, {:.1} e, {:.1} s) {:.1}% at 30FPS. Current FPS: {}/{:.1}. {} bytes",
             total_time,
             pre_processing_time,
             conversion_time,
@@ -80,7 +80,8 @@ impl PerformanceProfiler {
             webrtc_time,
             (total_time / (1.0 / 30.0 * 1000.0)) * 100.0,
             self.last_second_frame_count,
-            1000.0/total_time as f64
+            1000.0/total_time as f64,
+            size
         )
     }
 

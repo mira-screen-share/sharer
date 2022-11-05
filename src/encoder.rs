@@ -5,7 +5,7 @@ use std::{mem, slice};
 use x264_sys::{
     x264_encoder_close, x264_encoder_encode, x264_encoder_open, x264_nal_t,
     x264_param_apply_profile, x264_param_default_preset, x264_picture_alloc, x264_picture_clean,
-    x264_picture_t, x264_t, X264_CSP_I420,
+    x264_picture_t, x264_t, X264_CSP_I420, X264_TYPE_IDR,
 };
 
 pub trait Encoder {
@@ -37,12 +37,10 @@ impl X264Encoder {
             par.i_width = w as i32;
             par.i_height = h as i32;
             //par.i_fps_num = 30;
-            //par.i_threads = 4;
-            //par.b_annexb = true as i32;
+            par.i_threads = 4;
             par.i_csp = X264_CSP_I420 as i32;
             par
         };
-        warn!("test {}", par.i_bframe);
         let pic_in = unsafe {
             let mut pic_in = mem::MaybeUninit::<x264_picture_t>::uninit();
             x264_picture_alloc(pic_in.as_mut_ptr(), par.i_csp, par.i_width, par.i_height);
@@ -66,6 +64,8 @@ impl Encoder for X264Encoder {
             v.as_ptr() as *mut u8,
             null_mut(),
         ];
+        // x264 force key frame
+        //self.pic_in.i_type = X264_TYPE_IDR as i32;
         //pic_in.i_pts = ((frame_ms - start_relative_time.unwrap()) as f64 / (1.0 / 60.0 * 1000.0)).round() as i64;
         let frame_size = unsafe {
             x264_encoder_encode(
