@@ -36,8 +36,8 @@ impl WebRTCOutput {
     pub async fn new(
         config: RTCConfiguration,
         mut signaller: Box<dyn Signaller>,
-        mut encoder_force_idr: &mut Arc<AtomicBool>,
-        mut input_handler: Arc<InputHandler>,
+        encoder_force_idr: &mut Arc<AtomicBool>,
+        input_handler: Arc<InputHandler>,
     ) -> Result<Box<WebRTCOutput>> {
         info!("Initializing WebRTC");
         // Create a MediaEngine object to configure the supported codec

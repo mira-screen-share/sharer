@@ -55,10 +55,14 @@ async fn main() -> Result<()> {
         display.resolution.0,
         display.resolution.1,
     ));
-    let mut input_handler = Arc::new(inputs::InputHandler::new());
+    let input_handler = Arc::new(inputs::InputHandler::new());
+
+    let my_uuid = "00000000-0000-0000-0000-000000000000".to_string(); //uuid::Uuid::new_v4().to_string();
+    info!("Room uuid: {}", my_uuid);
+
     let webrtc_output = WebRTCOutput::new(
         WebRTCOutput::make_config(&["stun:stun.l.google.com:19302".into()]),
-        Box::new(signaller::WebSocketSignaller::new(&args.url).await?),
+        Box::new(signaller::WebSocketSignaller::new(&args.url, my_uuid).await?),
         &mut encoder.force_idr,
         input_handler.clone(),
     )

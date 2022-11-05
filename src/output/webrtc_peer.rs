@@ -7,7 +7,6 @@ use std::time::Duration;
 use tokio::sync::mpsc::Sender;
 use webrtc::api::media_engine::MIME_TYPE_H264;
 use webrtc::ice_transport::ice_candidate::RTCIceCandidate;
-use webrtc::ice_transport::ice_connection_state::RTCIceConnectionState;
 use webrtc::media::Sample;
 use webrtc::peer_connection::peer_connection_state::RTCPeerConnectionState;
 use webrtc::peer_connection::RTCPeerConnection;
@@ -29,8 +28,8 @@ impl WebRTCPeer {
     pub async fn new(
         peer_connection: Arc<RTCPeerConnection>,
         signaller_peer: Box<dyn SignallerPeer>,
-        mut encoder_force_idr: Arc<AtomicBool>,
-        mut input_handler: Arc<InputHandler>,
+        encoder_force_idr: Arc<AtomicBool>,
+        input_handler: Arc<InputHandler>,
     ) -> Result<Self> {
         debug!("Initializing a new WebRTC peer");
         // Create a video track
@@ -50,20 +49,21 @@ impl WebRTCPeer {
 
         let data_channel = peer_connection.create_data_channel("control", None).await?;
         let input_handler = input_handler.clone();
-        data_channel.on_message(Box::new(move |msg| {
-            let input_handler = input_handler.clone();
-            Box::pin(async move {
-                input_handler.sender.send(msg.data).await.unwrap();
-                ()
-            })
-        }));
+        data_channel
+            .on_message(Box::new(move |msg| {
+                let input_handler = input_handler.clone();
+                Box::pin(async move {
+                    input_handler.sender.send(msg.data).await.unwrap();
+                    ()
+                })
+            }))
+            .await;
 
         // Set the handler for Peer connection state
         // This will notify you when the peer has connected/disconnected
         let encoder_force_idr = encoder_force_idr.clone();
         peer_connection
             .on_peer_connection_state_change(Box::new(move |s: RTCPeerConnectionState| {
-                info!("Peer Connection State has changed: {}", s);
                 if s == RTCPeerConnectionState::Connected {
                     // send a keyframe for the newly connected peer so they can
                     // start streaming immediately

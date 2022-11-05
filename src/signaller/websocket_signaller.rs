@@ -37,7 +37,7 @@ pub struct WebSocketSignaller {
 }
 
 impl WebSocketSignaller {
-    pub async fn new(url: &str) -> Result<Self> {
+    pub async fn new(url: &str, my_uuid: String) -> Result<Self> {
         let (peers_sender, peers_receiver) = mpsc::channel::<WebSocketSignallerPeer>(1);
         let (send_queue_sender, mut send_queue_receiver) = mpsc::channel::<SignallerMessage>(8);
         let peers = Arc::new(RwLock::new(
@@ -45,7 +45,6 @@ impl WebSocketSignaller {
         ));
 
         let url = url::Url::parse(url).unwrap();
-        let my_uuid = "00000000-0000-0000-0000-000000000000".to_string(); //uuid::Uuid::new_v4().to_string();
         info!("Establishing websocket connection to {}", url);
         let (ws_stream, _) = connect_async(url).await?;
         debug!("Websocket connection established");
