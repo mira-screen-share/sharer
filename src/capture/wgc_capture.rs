@@ -82,7 +82,9 @@ impl ScreenCapture for WGCScreenCapture<'_> {
     async fn capture(
         &mut self,
         mut encoder: Box<impl Encoder + Send>,
-        mut output: Box<impl OutputSink + Send>,
+        mut output: Box<impl OutputSink + Send + ?Sized>,
+        mut profiler: PerformanceProfiler,
+        max_fps: u32,
     ) -> Result<()> {
         let session = self.frame_pool.CreateCaptureSession(self.item)?;
 
@@ -104,9 +106,8 @@ impl ScreenCapture for WGCScreenCapture<'_> {
 
         let height = self.item.Size()?.Height as u32;
         let width = self.item.Size()?.Width as u32;
-        let mut profiler = PerformanceProfiler::new();
         let mut yuv_converter = BGR0YUVConverter::new(width as usize, height as usize);
-        let mut ticker = tokio::time::interval(Duration::from_millis(33)); // 30 FPS
+        let mut ticker = tokio::time::interval(Duration::from_millis((1000 / max_fps) as u64));
         while let Some(frame) = receiver.recv().await {
             profiler.accept_frame(frame.SystemRelativeTime()?.Duration);
             let (resource, frame) = unsafe { self.get_frame_content(frame)? };
@@ -121,8 +122,7 @@ impl ScreenCapture for WGCScreenCapture<'_> {
             unsafe {
                 self.d3d_context.Unmap(&resource, 0);
             }
-            profiler.done_processing();
-            debug!("{}", profiler.generate_report(encoded.len()));
+            profiler.done_processing(encoded.len());
             ticker.tick().await;
         }
         session.Close()?;

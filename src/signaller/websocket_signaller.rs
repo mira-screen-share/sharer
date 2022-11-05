@@ -91,7 +91,7 @@ impl WebSocketSignaller {
                         };
                         sender.send(sdp).await.unwrap();
                     }
-                    SignallerMessage::Ice { ice, uuid, to } => {
+                    SignallerMessage::Ice { ice, uuid, to: _ } => {
                         let sender = {
                             let peer = &peers.read().await[&uuid];
                             let sender = &peer.ice_sender;
