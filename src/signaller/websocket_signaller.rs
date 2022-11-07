@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::sync::{mpsc, Mutex, RwLock};
+use tokio::time::timeout;
 use tokio_tungstenite::{connect_async, tungstenite::protocol::Message};
 use webrtc::ice_transport::ice_candidate::RTCIceCandidateInit;
 use webrtc::peer_connection::sdp::session_description::RTCSessionDescription;
@@ -36,7 +37,7 @@ pub struct WebSocketSignaller {
 }
 
 impl WebSocketSignaller {
-    pub async fn new(url: &str) -> Result<Self> {
+    pub async fn new(url: &str, my_uuid: String) -> Result<Self> {
         let (peers_sender, peers_receiver) = mpsc::channel::<WebSocketSignallerPeer>(1);
         let (send_queue_sender, mut send_queue_receiver) = mpsc::channel::<SignallerMessage>(8);
         let peers = Arc::new(RwLock::new(
@@ -44,7 +45,6 @@ impl WebSocketSignaller {
         ));
 
         let url = url::Url::parse(url).unwrap();
-        let my_uuid = "00000000-0000-0000-0000-000000000000".to_string(); //uuid::Uuid::new_v4().to_string();
         info!("Establishing websocket connection to {}", url);
         let (ws_stream, _) = connect_async(url).await?;
         debug!("Websocket connection established");
@@ -158,7 +158,13 @@ impl SignallerPeer for WebSocketSignallerPeer {
             .unwrap();
     }
     async fn recv_answer(&self) -> Option<RTCSessionDescription> {
-        self.answer_receiver.lock().await.recv().await
+        timeout(
+            tokio::time::Duration::from_secs(3),
+            self.answer_receiver.lock().await.recv(),
+        )
+        .await
+        .ok()
+        .flatten()
     }
 
     async fn recv_ice_message(&self) -> Option<RTCIceCandidateInit> {

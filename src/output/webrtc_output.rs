@@ -1,3 +1,4 @@
+use crate::inputs::InputHandler;
 use async_trait::async_trait;
 use futures_util::future::join_all;
 use log::info;
@@ -35,7 +36,8 @@ impl WebRTCOutput {
     pub async fn new(
         config: RTCConfiguration,
         mut signaller: Box<dyn Signaller>,
-        mut encoder_force_idr: &mut Arc<AtomicBool>,
+        encoder_force_idr: &mut Arc<AtomicBool>,
+        input_handler: Arc<InputHandler>,
     ) -> Result<Box<WebRTCOutput>> {
         info!("Initializing WebRTC");
         // Create a MediaEngine object to configure the supported codec
@@ -72,6 +74,7 @@ impl WebRTCOutput {
                         Arc::new(api_clone.new_peer_connection(config.clone()).await?),
                         peer,
                         encoder_force_idr.clone(),
+                        input_handler.clone(),
                     )
                     .await?,
                 );
