@@ -73,7 +73,7 @@ async fn main() -> Result<()> {
 
     let my_uuid = uuid::Uuid::new_v4().to_string();
     info!(
-        "Invite link: {}/?room={}&signaller={}",
+        "Invite link: {}?room={}&signaller={}",
         DEFAULT_VIEWER_URL, my_uuid, args.url
     );
 
