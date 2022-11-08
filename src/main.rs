@@ -33,9 +33,6 @@ struct Args {
     /// if provided, will stream to file instead of webrtc
     #[arg(long)]
     file: Option<String>,
-    /// ice servers, separated by comma
-    #[arg(long, default_value = "stun:stun.l.google.com:19302")]
-    ice_servers: String,
     /// max fps
     #[arg(long, default_value = "30")]
     max_fps: u32,
@@ -76,7 +73,7 @@ async fn main() -> Result<()> {
         Box::new(FileOutput::new(&path))
     } else {
         WebRTCOutput::new(
-            WebRTCOutput::make_config(args.ice_servers.split(',').map(|s| s.to_string()).collect()),
+            WebRTCOutput::make_config(),
             Box::new(signaller::WebSocketSignaller::new(&args.url, my_uuid).await?),
             &mut encoder.force_idr,
             input_handler.clone(),
