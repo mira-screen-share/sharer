@@ -23,10 +23,10 @@ pub struct WebRTCOutput {
 }
 
 impl WebRTCOutput {
-    pub fn make_config(ice_servers: &[String]) -> RTCConfiguration {
+    pub fn make_config(ice_servers: Vec<String>) -> RTCConfiguration {
         RTCConfiguration {
             ice_servers: vec![RTCIceServer {
-                urls: ice_servers.iter().map(|url| url.to_owned()).collect(),
+                urls: ice_servers,
                 ..Default::default()
             }],
             ..Default::default()

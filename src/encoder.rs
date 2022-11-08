@@ -39,7 +39,6 @@ impl X264Encoder {
 
             par.i_width = w as i32;
             par.i_height = h as i32;
-            //par.i_fps_num = 30;
             par.i_threads = 4;
             par.i_csp = X264_CSP_I420 as i32;
             par

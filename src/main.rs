@@ -1,6 +1,7 @@
 use crate::capture::ScreenCapture;
 use crate::encoder::Encoder;
 use crate::output::{FileOutput, OutputSink, WebRTCOutput};
+use crate::performance_profiler::PerformanceProfiler;
 use crate::result::Result;
 use capture::display::DisplayInfo;
 use clap::Parser;
@@ -20,21 +21,31 @@ mod signaller;
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
-    /// Display index
+    /// The index of the display to capture
     #[arg(short, long, default_value = "0")]
     display: usize,
     /// signaller url
     #[arg(short, long, default_value = "ws://localhost:8080")]
     url: String,
+    /// enable profiler output
+    #[arg(long, default_value = "false")]
+    profiler: bool,
+    /// if provided, will stream to file instead of webrtc
+    #[arg(long)]
+    file: Option<String>,
+    /// ice servers, separated by comma
+    #[arg(long, default_value = "stun:stun.l.google.com:19302")]
+    ice_servers: String,
+    /// max fps
+    #[arg(long, default_value = "30")]
+    max_fps: u32,
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
     env_logger::init_from_env(
-        env_logger::Env::default().filter_or(env_logger::DEFAULT_FILTER_ENV, "debug"),
+        env_logger::Env::default().filter_or(env_logger::DEFAULT_FILTER_ENV, "info"),
     );
-
-    info!("starting up");
 
     let args = Args::parse();
 
@@ -50,6 +61,7 @@ async fn main() -> Result<()> {
     }
     let display = displays.iter().nth(args.display).unwrap();
     let item = display.create_capture_item_for_monitor()?;
+    let profiler = PerformanceProfiler::new(args.profiler, args.max_fps);
     let mut capture = capture::WGCScreenCapture::new(&item)?;
     let mut encoder = Box::new(encoder::X264Encoder::new(
         display.resolution.0,
@@ -60,14 +72,21 @@ async fn main() -> Result<()> {
     let my_uuid = "00000000-0000-0000-0000-000000000000".to_string(); //uuid::Uuid::new_v4().to_string();
     info!("Room uuid: {}", my_uuid);
 
-    let webrtc_output = WebRTCOutput::new(
-        WebRTCOutput::make_config(&["stun:stun.l.google.com:19302".into()]),
-        Box::new(signaller::WebSocketSignaller::new(&args.url, my_uuid).await?),
-        &mut encoder.force_idr,
-        input_handler.clone(),
-    )
-    .await?;
-    //let file_output = Box::new(FileOutput::new("output.h264"));
-    capture.capture(encoder, webrtc_output).await?;
+    let output: Box<dyn OutputSink + Send> = if let Some(path) = args.file {
+        Box::new(FileOutput::new(&path))
+    } else {
+        WebRTCOutput::new(
+            WebRTCOutput::make_config(args.ice_servers.split(',').map(|s| s.to_string()).collect()),
+            Box::new(signaller::WebSocketSignaller::new(&args.url, my_uuid).await?),
+            &mut encoder.force_idr,
+            input_handler.clone(),
+        )
+        .await?
+    };
+
+    capture
+        .capture(encoder, output, profiler, args.max_fps)
+        .await?;
+
     Ok(())
 }
