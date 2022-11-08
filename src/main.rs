@@ -18,6 +18,8 @@ mod performance_profiler;
 mod result;
 mod signaller;
 
+const DEFAULT_VIEWER_URL: &str = "https://mirashare.app/";
+
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
@@ -25,7 +27,7 @@ struct Args {
     #[arg(short, long, default_value = "0")]
     display: usize,
     /// signaller url
-    #[arg(short, long, default_value = "ws://localhost:8080")]
+    #[arg(short, long, default_value = "wss://ws.mirashare.app")]
     url: String,
     /// enable profiler output
     #[arg(long, default_value = "false")]
@@ -69,8 +71,11 @@ async fn main() -> Result<()> {
     ));
     let input_handler = Arc::new(inputs::InputHandler::new());
 
-    let my_uuid = "00000000-0000-0000-0000-000000000000".to_string(); //uuid::Uuid::new_v4().to_string();
-    info!("Room uuid: {}", my_uuid);
+    let my_uuid = uuid::Uuid::new_v4().to_string();
+    info!(
+        "Invite link: {}/?room={}&signaller={}",
+        DEFAULT_VIEWER_URL, my_uuid, args.url
+    );
 
     let output: Box<dyn OutputSink + Send> = if let Some(path) = args.file {
         Box::new(FileOutput::new(&path))
