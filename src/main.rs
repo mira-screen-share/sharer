@@ -1,5 +1,5 @@
 use crate::capture::ScreenCapture;
-use crate::encoder::Encoder;
+use crate::encoder::Encode;
 use crate::output::{FileOutput, OutputSink, WebRTCOutput};
 use crate::performance_profiler::PerformanceProfiler;
 use crate::result::Result;
@@ -60,7 +60,7 @@ async fn main() -> Result<()> {
     let item = display.create_capture_item_for_monitor()?;
     let profiler = PerformanceProfiler::new(args.profiler, args.max_fps);
     let mut capture = capture::WGCScreenCapture::new(&item)?;
-    let mut encoder = Box::new(encoder::X264Encoder::new(
+    let mut encoder = Box::new(encoder::FfmpegEncoder::new(
         display.resolution.0,
         display.resolution.1,
     ));

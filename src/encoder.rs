@@ -1,4 +1,7 @@
 use crate::result::Result;
+use ac_ffmpeg::codec::video::{VideoEncoder, VideoFrame, VideoFrameMut};
+use ac_ffmpeg::codec::{video, Encoder};
+use ac_ffmpeg::time::{TimeBase, Timestamp};
 use std::ptr::null_mut;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
@@ -10,90 +13,82 @@ use x264_sys::{
     x264_picture_t, x264_t, X264_CSP_I420, X264_TYPE_AUTO, X264_TYPE_IDR,
 };
 
-pub trait Encoder {
-    fn encode(&mut self, y: &[u8], u: &[u8], v: &[u8]) -> Result<&[u8]>;
+pub trait Encode {
+    fn encode(&mut self, y: &[u8], u: &[u8], v: &[u8]) -> Result<Vec<u8>>;
 }
 
-pub struct X264Encoder {
-    encoder: *mut x264_t,
-    pic_in: x264_picture_t,
-    pic_out: mem::MaybeUninit<x264_picture_t>,
-    nal: *const x264_nal_t,
-    nal_size: i32,
+pub struct FfmpegEncoder {
+    encoder: VideoEncoder,
+    frame: VideoFrame,
+    frame_idx: usize,
+    w: u32,
+    h: u32,
     pub force_idr: Arc<AtomicBool>,
 }
 
-unsafe impl Send for X264Encoder {}
+unsafe impl Send for FfmpegEncoder {}
 
-impl X264Encoder {
+impl FfmpegEncoder {
     pub fn new(w: u32, h: u32) -> Self {
-        let mut par = unsafe {
-            let mut par = mem::MaybeUninit::uninit();
-            x264_param_default_preset(
-                par.as_mut_ptr(),
-                b"ultrafast\0".as_ptr() as *const i8,
-                b"zerolatency\0".as_ptr() as *const i8,
-            );
-            let mut par = par.assume_init();
-            x264_param_apply_profile(&mut par as *mut _, b"baseline\0".as_ptr() as *const i8);
+        let time_base = TimeBase::new(1, 30);
 
-            par.i_width = w as i32;
-            par.i_height = h as i32;
-            par.i_threads = 4;
-            par.i_csp = X264_CSP_I420 as i32;
-            par
-        };
-        let pic_in = unsafe {
-            let mut pic_in = mem::MaybeUninit::<x264_picture_t>::uninit();
-            x264_picture_alloc(pic_in.as_mut_ptr(), par.i_csp, par.i_width, par.i_height);
-            pic_in.assume_init()
-        };
+        let pixel_format = video::frame::get_pixel_format("yuv420p");
+
+        // create a black video frame with a given resolution
+        let frame = VideoFrameMut::black(pixel_format, w as _, h as _)
+            .with_time_base(time_base)
+            .freeze();
+
+        let mut encoder = VideoEncoder::builder("h264_nvenc")
+            .unwrap()
+            .pixel_format(pixel_format)
+            .set_option("profile", "baseline")
+            .set_option("compression_level", 8)
+            .width(w as _)
+            .height(h as _)
+            .time_base(time_base)
+            .build()
+            .unwrap();
+
         Self {
-            encoder: unsafe { x264_encoder_open(&mut par) },
-            pic_in,
-            pic_out: mem::MaybeUninit::<x264_picture_t>::uninit(),
-            nal: null_mut(),
-            nal_size: 0,
+            encoder,
+            frame,
+            w,
+            h,
+            frame_idx: 0,
             force_idr: Arc::new(AtomicBool::new(false)),
         }
     }
 }
 
-impl Encoder for X264Encoder {
-    fn encode(&mut self, y: &[u8], u: &[u8], v: &[u8]) -> Result<&[u8]> {
-        self.pic_in.img.plane = [
-            y.as_ptr() as *mut u8,
-            u.as_ptr() as *mut u8,
-            v.as_ptr() as *mut u8,
-            null_mut(),
-        ];
-        // force key frame as needed
-        self.pic_in.i_type = if self
-            .force_idr
-            .swap(false, std::sync::atomic::Ordering::Relaxed)
-        {
-            X264_TYPE_IDR as i32
-        } else {
-            X264_TYPE_AUTO as i32
-        };
-        let frame_size = unsafe {
-            x264_encoder_encode(
-                self.encoder,
-                &mut self.nal as *mut _ as *mut _,
-                &mut self.nal_size,
-                &mut self.pic_in,
-                self.pic_out.as_mut_ptr(),
-            )
-        };
-        return Ok(unsafe { slice::from_raw_parts((*self.nal).p_payload, frame_size as usize) });
+impl Encode for FfmpegEncoder {
+    fn encode(&mut self, y: &[u8], u: &[u8], v: &[u8]) -> Result<Vec<u8>> {
+        let tb = TimeBase::new(1, 30);
+        let mut frame_timestamp = Timestamp::new(self.frame_idx as i64, tb);
+        let mut frame = VideoFrameMut::black(
+            video::frame::get_pixel_format("yuv420p"),
+            self.w as _,
+            self.h as _,
+        )
+        .with_time_base(tb)
+        .with_pts(frame_timestamp);
+        let mut planes = frame.planes_mut();
+        planes[0].data_mut().copy_from_slice(y);
+        planes[1].data_mut().copy_from_slice(u);
+        planes[2].data_mut().copy_from_slice(v);
+
+        self.encoder.push(frame.freeze())?;
+        self.frame_idx += 1;
+        let res = self.encoder.take()?;
+        match res {
+            Some(frame) => Ok(frame.data().to_owned()),
+            None => Ok(Vec::new()),
+        }
     }
 }
 
-impl Drop for X264Encoder {
+impl Drop for FfmpegEncoder {
     fn drop(&mut self) {
-        unsafe {
-            x264_picture_clean(&mut self.pic_in);
-            x264_encoder_close(self.encoder);
-        }
+        unsafe {}
     }
 }

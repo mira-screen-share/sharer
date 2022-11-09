@@ -3,6 +3,17 @@
 version = 3
 
 [[package]]
+name = "ac-ffmpeg"
+version = "0.17.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d6c84aa511f4de0d0be5f78b1d3fc6b76d191d4dd89a451a1f692ad42699fd08"
+dependencies = [
+ "cc",
+ "lazy_static",
+ "pkg-config",
+]
+
+[[package]]
 name = "addr2line"
 version = "0.17.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1380,6 +1391,7 @@ dependencies = [
 name = "mira_sharer"
 version = "0.1.0"
 dependencies = [
+ "ac-ffmpeg",
  "async-trait",
  "bytes",
  "chrono",

@@ -12,7 +12,7 @@ use windows::Graphics::DirectX::DirectXPixelFormat;
 use super::ScreenCapture;
 use crate::capture::d3d;
 use crate::capture::yuv_converter::BGR0YUVConverter;
-use crate::encoder::Encoder;
+use crate::encoder::Encode;
 use crate::performance_profiler::PerformanceProfiler;
 use crate::result::Result;
 use crate::OutputSink;
@@ -81,7 +81,7 @@ impl<'a> WGCScreenCapture<'a> {
 impl ScreenCapture for WGCScreenCapture<'_> {
     async fn capture(
         &mut self,
-        mut encoder: Box<impl Encoder + Send>,
+        mut encoder: Box<impl Encode + Send>,
         mut output: Box<impl OutputSink + Send + ?Sized>,
         mut profiler: PerformanceProfiler,
         max_fps: u32,
@@ -118,7 +118,7 @@ impl ScreenCapture for WGCScreenCapture<'_> {
                 .encode(yuv_converter.y(), yuv_converter.u(), yuv_converter.v())
                 .unwrap();
             profiler.done_encoding();
-            output.write(encoded).await.unwrap();
+            output.write(&*encoded).await.unwrap();
             unsafe {
                 self.d3d_context.Unmap(&resource, 0);
             }
