@@ -18,7 +18,7 @@ mod performance_profiler;
 mod result;
 mod signaller;
 
-const DEFAULT_VIEWER_URL: &str = "https://mirashare.app/";
+const DEFAULT_VIEWER_URL: &str = "http://127.0.0.1:5173/"; //"https://mirashare.app/";
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -65,6 +65,7 @@ async fn main() -> Result<()> {
     let mut encoder = Box::new(encoder::FfmpegEncoder::new(
         display.resolution.0,
         display.resolution.1,
+        args.max_fps,
     ));
     let input_handler = Arc::new(inputs::InputHandler::new());
 
