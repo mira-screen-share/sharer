@@ -21,7 +21,6 @@ use crate::Result;
 pub struct WebRTCPeer {
     peer_connection: Arc<RTCPeerConnection>,
     signaller_peer: Box<dyn SignallerPeer>,
-    send_sample: Sender<Sample>,
 }
 
 impl WebRTCPeer {
@@ -30,22 +29,11 @@ impl WebRTCPeer {
         signaller_peer: Box<dyn SignallerPeer>,
         encoder_force_idr: Arc<AtomicBool>,
         input_handler: Arc<InputHandler>,
+        video_track: Arc<TrackLocalStaticSample>,
     ) -> Result<Self> {
         debug!("Initializing a new WebRTC peer");
-        // Create a video track
-        let video_track = Arc::new(TrackLocalStaticSample::new(
-            RTCRtpCodecCapability {
-                mime_type: MIME_TYPE_H264.to_owned(),
-                ..Default::default()
-            },
-            "video".to_owned(),
-            "screen".to_owned(),
-        ));
 
-        // Add this newly created track to the PeerConnection
-        let _rtp_sender = peer_connection
-            .add_track(Arc::clone(&video_track) as Arc<dyn TrackLocal + Send + Sync>)
-            .await?;
+        peer_connection.add_track(video_track).await?;
 
         let data_channel = peer_connection.create_data_channel("control", None).await?;
         let input_handler = input_handler.clone();
@@ -114,37 +102,10 @@ impl WebRTCPeer {
         // Set the remote SessionDescription
         peer_connection.set_remote_description(answer).await?;
 
-        let (send_sample, mut recv_sample) = tokio::sync::mpsc::channel::<Sample>(1);
-
-        tokio::spawn(async move {
-            while let Some(sample) = recv_sample.recv().await {
-                video_track
-                    .write_sample(&sample)
-                    .await
-                    .expect("Failed to write sample");
-            }
-            warn!("Video track closed");
-        });
-
         info!("WebRTC peer initialized");
         Ok(Self {
             peer_connection,
             signaller_peer,
-            send_sample,
         })
-    }
-}
-
-#[async_trait]
-impl OutputSink for WebRTCPeer {
-    async fn write(&mut self, input: &[u8]) -> Result<()> {
-        self.send_sample
-            .send(Sample {
-                data: input.to_vec().into(),         // todo: avoid copy
-                duration: Duration::from_millis(32), // todo: timestamps
-                ..Default::default()
-            })
-            .await?;
-        Ok(())
     }
 }

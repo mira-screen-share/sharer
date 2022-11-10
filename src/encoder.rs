@@ -1,51 +1,22 @@
+use crate::capture::BGR0YUVConverter;
 use crate::result::Result;
 use ac_ffmpeg::codec::video::{VideoEncoder, VideoFrame, VideoFrameMut};
 use ac_ffmpeg::codec::{video, Encoder};
-use ac_ffmpeg::packet::Packet;
 use ac_ffmpeg::time::{TimeBase, Timestamp};
-use std::os::raw::{c_int, c_void};
 use std::ptr::null_mut;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
-use std::{mem, ptr, slice};
-
-struct VideoEncoderExposed {
-    pub ptr: *mut c_void,
-    pub time_base: TimeBase,
-}
-
-extern "C" {
-    fn ffw_encoder_push_frame(encoder: *mut c_void, frame: *const c_void) -> c_int;
-    fn ffw_frame_get_plane_data(frame: *mut c_void, index: usize) -> *mut u8;
-    fn ffw_frame_new_black(pixel_format: c_int, width: c_int, height: c_int) -> *mut c_void;
-    fn ffw_encoder_take_packet(encoder: *mut c_void, packet: *mut *mut c_void) -> c_int;
-    fn ffw_packet_get_size(packet: *const c_void) -> c_int;
-    fn ffw_packet_get_data(packet: *mut c_void) -> *mut c_void;
-}
-
-unsafe fn encoder_take(ptr: *mut c_void) -> Option<&'static [u8]> {
-    let mut pptr = ptr::null_mut();
-    let ret = ffw_encoder_take_packet(ptr, &mut pptr);
-    if ret == 0 {
-        return None;
-    }
-    if ret == -1 {
-        panic!("!");
-    }
-    let data = ffw_packet_get_data(pptr) as *const u8;
-    let size = ffw_packet_get_size(pptr) as usize;
-    return Some(slice::from_raw_parts(data, size));
-}
-
-pub trait Encode {
-    fn encode(&mut self, bgra: &[u8]) -> Result<&[u8]>;
-}
+use std::thread::sleep;
+use std::time::Duration;
+use std::{mem, slice};
 
 pub struct FfmpegEncoder {
-    encoder: *mut c_void,
-    frame: *mut c_void,
+    encoder: VideoEncoder,
+    frame: VideoFrame,
+    frame_idx: usize,
     w: u32,
     h: u32,
+    time_base: TimeBase,
     pub force_idr: Arc<AtomicBool>,
 }
 
@@ -53,45 +24,61 @@ unsafe impl Send for FfmpegEncoder {}
 
 impl FfmpegEncoder {
     pub fn new(w: u32, h: u32, fps: u32) -> Self {
-        let pixel_format = video::frame::get_pixel_format("bgra");
+        let time_base = TimeBase::new(1, 10_000);
 
-        let frame = unsafe { ffw_frame_new_black(mem::transmute(pixel_format), w as _, h as _) };
+        let pixel_format = video::frame::get_pixel_format("yuv420p");
 
-        let mut encoder = VideoEncoder::builder("h264_nvenc")
+        // create a black video frame with a given resolution
+        let frame = VideoFrameMut::black(pixel_format, w as _, h as _)
+            .with_time_base(time_base)
+            .freeze();
+
+        let mut encoder = VideoEncoder::builder("libx264") // libx264
             .unwrap()
             .pixel_format(pixel_format)
             .set_option("profile", "baseline")
-            .set_option("compression_level", 8)
+            .set_option("preset", "ultrafast")
+            .set_option("tune", "zerolatency")
+            //.set_option("compression_level", 8)
             .width(w as _)
             .height(h as _)
-            .time_base(TimeBase::new(1, fps))
+            .time_base(time_base)
             .build()
             .unwrap();
 
-        let encoder_exposed: VideoEncoderExposed = unsafe { mem::transmute(encoder) };
-
         Self {
-            encoder: encoder_exposed.ptr,
+            encoder,
             frame,
             w,
             h,
+            time_base,
+            frame_idx: 0,
             force_idr: Arc::new(AtomicBool::new(false)),
         }
     }
-}
 
-impl Encode for FfmpegEncoder {
-    fn encode(&mut self, bgra: &[u8]) -> Result<&[u8]> {
-        let data = unsafe {
-            slice::from_raw_parts_mut(ffw_frame_get_plane_data(self.frame, 0), bgra.len())
-        };
-        data.copy_from_slice(bgra);
+    pub fn encode(&mut self, bgra: &BGR0YUVConverter, frame_time: i64) -> Result<Vec<u8>> {
+        let mut frame = VideoFrameMut::black(
+            video::frame::get_pixel_format("yuv420p"),
+            self.w as _,
+            self.h as _,
+        )
+        .with_pts(Timestamp::new(
+            (frame_time as f64 / 1000.) as i64,
+            self.time_base,
+        ));
+        let mut planes = frame.planes_mut();
+        planes[0].data_mut().copy_from_slice(bgra.y());
+        planes[1].data_mut().copy_from_slice(bgra.u());
+        planes[2].data_mut().copy_from_slice(bgra.v());
 
-        let frame = unsafe {
-            ffw_encoder_push_frame(self.encoder, self.frame);
-            encoder_take(self.encoder)
-        };
-        return Ok(frame.unwrap_or_else(|| &[]));
+        self.encoder.push(frame.freeze())?;
+        self.frame_idx += 1;
+        let mut ret = Vec::new();
+        while let Some(a) = self.encoder.take()? {
+            ret.extend(a.data());
+        }
+        return Ok(ret);
     }
 }
 

@@ -12,7 +12,7 @@ use windows::Graphics::DirectX::DirectXPixelFormat;
 use super::ScreenCapture;
 use crate::capture::d3d;
 use crate::capture::yuv_converter::BGR0YUVConverter;
-use crate::encoder::Encode;
+use crate::encoder::FfmpegEncoder;
 use crate::performance_profiler::PerformanceProfiler;
 use crate::result::Result;
 use crate::OutputSink;
@@ -81,7 +81,7 @@ impl<'a> WGCScreenCapture<'a> {
 impl ScreenCapture for WGCScreenCapture<'_> {
     async fn capture(
         &mut self,
-        mut encoder: Box<impl Encode + Send>,
+        mut encoder: FfmpegEncoder,
         mut output: Box<impl OutputSink + Send + ?Sized>,
         mut profiler: PerformanceProfiler,
         max_fps: u32,
@@ -109,12 +109,13 @@ impl ScreenCapture for WGCScreenCapture<'_> {
         let mut yuv_converter = BGR0YUVConverter::new(width as usize, height as usize);
         let mut ticker = tokio::time::interval(Duration::from_millis((1000 / max_fps) as u64));
         while let Some(frame) = receiver.recv().await {
+            let frame_time = frame.SystemRelativeTime()?.Duration;
             profiler.accept_frame(frame.SystemRelativeTime()?.Duration);
             let (resource, frame) = unsafe { self.get_frame_content(frame)? };
             profiler.done_preprocessing();
-            //yuv_converter.convert(frame);
+            yuv_converter.convert(frame);
             profiler.done_conversion();
-            let encoded = encoder.encode(frame).unwrap();
+            let encoded = encoder.encode(&yuv_converter, frame_time).unwrap();
             profiler.done_encoding();
             output.write(&*encoded).await.unwrap();
             unsafe {
