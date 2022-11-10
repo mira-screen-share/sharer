@@ -33,12 +33,15 @@ impl FfmpegEncoder {
             .with_time_base(time_base)
             .freeze();
 
-        let mut encoder = VideoEncoder::builder("libx264") // libx264
+        let mut encoder = VideoEncoder::builder("h264_nvenc") // libx264
             .unwrap()
             .pixel_format(pixel_format)
             .set_option("profile", "baseline")
-            .set_option("preset", "ultrafast")
-            .set_option("tune", "zerolatency")
+            .set_option("preset", "p4")
+            .set_option("tune", "ll")
+            .set_option("zerolatency", true)
+            //.set_option("preset", "ultrafast")
+            //.set_option("tune", "zerolatency")
             //.set_option("compression_level", 8)
             .width(w as _)
             .height(h as _)
@@ -75,9 +78,12 @@ impl FfmpegEncoder {
         self.encoder.push(frame.freeze())?;
         self.frame_idx += 1;
         let mut ret = Vec::new();
+        let mut n = 0;
         while let Some(a) = self.encoder.take()? {
             ret.extend(a.data());
+            n += 1;
         }
+        //println!("{}", n);
         return Ok(ret);
     }
 }
