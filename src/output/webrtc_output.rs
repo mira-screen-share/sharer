@@ -11,8 +11,6 @@ use tokio::sync::Mutex;
 use webrtc::api::interceptor_registry::register_default_interceptors;
 use webrtc::api::media_engine::{MediaEngine, MIME_TYPE_H264};
 use webrtc::api::APIBuilder;
-use webrtc::ice_transport::ice_credential_type::RTCIceCredentialType::Password;
-use webrtc::ice_transport::ice_server::RTCIceServer;
 use webrtc::interceptor::registry::Registry;
 use webrtc::media::Sample;
 use webrtc::peer_connection::configuration::RTCConfiguration;
@@ -34,19 +32,12 @@ pub struct WebRTCOutput {
 impl WebRTCOutput {
     fn make_config(config: &Config) -> RTCConfiguration {
         RTCConfiguration {
-            ice_servers: vec![
-                RTCIceServer {
-                    urls: vec!["stun:stun.l.google.com:19302".to_string()],
-                    ..Default::default()
-                },
-                RTCIceServer {
-                    // TURN server from [Open Relay Project](https://openrelayproject.org)
-                    urls: vec!["turn:openrelay.metered.ca:80".to_string()],
-                    username: "openrelayproject".to_string(),
-                    credential: "openrelayproject".to_string(),
-                    credential_type: Password,
-                },
-            ],
+            ice_servers: config
+                .ice_servers
+                .clone()
+                .into_iter()
+                .map(|s| s.into())
+                .collect(),
             ..Default::default()
         }
     }
