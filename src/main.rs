@@ -5,12 +5,14 @@ use crate::performance_profiler::PerformanceProfiler;
 use crate::result::Result;
 use capture::display::DisplayInfo;
 use clap::Parser;
+use std::path::Path;
 use std::sync::Arc;
 
 #[macro_use]
 extern crate log;
 
 mod capture;
+mod config;
 mod encoder;
 mod inputs;
 mod output;
@@ -18,26 +20,26 @@ mod performance_profiler;
 mod result;
 mod signaller;
 
+<<<<<<< HEAD
 const DEFAULT_VIEWER_URL: &str = "http://127.0.0.1:5173/"; //"https://mirashare.app/";
 
+=======
+>>>>>>> 50a45dd (add config)
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
     /// The index of the display to capture
     #[arg(short, long, default_value = "0")]
     display: usize,
-    /// signaller url
-    #[arg(short, long, default_value = "wss://ws.mirashare.app")]
-    url: String,
-    /// enable profiler output
+    /// Enable profiler output
     #[arg(long, default_value = "false")]
     profiler: bool,
-    /// if provided, will stream to file instead of webrtc
+    /// If provided, will stream to file instead of webrtc
     #[arg(long)]
     file: Option<String>,
-    /// max fps
-    #[arg(long, default_value = "30")]
-    max_fps: u32,
+    /// Config file path
+    #[arg(short, long, default_value = "config.toml")]
+    config: String,
 }
 
 #[tokio::main]
@@ -47,20 +49,22 @@ async fn main() -> Result<()> {
     );
 
     let args = Args::parse();
+    let config = config::load(Path::new(&args.config))?;
 
     let display = DisplayInfo::displays()?[args.display].select()?;
-    let profiler = PerformanceProfiler::new(args.profiler, args.max_fps);
+    let profiler = PerformanceProfiler::new(args.profiler, config.max_fps);
     let mut capture = capture::WGCScreenCapture::new(&display)?;
-    let mut encoder = Box::new(encoder::X264Encoder::new(
+    let mut encoder = encoder::FfmpegEncoder::new(
         display.resolution().0,
         display.resolution().1,
-    ));
+        config.max_fps,
+    );
     let input_handler = Arc::new(inputs::InputHandler::new());
-
     let my_uuid = uuid::Uuid::new_v4().to_string();
+
     info!(
         "Invite link: {}?room={}&signaller={}",
-        DEFAULT_VIEWER_URL, my_uuid, args.url
+        config.viewer_url, my_uuid, config.signaller_url
     );
 
     let output: Box<dyn OutputSink + Send> = if let Some(path) = args.file {
@@ -68,7 +72,7 @@ async fn main() -> Result<()> {
     } else {
         WebRTCOutput::new(
             WebRTCOutput::make_config(),
-            Box::new(signaller::WebSocketSignaller::new(&args.url, my_uuid).await?),
+            Box::new(signaller::WebSocketSignaller::new(&config.signaller_url, my_uuid).await?),
             &mut encoder.force_idr,
             input_handler.clone(),
         )
@@ -76,7 +80,7 @@ async fn main() -> Result<()> {
     };
 
     capture
-        .capture(encoder, output, profiler, args.max_fps)
+        .capture(encoder, output, profiler, config.max_fps)
         .await?;
 
     Ok(())

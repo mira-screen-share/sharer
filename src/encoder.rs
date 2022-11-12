@@ -90,13 +90,15 @@ impl FfmpegEncoder {
             time_base,
         ));
 
-        frame
-            .planes_mut()
-            .iter_mut()
-            .enumerate()
-            .for_each(|(i, plane)| {
-                plane.data_mut().copy_from_slice(input_planes[i]);
-            });
+        input_planes.iter().enumerate().for_each(|(i, plane)| {
+            frame
+                .planes_mut()
+                .iter_mut()
+                .nth(i)
+                .unwrap()
+                .data_mut()
+                .copy_from_slice(input_planes[i]);
+        });
 
         let frame = frame.freeze();
         self.encoder.push(frame.clone())?;
