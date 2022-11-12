@@ -1,3 +1,4 @@
+use crate::capture::display::Display;
 use crate::capture::ScreenCapture;
 use crate::output::{FileOutput, OutputSink, WebRTCOutput};
 use crate::performance_profiler::PerformanceProfiler;
@@ -47,22 +48,10 @@ async fn main() -> Result<()> {
 
     let args = Args::parse();
 
-    let displays = DisplayInfo::displays()?;
-    for (i, display) in displays.iter().enumerate() {
-        info!(
-            "display: {} {}x{} {}",
-            display.display_name,
-            display.resolution.0,
-            display.resolution.1,
-            if i == args.display { "(selected)" } else { "" },
-        );
-    }
-    let display = displays.iter().nth(args.display).unwrap();
-    let item = display.create_capture_item_for_monitor()?;
+    let display = DisplayInfo::displays()?[args.display].select()?;
     let profiler = PerformanceProfiler::new(args.profiler, args.max_fps);
-    let mut capture = capture::WGCScreenCapture::new(&item)?;
-    let mut encoder =
-        encoder::FfmpegEncoder::new(display.resolution.0, display.resolution.1, args.max_fps);
+    let mut capture = capture::WGCScreenCapture::new(&display)?;
+    let mut encoder = encoder::FfmpegEncoder::new(display.resolution().0, display.resolution().1);
     let input_handler = Arc::new(inputs::InputHandler::new());
 
     let my_uuid = uuid::Uuid::new_v4().to_string();
