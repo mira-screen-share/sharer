@@ -5,6 +5,7 @@ use ac_ffmpeg::time::{TimeBase, Timestamp};
 
 use crate::config::EncoderConfig;
 use crate::encoder::frame_pool::FramePool;
+use bytes::Bytes;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
@@ -46,7 +47,7 @@ impl FfmpegEncoder {
         }
     }
 
-    pub fn encode(&mut self, input_planes: &[&[u8]], frame_time: i64) -> Result<Vec<u8>> {
+    pub fn encode(&mut self, input_planes: &[&[u8]], frame_time: i64) -> Result<Bytes> {
         let mut frame = self.frame_pool.take();
         let time_base = frame.time_base();
         frame = frame.with_pts(Timestamp::new(
@@ -71,6 +72,6 @@ impl FfmpegEncoder {
         while let Some(a) = self.encoder.take()? {
             ret.extend(a.data());
         }
-        Ok(ret)
+        Ok(Bytes::from(ret))
     }
 }

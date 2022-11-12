@@ -68,10 +68,10 @@ async fn main() -> Result<()> {
         Box::new(FileOutput::new(&path))
     } else {
         WebRTCOutput::new(
-            WebRTCOutput::make_config(),
             Box::new(signaller::WebSocketSignaller::new(&config.signaller_url, my_uuid).await?),
             &mut encoder.force_idr,
             input_handler.clone(),
+            &config,
         )
         .await?
     };

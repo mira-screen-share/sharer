@@ -1,6 +1,8 @@
 use crate::inputs::InputHandler;
 use async_trait::async_trait;
 
+use crate::config::Config;
+use bytes::Bytes;
 use log::info;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
@@ -26,10 +28,11 @@ pub struct WebRTCOutput {
     api: Arc<webrtc::api::API>,
     peers: Arc<Mutex<Vec<WebRTCPeer>>>,
     video_track: Arc<TrackLocalStaticSample>,
+    frame_rate: u32,
 }
 
 impl WebRTCOutput {
-    pub fn make_config() -> RTCConfiguration {
+    fn make_config(config: &Config) -> RTCConfiguration {
         RTCConfiguration {
             ice_servers: vec![
                 RTCIceServer {
@@ -49,10 +52,10 @@ impl WebRTCOutput {
     }
 
     pub async fn new(
-        config: RTCConfiguration,
         mut signaller: Box<dyn Signaller>,
         encoder_force_idr: &mut Arc<AtomicBool>,
         input_handler: Arc<InputHandler>,
+        config: &Config,
     ) -> Result<Box<WebRTCOutput>> {
         info!("Initializing WebRTC");
         // Create a MediaEngine object to configure the supported codec
@@ -88,18 +91,20 @@ impl WebRTCOutput {
             ),
             peers: Arc::new(Mutex::new(Vec::new())),
             video_track: video_track.clone(),
+            frame_rate: config.max_fps,
         });
 
         let api_clone = output.api.clone();
         let peers_clone = output.peers.clone();
         let encoder_force_idr = encoder_force_idr.clone();
         let video_track_clone = video_track.clone();
+        let webrtc_config = Self::make_config(config);
         signaller.start().await;
         tokio::spawn(async move {
             while let Some(peer) = signaller.accept_peer().await {
                 peers_clone.lock().await.push(
                     WebRTCPeer::new(
-                        Arc::new(api_clone.new_peer_connection(config.clone()).await?),
+                        Arc::new(api_clone.new_peer_connection(webrtc_config.clone()).await?),
                         peer,
                         encoder_force_idr.clone(),
                         input_handler.clone(),
@@ -119,11 +124,11 @@ impl WebRTCOutput {
 
 #[async_trait]
 impl OutputSink for WebRTCOutput {
-    async fn write(&mut self, input: &[u8]) -> Result<()> {
+    async fn write(&mut self, input: Bytes) -> Result<()> {
         self.video_track
             .write_sample(&Sample {
-                data: input.to_vec().into(), // todo: avoid copy
-                duration: Duration::from_millis(33),
+                data: input,
+                duration: Duration::from_millis((1000. / self.frame_rate as f64) as u64),
                 ..Default::default()
             })
             .await

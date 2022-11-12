@@ -1,10 +1,11 @@
 use async_trait::async_trait;
+use bytes::Bytes;
 
 use crate::Result;
 
 #[async_trait]
 pub trait OutputSink: Send + Sync + 'static {
-    async fn write(&mut self, input: &[u8]) -> Result<()>;
+    async fn write(&mut self, input: Bytes) -> Result<()>;
 }
 
 mod file_output;

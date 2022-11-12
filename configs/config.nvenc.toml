@@ -1,6 +1,6 @@
 signaller_url = "wss://ws.mirashare.app"
 viewer_url = "https://mirashare.app/"
-max_fps = 120
+max_fps = 60
 
 [encoder]
 encoder = "h264_nvenc"
