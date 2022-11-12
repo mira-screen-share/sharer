@@ -108,7 +108,7 @@ impl ScreenCapture for WGCScreenCapture<'_> {
 
         let height = self.item.Size()?.Height as u32;
         let width = self.item.Size()?.Width as u32;
-        let use_yuv = false;
+        let use_yuv = self.config.encoder.yuv_input;
         let mut yuv_converter = BGR0YUVConverter::new(width as usize, height as usize);
         let mut ticker =
             tokio::time::interval(Duration::from_millis((1000 / self.config.max_fps) as u64));
@@ -126,12 +126,13 @@ impl ScreenCapture for WGCScreenCapture<'_> {
             } else {
                 encoder.encode(&[frame], frame_time).unwrap()
             };
+            let encoded_len = encoded.len();
             profiler.done_encoding();
-            output.write(&*encoded).await.unwrap();
+            output.write(encoded).await.unwrap();
             unsafe {
                 self.d3d_context.Unmap(&resource, 0);
             }
-            profiler.done_processing(encoded.len());
+            profiler.done_processing(encoded_len);
             ticker.tick().await;
         }
         session.Close()?;
