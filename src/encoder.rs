@@ -1,15 +1,11 @@
-use crate::capture::BGR0YUVConverter;
 use crate::result::Result;
 use ac_ffmpeg::codec::video::{PixelFormat, VideoEncoder, VideoFrame, VideoFrameMut};
 use ac_ffmpeg::codec::{video, Encoder};
 use ac_ffmpeg::time::{TimeBase, Timestamp};
 use std::collections::VecDeque;
-use std::ptr::null_mut;
+
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
-use std::thread::sleep;
-use std::time::Duration;
-use std::{mem, slice};
 
 struct FramePool {
     frames: VecDeque<VideoFrame>,
@@ -58,12 +54,12 @@ pub struct FfmpegEncoder {
 unsafe impl Send for FfmpegEncoder {}
 
 impl FfmpegEncoder {
-    pub fn new(w: u32, h: u32, fps: u32) -> Self {
+    pub fn new(w: u32, h: u32, _fps: u32) -> Self {
         let time_base = TimeBase::new(1, 10_000);
 
         let pixel_format = video::frame::get_pixel_format("bgra"); // yuv420p
 
-        let mut encoder = VideoEncoder::builder("h264_nvenc") // libx264
+        let encoder = VideoEncoder::builder("h264_nvenc") // libx264
             .unwrap()
             .pixel_format(pixel_format)
             .set_option("profile", "baseline")
@@ -102,17 +98,13 @@ impl FfmpegEncoder {
                 plane.data_mut().copy_from_slice(input_planes[i]);
             });
 
-        self.encoder.push(frame.freeze())?;
+        let frame = frame.freeze();
+        self.encoder.push(frame.clone())?;
+        self.frame_pool.put(frame);
         let mut ret = Vec::new();
         while let Some(a) = self.encoder.take()? {
             ret.extend(a.data());
         }
-        return Ok(ret);
-    }
-}
-
-impl Drop for FfmpegEncoder {
-    fn drop(&mut self) {
-        unsafe {}
+        Ok(ret)
     }
 }

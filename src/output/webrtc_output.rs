@@ -1,6 +1,6 @@
 use crate::inputs::InputHandler;
 use async_trait::async_trait;
-use futures_util::future::join_all;
+
 use log::info;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
@@ -17,7 +17,6 @@ use webrtc::media::Sample;
 use webrtc::peer_connection::configuration::RTCConfiguration;
 use webrtc::rtp_transceiver::rtp_codec::RTCRtpCodecCapability;
 use webrtc::track::track_local::track_local_static_sample::TrackLocalStaticSample;
-use webrtc::track::track_local::TrackLocal;
 
 use crate::output::WebRTCPeer;
 use crate::signaller::Signaller;
@@ -27,7 +26,6 @@ use crate::Result;
 pub struct WebRTCOutput {
     api: Arc<webrtc::api::API>,
     peers: Arc<Mutex<Vec<WebRTCPeer>>>,
-    send_sample: Sender<Sample>,
     video_track: Arc<TrackLocalStaticSample>,
 }
 
@@ -72,8 +70,6 @@ impl WebRTCOutput {
         // Use the default set of Interceptors
         registry = register_default_interceptors(registry, &mut m)?;
 
-        let (send_sample, mut recv_sample) = tokio::sync::mpsc::channel::<Sample>(1);
-
         // Create a video track
         let video_track = Arc::new(TrackLocalStaticSample::new(
             RTCRtpCodecCapability {
@@ -92,7 +88,6 @@ impl WebRTCOutput {
                     .build(),
             ),
             peers: Arc::new(Mutex::new(Vec::new())),
-            send_sample,
             video_track: video_track.clone(),
         });
 
