@@ -1,8 +1,9 @@
 use crate::capture::BGR0YUVConverter;
 use crate::result::Result;
-use ac_ffmpeg::codec::video::{VideoEncoder, VideoFrame, VideoFrameMut};
+use ac_ffmpeg::codec::video::{PixelFormat, VideoEncoder, VideoFrame, VideoFrameMut};
 use ac_ffmpeg::codec::{video, Encoder};
 use ac_ffmpeg::time::{TimeBase, Timestamp};
+use std::collections::VecDeque;
 use std::ptr::null_mut;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
@@ -10,13 +11,47 @@ use std::thread::sleep;
 use std::time::Duration;
 use std::{mem, slice};
 
-pub struct FfmpegEncoder {
-    encoder: VideoEncoder,
-    frame: VideoFrame,
-    frame_idx: usize,
+struct FramePool {
+    frames: VecDeque<VideoFrame>,
     w: u32,
     h: u32,
     time_base: TimeBase,
+    pixel_format: PixelFormat,
+}
+
+impl FramePool {
+    fn new(w: u32, h: u32, time_base: TimeBase, pixel_format: PixelFormat) -> Self {
+        Self {
+            frames: VecDeque::new(),
+            w,
+            h,
+            time_base,
+            pixel_format,
+        }
+    }
+
+    /// Put a given frame back to the pool after it was used.
+    fn put(&mut self, frame: VideoFrame) {
+        self.frames.push_back(frame);
+    }
+
+    /// Take a writable frame from the pool or allocate a new one if necessary.
+    fn take(&mut self) -> VideoFrameMut {
+        if let Some(frame) = self.frames.pop_front() {
+            match frame.try_into_mut() {
+                Ok(frame) => return frame,
+                Err(frame) => self.frames.push_front(frame),
+            }
+        }
+
+        VideoFrameMut::black(self.pixel_format, self.w as _, self.h as _)
+            .with_time_base(self.time_base)
+    }
+}
+
+pub struct FfmpegEncoder {
+    encoder: VideoEncoder,
+    frame_pool: FramePool,
     pub force_idr: Arc<AtomicBool>,
 }
 
@@ -26,12 +61,7 @@ impl FfmpegEncoder {
     pub fn new(w: u32, h: u32, fps: u32) -> Self {
         let time_base = TimeBase::new(1, 10_000);
 
-        let pixel_format = video::frame::get_pixel_format("yuv420p");
-
-        // create a black video frame with a given resolution
-        let frame = VideoFrameMut::black(pixel_format, w as _, h as _)
-            .with_time_base(time_base)
-            .freeze();
+        let pixel_format = video::frame::get_pixel_format("bgra"); // yuv420p
 
         let mut encoder = VideoEncoder::builder("h264_nvenc") // libx264
             .unwrap()
@@ -51,39 +81,32 @@ impl FfmpegEncoder {
 
         Self {
             encoder,
-            frame,
-            w,
-            h,
-            time_base,
-            frame_idx: 0,
+            frame_pool: FramePool::new(w, h, time_base, pixel_format),
             force_idr: Arc::new(AtomicBool::new(false)),
         }
     }
 
-    pub fn encode(&mut self, bgra: &BGR0YUVConverter, frame_time: i64) -> Result<Vec<u8>> {
-        let mut frame = VideoFrameMut::black(
-            video::frame::get_pixel_format("yuv420p"),
-            self.w as _,
-            self.h as _,
-        )
-        .with_pts(Timestamp::new(
+    pub fn encode(&mut self, input_planes: &[&[u8]], frame_time: i64) -> Result<Vec<u8>> {
+        let mut frame = self.frame_pool.take();
+        let time_base = frame.time_base();
+        frame = frame.with_pts(Timestamp::new(
             (frame_time as f64 / 1000.) as i64,
-            self.time_base,
+            time_base,
         ));
-        let mut planes = frame.planes_mut();
-        planes[0].data_mut().copy_from_slice(bgra.y());
-        planes[1].data_mut().copy_from_slice(bgra.u());
-        planes[2].data_mut().copy_from_slice(bgra.v());
+
+        frame
+            .planes_mut()
+            .iter_mut()
+            .enumerate()
+            .for_each(|(i, plane)| {
+                plane.data_mut().copy_from_slice(input_planes[i]);
+            });
 
         self.encoder.push(frame.freeze())?;
-        self.frame_idx += 1;
         let mut ret = Vec::new();
-        let mut n = 0;
         while let Some(a) = self.encoder.take()? {
             ret.extend(a.data());
-            n += 1;
         }
-        //println!("{}", n);
         return Ok(ret);
     }
 }

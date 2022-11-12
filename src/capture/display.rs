@@ -18,12 +18,7 @@ impl DisplayInfo {
     pub fn displays() -> Result<Vec<Self>> {
         unsafe {
             let displays = Box::into_raw(Box::new(Vec::<DisplayInfo>::new()));
-            EnumDisplayMonitors(
-                HDC(0),
-                None,
-                Some(enum_monitor),
-                LPARAM(displays as isize),
-            );
+            EnumDisplayMonitors(HDC(0), None, Some(enum_monitor), LPARAM(displays as isize));
             Ok(*Box::from_raw(displays))
         }
     }
@@ -43,8 +38,10 @@ impl DisplayInfo {
         Ok(Self {
             handle: monitor_handle,
             display_name,
-            resolution: ((info.monitorInfo.rcMonitor.right - info.monitorInfo.rcMonitor.left) as u32,
-                         (info.monitorInfo.rcMonitor.bottom - info.monitorInfo.rcMonitor.top) as u32),
+            resolution: (
+                (info.monitorInfo.rcMonitor.right - info.monitorInfo.rcMonitor.left) as u32,
+                (info.monitorInfo.rcMonitor.bottom - info.monitorInfo.rcMonitor.top) as u32,
+            ),
         })
     }
 
