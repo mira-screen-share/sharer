@@ -1,21 +1,21 @@
 use crate::inputs::InputHandler;
-use async_trait::async_trait;
+
 use log::{debug, info};
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
-use std::time::Duration;
-use tokio::sync::mpsc::Sender;
-use webrtc::api::media_engine::MIME_TYPE_H264;
+
+
+
 use webrtc::ice_transport::ice_candidate::RTCIceCandidate;
-use webrtc::media::Sample;
+
 use webrtc::peer_connection::peer_connection_state::RTCPeerConnectionState;
 use webrtc::peer_connection::RTCPeerConnection;
-use webrtc::rtp_transceiver::rtp_codec::RTCRtpCodecCapability;
+
 use webrtc::track::track_local::track_local_static_sample::TrackLocalStaticSample;
-use webrtc::track::track_local::TrackLocal;
+
 
 use crate::signaller::SignallerPeer;
-use crate::OutputSink;
+
 use crate::Result;
 
 pub struct WebRTCPeer {
@@ -42,7 +42,7 @@ impl WebRTCPeer {
                 let input_handler = input_handler.clone();
                 Box::pin(async move {
                     input_handler.sender.send(msg.data).await.unwrap();
-                    ()
+                    
                 })
             }))
             .await;
