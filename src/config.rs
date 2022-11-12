@@ -1,6 +1,5 @@
 use crate::Result;
 use serde::{Deserialize, Serialize};
-use serde_json::to_writer;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::{Read, Write};
@@ -23,10 +22,10 @@ pub struct Config {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct EncoderConfig {
-    encoder: String,
-    yuv_input: bool,
+    pub encoder: String,
+    pub yuv_input: bool,
     #[serde(serialize_with = "toml::ser::tables_last")]
-    options: HashMap<String, String>,
+    pub options: HashMap<String, String>,
 }
 
 pub fn load(path: &Path) -> Result<Config> {
@@ -48,8 +47,9 @@ pub fn load(path: &Path) -> Result<Config> {
 fn libx264() -> EncoderConfig {
     EncoderConfig {
         encoder: "libx264".to_string(),
-        yuv_input: false,
+        yuv_input: true,
         options: HashMap::from([
+            ("profile".into(), "baseline".into()),
             ("preset".into(), "ultrafast".into()),
             ("tune".into(), "zerolatency".into()),
         ]),

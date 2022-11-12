@@ -5,7 +5,6 @@ use log::info;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::mpsc::Sender;
 use tokio::sync::Mutex;
 use webrtc::api::interceptor_registry::register_default_interceptors;
 use webrtc::api::media_engine::{MediaEngine, MIME_TYPE_H264};

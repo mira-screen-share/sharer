@@ -8,7 +8,6 @@ pub trait ScreenCapture {
         mut encoder: FfmpegEncoder,
         mut output: Box<impl OutputSink + Send + ?Sized>,
         mut profiler: PerformanceProfiler,
-        max_fps: u32,
     ) -> Result<()>;
 }
 
