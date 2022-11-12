@@ -1,0 +1,14 @@
+signaller_url = "wss://ws.mirashare.app"
+viewer_url = "https://mirashare.app/"
+max_fps = 120
+
+[encoder]
+encoder = "h264_nvenc"
+yuv_input = false
+
+[encoder.options]
+profile = "baseline"
+tune = "zerolatency"
+preset = "p4"
+tune = "ll"
+zerolatency = "true"

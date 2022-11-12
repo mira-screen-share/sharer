@@ -53,12 +53,9 @@ async fn main() -> Result<()> {
 
     let display = DisplayInfo::displays()?[args.display].select()?;
     let profiler = PerformanceProfiler::new(args.profiler, config.max_fps);
-    let mut capture = capture::WGCScreenCapture::new(&display)?;
-    let mut encoder = encoder::FfmpegEncoder::new(
-        display.resolution().0,
-        display.resolution().1,
-        config.max_fps,
-    );
+    let resolution = display.resolution();
+    let mut capture = capture::WGCScreenCapture::new(display, &config)?;
+    let mut encoder = encoder::FfmpegEncoder::new(resolution.0, resolution.1, &config.encoder);
     let input_handler = Arc::new(inputs::InputHandler::new());
     let my_uuid = uuid::Uuid::new_v4().to_string();
 
@@ -79,9 +76,7 @@ async fn main() -> Result<()> {
         .await?
     };
 
-    capture
-        .capture(encoder, output, profiler, config.max_fps)
-        .await?;
+    capture.capture(encoder, output, profiler).await?;
 
     Ok(())
 }
