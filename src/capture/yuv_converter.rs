@@ -90,4 +90,8 @@ impl BGR0YUVConverter {
         let base_v = base_u + base_u / 4;
         &self.yuv[base_v..]
     }
+
+    pub fn planes(&self) -> [&[u8]; 3] {
+        [self.y(), self.u(), self.v()]
+    }
 }

@@ -23,7 +23,7 @@ dyn-clone = "1.0.4"
 uuid = "1.2.1"
 bytes = "1.2.1"
 enigo = "0.0.14"
-ac-ffmpeg = "0.17.4"
+ac-ffmpeg = { path = "../rust-ac-ffmpeg" }
 
 [dependencies.windows]
 version = "0.42.0"

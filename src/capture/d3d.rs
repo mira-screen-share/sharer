@@ -1,5 +1,6 @@
 use windows::core::{Abi, Interface, Result};
 use windows::Graphics::DirectX::Direct3D11::IDirect3DDevice;
+use windows::Win32::Graphics::Direct3D11::ID3D11DeviceContext;
 use windows::Win32::Graphics::{
     Direct3D::{D3D_DRIVER_TYPE, D3D_DRIVER_TYPE_HARDWARE, D3D_DRIVER_TYPE_WARP},
     Direct3D11::{
@@ -8,7 +9,6 @@ use windows::Win32::Graphics::{
     },
     Dxgi::{IDXGIDevice, DXGI_ERROR_UNSUPPORTED},
 };
-use windows::Win32::Graphics::Direct3D11::ID3D11DeviceContext;
 use windows::Win32::System::WinRT::Direct3D11::{
     CreateDirect3D11DeviceFromDXGIDevice, IDirect3DDxgiInterfaceAccess,
 };
@@ -53,7 +53,8 @@ fn create_d3d_device() -> Result<ID3D11Device> {
     Ok(device.unwrap())
 }
 
-pub fn create_direct3d_devices_and_context() -> Result<(ID3D11Device, IDirect3DDevice, ID3D11DeviceContext)> {
+pub fn create_direct3d_devices_and_context(
+) -> Result<(ID3D11Device, IDirect3DDevice, ID3D11DeviceContext)> {
     let d3d_device = create_d3d_device()?;
     let d3d_context = unsafe {
         let mut d3d_context = None;
