@@ -55,10 +55,21 @@ impl FfmpegEncoder {
     pub fn encode(&mut self, bgra: &[u8], frame_time: i64) -> Result<Bytes> {
         let mut frame = self.frame_pool.take();
         let time_base = frame.time_base();
-        frame = frame.with_pts(Timestamp::new(
-            (frame_time as f64 * 9. / 1000.) as i64,
-            time_base,
-        ));
+        frame = frame
+            .with_pts(Timestamp::new(
+                (frame_time as f64 * 9. / 1000.) as i64,
+                time_base,
+            ))
+            .with_picture_type(
+                if self
+                    .force_idr
+                    .swap(false, std::sync::atomic::Ordering::Relaxed)
+                {
+                    video::frame::PictureType::I
+                } else {
+                    video::frame::PictureType::None
+                },
+            );
 
         if self.yuv_input {
             self.yuv_converter.convert(

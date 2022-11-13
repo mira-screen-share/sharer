@@ -19,3 +19,4 @@ yuv_input = true
 profile = "baseline"
 tune = "zerolatency"
 preset = "ultrafast"
+forced-idr = "true"
