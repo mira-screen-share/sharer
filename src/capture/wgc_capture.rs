@@ -117,15 +117,8 @@ impl ScreenCapture for WGCScreenCapture<'_> {
             profiler.accept_frame(frame.SystemRelativeTime()?.Duration);
             let (resource, frame) = unsafe { self.get_frame_content(frame)? };
             profiler.done_preprocessing();
-            if use_yuv {
-                yuv_converter.convert(frame);
-            }
             profiler.done_conversion();
-            let encoded = if use_yuv {
-                encoder.encode(&yuv_converter.planes(), frame_time).unwrap()
-            } else {
-                encoder.encode(&[frame], frame_time).unwrap()
-            };
+            let encoded = encoder.encode(frame, frame_time).unwrap();
             let encoded_len = encoded.len();
             profiler.done_encoding();
             output.write(encoded).await.unwrap();

@@ -25,6 +25,7 @@ bytes = "1.2.1"
 enigo = "0.0.14"
 ac-ffmpeg = { path = "../rust-ac-ffmpeg" }
 toml = "0.5.9"
+itertools = "0.10.5"
 
 [dependencies.windows]
 version = "0.42.0"
