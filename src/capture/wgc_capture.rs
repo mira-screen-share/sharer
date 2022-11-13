@@ -11,7 +11,6 @@ use windows::Graphics::DirectX::DirectXPixelFormat;
 
 use super::ScreenCapture;
 use crate::capture::d3d;
-use crate::capture::yuv_converter::BGR0YUVConverter;
 use crate::config::Config;
 use crate::encoder::FfmpegEncoder;
 use crate::performance_profiler::PerformanceProfiler;
@@ -106,12 +105,9 @@ impl ScreenCapture for WGCScreenCapture<'_> {
 
         session.StartCapture()?;
 
-        let height = self.item.Size()?.Height as u32;
-        let width = self.item.Size()?.Width as u32;
-        let use_yuv = self.config.encoder.yuv_input;
-        let mut yuv_converter = BGR0YUVConverter::new(width as usize, height as usize);
         let mut ticker =
             tokio::time::interval(Duration::from_millis((1000 / self.config.max_fps) as u64));
+
         while let Some(frame) = receiver.recv().await {
             let frame_time = frame.SystemRelativeTime()?.Duration;
             profiler.accept_frame(frame.SystemRelativeTime()?.Duration);
