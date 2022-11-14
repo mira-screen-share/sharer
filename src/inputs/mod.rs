@@ -37,10 +37,10 @@ pub struct InputHandler {
 
 impl InputHandler {
     pub fn new() -> Self {
-        let mut enigo = enigo::Enigo::new();
         let (sender, mut receiver) = mpsc::channel::<Bytes>(32);
         tokio::spawn(async move {
             while let Some(msg) = receiver.recv().await {
+                let mut enigo = enigo::Enigo::new(); // todo:fixme
                 let input_msg = serde_json::from_slice::<InputMessage>(&msg).unwrap();
                 debug!("Deserialized input message: {:#?}", input_msg);
                 match input_msg {
