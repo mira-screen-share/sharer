@@ -5,6 +5,7 @@ version = 3
 [[package]]
 name = "ac-ffmpeg"
 version = "0.17.4"
+source = "git+https://github.com/mira-screen-share/rust-ac-ffmpeg?branch=dev#8c4697711a6aecc180a54f2c4383c4087336098a"
 dependencies = [
  "cc",
  "lazy_static",

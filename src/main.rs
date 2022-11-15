@@ -20,8 +20,6 @@ mod performance_profiler;
 mod result;
 mod signaller;
 
-const DEFAULT_VIEWER_URL: &str = "https://mirashare.app/";
-
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
