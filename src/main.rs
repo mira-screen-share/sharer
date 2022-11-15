@@ -20,11 +20,8 @@ mod performance_profiler;
 mod result;
 mod signaller;
 
-<<<<<<< HEAD
-const DEFAULT_VIEWER_URL: &str = "http://127.0.0.1:5173/"; //"https://mirashare.app/";
+const DEFAULT_VIEWER_URL: &str = "https://mirashare.app/";
 
-=======
->>>>>>> 50a45dd (add config)
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
