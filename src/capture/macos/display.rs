@@ -1,54 +1,65 @@
-use windows::Graphics::Capture::GraphicsCaptureItem;
-use windows::Win32::Foundation::{BOOL, LPARAM, RECT};
-use windows::Win32::Graphics::Gdi::{EnumDisplayMonitors, HDC, HMONITOR};
-use windows::Win32::System::WinRT::Graphics::Capture::IGraphicsCaptureItemInterop;
+use super::ffi::*;
+use std::mem;
 
-use crate::result::Result;
+#[derive(PartialEq, Eq, Debug, Clone, Copy)]
+#[repr(C)]
+pub struct Display(u32);
 
-#[derive(Clone)]
-pub struct DisplayInfo {
-    pub handle: HMONITOR,
-}
+impl Display {
+    pub fn primary() -> Display {
+        Display(unsafe { CGMainDisplayID() })
+    }
 
-pub trait Display {
-    /// Get the resolution of the display in (width, height)
-    fn resolution(&self) -> (u32, u32);
-}
-
-impl DisplayInfo {
-    pub fn displays() -> Result<Vec<Self>> {
+    pub fn online() -> Result<Vec<Display>, CGError> {
         unsafe {
-            let displays = Box::into_raw(Box::new(Vec::<DisplayInfo>::new()));
-            EnumDisplayMonitors(HDC(0), None, Some(enum_monitor), LPARAM(displays as isize));
-            Ok(*Box::from_raw(displays))
+            let mut arr: [u32; 16] = mem::uninitialized();
+            let mut len: u32 = 0;
+
+            match CGGetOnlineDisplayList(16, arr.as_mut_ptr(), &mut len) {
+                CGError::Success => (),
+                x => return Err(x)
+            }
+
+            let mut res = Vec::with_capacity(16);
+            for i in 0..len as usize {
+                res.push(Display(*arr.get_unchecked(i)));
+            }
+            Ok(res)
         }
     }
 
-    pub fn new(handle: HMONITOR) -> Result<Self> {
-        Ok(Self { handle })
+    pub fn id(self) -> u32 {
+        self.0
     }
 
-    pub fn select(&self) -> Result<GraphicsCaptureItem> {
-        let interop = windows::core::factory::<GraphicsCaptureItem, IGraphicsCaptureItemInterop>()?;
-        Ok(unsafe { interop.CreateForMonitor(self.handle) }?)
+    pub fn width(self) -> usize {
+        unsafe { CGDisplayPixelsWide(self.0) }
     }
-}
 
-// callback function for EnumDisplayMonitors
-extern "system" fn enum_monitor(monitor: HMONITOR, _: HDC, _: *mut RECT, state: LPARAM) -> BOOL {
-    unsafe {
-        // get the vector from the param, use leak because this function is not responsible for its lifetime
-        let state = Box::leak(Box::from_raw(state.0 as *mut Vec<DisplayInfo>));
-        state.push(DisplayInfo::new(monitor).unwrap());
+    pub fn height(self) -> usize {
+        unsafe { CGDisplayPixelsHigh(self.0) }
     }
-    true.into()
-}
 
-impl Display for GraphicsCaptureItem {
-    fn resolution(&self) -> (u32, u32) {
+    pub fn is_builtin(self) -> bool {
+        unsafe { CGDisplayIsBuiltin(self.0) != 0 }
+    }
+
+    pub fn is_primary(self) -> bool {
+        unsafe { CGDisplayIsMain(self.0) != 0 }
+    }
+
+    pub fn is_active(self) -> bool {
+        unsafe { CGDisplayIsActive(self.0) != 0 }
+    }
+
+    pub fn is_online(self) -> bool {
+        unsafe { CGDisplayIsOnline(self.0) != 0 }
+    }
+
+    pub fn resolution(&self) -> (u32, u32) {
         (
-            self.Size().unwrap().Width as u32,
-            self.Size().unwrap().Height as u32,
+            self.width() as u32,
+            self.height() as u32,
         )
     }
 }

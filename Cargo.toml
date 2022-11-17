@@ -9,7 +9,7 @@ failure = "0.1.8"
 clap = { version = "4.0.14", features = ["derive"] }
 tokio = { version = "1.15", features = ["full"] }
 tokio-util = { version= "0.7.4", features = ["codec"] }
-webrtc = "0.5.1"
+webrtc = "0.6.0"
 serde = "1.0.145"
 serde_json = "1.0.70"
 async-trait = "0.1.51"
@@ -26,6 +26,9 @@ enigo = "0.0.14"
 ac-ffmpeg = { path = "../rust-ac-ffmpeg" }
 toml = "0.5.9"
 itertools = "0.10.5"
+
+libc = "0.2.108"
+block = "0.1.6"
 
 [target.'cfg(windows)'.dependencies]
 [dependencies.windows]

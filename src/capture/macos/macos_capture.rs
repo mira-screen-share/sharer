@@ -1,68 +1,146 @@
-use async_trait::async_trait;
-use std::slice;
+use std::{ops, ptr, slice};
+use std::marker::PhantomData;
+use std::ops::Deref;
 use std::time::Duration;
-use windows::core::{IInspectable, Interface};
-use windows::Foundation::TypedEventHandler;
-use windows::Graphics::Capture::{
-    Direct3D11CaptureFrame, Direct3D11CaptureFramePool, GraphicsCaptureItem,
-};
-use windows::Graphics::DirectX::Direct3D11::IDirect3DSurface;
-use windows::Graphics::DirectX::DirectXPixelFormat;
 
-use crate::capture::d3d;
-use crate::config::Config;
+use async_trait::async_trait;
+use block::{Block, ConcreteBlock};
+use failure::{Error, format_err};
+use libc::c_void;
+use tokio::sync::mpsc::Receiver;
+
+use crate::{OutputSink, ScreenCapture};
+use crate::capture::macos::config::Config;
+use crate::capture::macos::display::Display;
+use crate::capture::macos::ffi::{CFRelease, CGDisplayStreamCreateWithDispatchQueue, CGDisplayStreamRef, CGDisplayStreamStart, CGDisplayStreamStop, CGError, dispatch_queue_create, dispatch_release, DispatchQueue, FrameAvailableHandler, PixelFormat};
+use crate::capture::macos::ffi::CGDisplayStreamFrameStatus::FrameComplete;
+use crate::capture::macos::ffi::PixelFormat::Argb8888;
+use crate::capture::macos::frame::Frame;
 use crate::encoder::FfmpegEncoder;
 use crate::performance_profiler::PerformanceProfiler;
 use crate::result::Result;
-use crate::{OutputSink, ScreenCapture};
-use windows::Win32::Graphics::Direct3D11::{
-    ID3D11Device, ID3D11DeviceContext, ID3D11Resource, ID3D11Texture2D, D3D11_BIND_FLAG,
-    D3D11_CPU_ACCESS_READ, D3D11_MAP_READ, D3D11_RESOURCE_MISC_FLAG, D3D11_TEXTURE2D_DESC,
-    D3D11_USAGE_STAGING,
-};
 
-pub struct MacOSScreenCapture<'a> {
-    item: GraphicsCaptureItem,
-    device: ID3D11Device,
-    d3d_context: ID3D11DeviceContext,
-    frame_pool: Direct3D11CaptureFramePool,
-    config: &'a Config,
+pub struct MacOSScreenCapture {
+    stream: CGDisplayStreamRef,
+    queue: DispatchQueue,
+
+    width: usize,
+    height: usize,
+    format: PixelFormat,
+    display: Display,
+    receiver: Receiver<Frame>,
 }
 
-impl<'a> MacOSScreenCapture<'a> {
-    pub fn new(item: GraphicsCaptureItem, config: &'a Config) -> Result<Self> {
-        let item_size = item.Size()?;
-        let (device, d3d_device, d3d_context) = d3d::create_direct3d_devices_and_context()?;
-        let frame_pool = Direct3D11CaptureFramePool::CreateFreeThreaded(
-            &d3d_device,
-            DirectXPixelFormat::B8G8R8A8UIntNormalized,
-            1,
-            item_size,
-        )?;
-        Ok(Self {
-            item,
-            device,
-            d3d_context,
-            frame_pool,
-            config,
-        })
+impl MacOSScreenCapture {
+    pub fn new(
+        display: Display,
+        width: usize,
+        height: usize,
+        // format: PixelFormat,
+        // config: Config,
+    ) -> Result<Self> {
+        let (sender, mut receiver) = tokio::sync::mpsc::channel::<Frame>(1);
+
+        let handler: FrameAvailableHandler =
+            ConcreteBlock::new(move |status, _, surface, _| unsafe {
+                use crate::capture::macos::ffi::CGDisplayStreamFrameStatus::*;
+                if status == FrameComplete {
+                    sender.try_send(Frame::new(surface)).unwrap();
+                }
+            }).copy();
+
+        let queue = unsafe {
+            dispatch_queue_create(
+                b"quadrupleslap.scrap\0".as_ptr() as *const i8,
+                ptr::null_mut(),
+            )
+        };
+
+        let stream = unsafe {
+            let config_d: Config = Default::default();
+            let config = config_d.build();
+            let stream = CGDisplayStreamCreateWithDispatchQueue(
+                display.id(),
+                width,
+                height,
+                Argb8888,
+                config,
+                queue,
+                &*handler as *const Block<_, _> as *const c_void,
+            );
+            CFRelease(config);
+            stream
+        };
+
+        match unsafe { CGDisplayStreamStart(stream) } {
+            CGError::Success => Ok(Self {
+                stream,
+                queue,
+                width,
+                height,
+                display,
+                receiver,
+                format: Argb8888,
+            }),
+            x => Err(failure::format_err!("Failed to start capture: {:?}", x)),
+        }
+    }
+}
+
+pub struct RFrame<'a>(
+    Frame,
+    PhantomData<&'a [u8]>,
+);
+
+impl<'a> ops::Deref for RFrame<'a> {
+    type Target = [u8];
+    fn deref(&self) -> &[u8] {
+        &*self.0
     }
 }
 
 #[async_trait]
-impl ScreenCapture for MacOSScreenCapture<'_> {
+impl ScreenCapture for MacOSScreenCapture {
     async fn capture(
         &mut self,
         mut encoder: FfmpegEncoder,
         mut output: Box<impl OutputSink + Send + ?Sized>,
         mut profiler: PerformanceProfiler,
     ) -> Result<()> {
+        let mut ticker =
+            tokio::time::interval(Duration::from_millis((1000 / 60) as u64));
 
+        while let Some(frame) = self.receiver.recv().await {
+            let frame = RFrame(frame, PhantomData);
+
+
+            // let frame_time = frame.SystemRelativeTime()?.Duration;
+            // profiler.accept_frame(frame.SystemRelativeTime()?.Duration);
+            // let (resource, frame) = unsafe { self.get_frame_content(frame)? };
+            // profiler.done_preprocessing();
+            // profiler.done_conversion();
+            let encoded = encoder.encode(frame.deref(), 0).unwrap();
+            // let encoded_len = encoded.len();
+            // profiler.done_encoding();
+            output.write(encoded).await.unwrap();
+            // unsafe {
+            //     self.d3d_context.Unmap(&resource, 0);
+            // }
+            // profiler.done_processing(encoded_len);
+            ticker.tick().await;
+        }
+
+        Ok(())
     }
 }
 
-impl Drop for MacOSScreenCapture<'_> {
+impl Drop for MacOSScreenCapture {
     fn drop(&mut self) {
-
+        unsafe {
+            //TODO: Maybe it should wait until `Stopped` before releasing?
+            let _ = CGDisplayStreamStop(self.stream);
+            CFRelease(self.stream);
+            dispatch_release(self.queue);
+        }
     }
 }

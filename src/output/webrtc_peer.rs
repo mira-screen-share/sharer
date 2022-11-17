@@ -44,8 +44,7 @@ impl WebRTCPeer {
                     input_handler.sender.send(msg.data).await.unwrap();
                     
                 })
-            }))
-            .await;
+            }));
 
         // Set the handler for Peer connection state
         // This will notify you when the peer has connected/disconnected
@@ -58,8 +57,7 @@ impl WebRTCPeer {
                     encoder_force_idr.store(true, std::sync::atomic::Ordering::Relaxed);
                 }
                 Box::pin(async {})
-            }))
-            .await;
+            }));
 
         // Handle ICE messages
         let peer_connection_ice = peer_connection.clone();
@@ -82,12 +80,10 @@ impl WebRTCPeer {
                     if let Some(candidate) = candidate {
                         trace!("ICE candidate {:#?}", candidate);
                         signaller_peer_ice
-                            .send_ice_message(candidate.to_json().await.unwrap())
-                            .await;
+                            .send_ice_message(candidate.to_json().unwrap());
                     }
                 })
-            }))
-            .await;
+            }));
 
         // Makes an offer, sets the LocalDescription, and starts our UDP listeners
         let offer = peer_connection.create_offer(None).await?;
