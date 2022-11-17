@@ -4,8 +4,6 @@ use log::{debug, info};
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
-
-
 use webrtc::ice_transport::ice_candidate::RTCIceCandidate;
 
 use webrtc::peer_connection::peer_connection_state::RTCPeerConnectionState;
@@ -13,15 +11,11 @@ use webrtc::peer_connection::RTCPeerConnection;
 
 use webrtc::track::track_local::track_local_static_sample::TrackLocalStaticSample;
 
-
 use crate::signaller::SignallerPeer;
 
 use crate::Result;
 
-pub struct WebRTCPeer {
-    peer_connection: Arc<RTCPeerConnection>,
-    signaller_peer: Box<dyn SignallerPeer>,
-}
+pub struct WebRTCPeer {}
 
 impl WebRTCPeer {
     pub async fn new(
@@ -42,7 +36,6 @@ impl WebRTCPeer {
                 let input_handler = input_handler.clone();
                 Box::pin(async move {
                     input_handler.sender.send(msg.data).await.unwrap();
-                    
                 })
             }))
             .await;
@@ -60,19 +53,6 @@ impl WebRTCPeer {
                 Box::pin(async {})
             }))
             .await;
-
-        // Handle ICE messages
-        let peer_connection_ice = peer_connection.clone();
-        let signaller_peer_ice_read = dyn_clone::clone_box(&*signaller_peer);
-        tokio::spawn(async move {
-            while let Some(candidate) = signaller_peer_ice_read.recv_ice_message().await {
-                trace!("received ICE candidate {:#?}", candidate);
-                peer_connection_ice
-                    .add_ice_candidate(candidate)
-                    .await
-                    .unwrap();
-            }
-        });
 
         let signaller_peer_ice = dyn_clone::clone_box(&*signaller_peer);
         peer_connection
@@ -102,10 +82,20 @@ impl WebRTCPeer {
         // Set the remote SessionDescription
         peer_connection.set_remote_description(answer).await?;
 
+        // Handle ICE messages
+        let peer_connection_ice = peer_connection.clone();
+        let signaller_peer_ice_read = dyn_clone::clone_box(&*signaller_peer);
+        tokio::spawn(async move {
+            while let Some(candidate) = signaller_peer_ice_read.recv_ice_message().await {
+                trace!("received ICE candidate {:#?}", candidate);
+                peer_connection_ice
+                    .add_ice_candidate(candidate)
+                    .await
+                    .unwrap();
+            }
+        });
+
         info!("WebRTC peer initialized");
-        Ok(Self {
-            peer_connection,
-            signaller_peer,
-        })
+        Ok(Self {})
     }
 }
