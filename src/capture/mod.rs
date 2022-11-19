@@ -1,14 +1,13 @@
-use crate::{Encoder, OutputSink, Result};
+use crate::{OutputSink, Result};
 use async_trait::async_trait;
 
 #[async_trait]
 pub trait ScreenCapture {
     async fn capture(
         &mut self,
-        mut encoder: Box<impl Encoder + Send>,
+        mut encoder: FfmpegEncoder,
         mut output: Box<impl OutputSink + Send + ?Sized>,
         mut profiler: PerformanceProfiler,
-        max_fps: u32,
     ) -> Result<()>;
 }
 
@@ -17,5 +16,7 @@ pub mod display;
 mod wgc_capture;
 mod yuv_converter;
 
+use crate::encoder::FfmpegEncoder;
 use crate::performance_profiler::PerformanceProfiler;
 pub use wgc_capture::WGCScreenCapture;
+pub use yuv_converter::BGR0YUVConverter;

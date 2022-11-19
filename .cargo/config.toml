@@ -1,0 +1,3 @@
+[env]
+PKG_CONFIG_PATH = { value = "third_party/ffmpeg/lib/pkgconfig", relative = true, force = true }
+FFMPEG_INCLUDE_DIR = { value = "third_party/ffmpeg/include", relative = true }

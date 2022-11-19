@@ -11,8 +11,8 @@ use windows::Graphics::DirectX::DirectXPixelFormat;
 
 use super::ScreenCapture;
 use crate::capture::d3d;
-use crate::capture::yuv_converter::BGR0YUVConverter;
-use crate::encoder::Encoder;
+use crate::config::Config;
+use crate::encoder::FfmpegEncoder;
 use crate::performance_profiler::PerformanceProfiler;
 use crate::result::Result;
 use crate::OutputSink;
@@ -23,10 +23,11 @@ use windows::Win32::Graphics::Direct3D11::{
 };
 
 pub struct WGCScreenCapture<'a> {
-    item: &'a GraphicsCaptureItem,
+    item: GraphicsCaptureItem,
     device: ID3D11Device,
     d3d_context: ID3D11DeviceContext,
     frame_pool: Direct3D11CaptureFramePool,
+    config: &'a Config,
 }
 
 impl<'a> WGCScreenCapture<'a> {
@@ -59,7 +60,7 @@ impl<'a> WGCScreenCapture<'a> {
         Ok((resource, frame))
     }
 
-    pub fn new(item: &'a GraphicsCaptureItem) -> Result<Self> {
+    pub fn new(item: GraphicsCaptureItem, config: &'a Config) -> Result<Self> {
         let item_size = item.Size()?;
         let (device, d3d_device, d3d_context) = d3d::create_direct3d_devices_and_context()?;
         let frame_pool = Direct3D11CaptureFramePool::CreateFreeThreaded(
@@ -73,6 +74,7 @@ impl<'a> WGCScreenCapture<'a> {
             device,
             d3d_context,
             frame_pool,
+            config,
         })
     }
 }
@@ -81,12 +83,11 @@ impl<'a> WGCScreenCapture<'a> {
 impl ScreenCapture for WGCScreenCapture<'_> {
     async fn capture(
         &mut self,
-        mut encoder: Box<impl Encoder + Send>,
+        mut encoder: FfmpegEncoder,
         mut output: Box<impl OutputSink + Send + ?Sized>,
         mut profiler: PerformanceProfiler,
-        max_fps: u32,
     ) -> Result<()> {
-        let session = self.frame_pool.CreateCaptureSession(self.item)?;
+        let session = self.frame_pool.CreateCaptureSession(&self.item)?;
 
         let (sender, mut receiver) = tokio::sync::mpsc::channel::<Direct3D11CaptureFrame>(1);
 
@@ -104,25 +105,23 @@ impl ScreenCapture for WGCScreenCapture<'_> {
 
         session.StartCapture()?;
 
-        let height = self.item.Size()?.Height as u32;
-        let width = self.item.Size()?.Width as u32;
-        let mut yuv_converter = BGR0YUVConverter::new(width as usize, height as usize);
-        let mut ticker = tokio::time::interval(Duration::from_millis((1000 / max_fps) as u64));
+        let mut ticker =
+            tokio::time::interval(Duration::from_millis((1000 / self.config.max_fps) as u64));
+
         while let Some(frame) = receiver.recv().await {
+            let frame_time = frame.SystemRelativeTime()?.Duration;
             profiler.accept_frame(frame.SystemRelativeTime()?.Duration);
             let (resource, frame) = unsafe { self.get_frame_content(frame)? };
             profiler.done_preprocessing();
-            yuv_converter.convert(frame);
             profiler.done_conversion();
-            let encoded = encoder
-                .encode(yuv_converter.y(), yuv_converter.u(), yuv_converter.v())
-                .unwrap();
+            let encoded = encoder.encode(frame, frame_time).unwrap();
+            let encoded_len = encoded.len();
             profiler.done_encoding();
             output.write(encoded).await.unwrap();
             unsafe {
                 self.d3d_context.Unmap(&resource, 0);
             }
-            profiler.done_processing(encoded.len());
+            profiler.done_processing(encoded_len);
             ticker.tick().await;
         }
         session.Close()?;
