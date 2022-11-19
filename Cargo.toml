@@ -53,3 +53,6 @@ features = [
     "Graphics_Imaging",
     "Win32_System_WinRT_Direct3D11",
 ]
+
+[build-dependencies]
+embed-resource = "1.7"
