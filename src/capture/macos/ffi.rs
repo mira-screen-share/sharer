@@ -114,7 +114,6 @@ pub enum PixelFormat {
     YCbCr420Video = pixel_format!('4','2','0','v'),
     /// 2-plane "full" range YCbCr 4:2:0
     YCbCr420Full = pixel_format!('4','2','0','f'),
-    YCbCr420P = pixel_format!('4','2','0','p'),
     #[doc(hidden)]
     __Nonexhaustive
 }
@@ -227,4 +226,6 @@ extern {
 
     pub fn CFRetain(cf: *const c_void);
     pub fn CFRelease(cf: *const c_void);
+
+    // pub fn mach_timebase_info(info: *mut mach_timebase_info) -> i32;
 }

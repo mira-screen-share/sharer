@@ -1,6 +1,7 @@
 use std::{ops, ptr, slice};
 use std::marker::PhantomData;
 use std::ops::Deref;
+use std::sync::Arc;
 use std::time::Duration;
 
 use async_trait::async_trait;
@@ -14,7 +15,7 @@ use crate::capture::macos::config::Config as CaptureConfig;
 use crate::capture::macos::display::Display;
 use crate::capture::macos::ffi::{CFRelease, CGDisplayStreamCreateWithDispatchQueue, CGDisplayStreamRef, CGDisplayStreamStart, CGDisplayStreamStop, CGError, dispatch_queue_create, dispatch_release, DispatchQueue, FrameAvailableHandler};
 use crate::capture::macos::ffi::CGDisplayStreamFrameStatus::FrameComplete;
-use crate::capture::macos::ffi::PixelFormat::{Argb8888, YCbCr420Full, YCbCr420P, YCbCr420Video};
+use crate::capture::macos::ffi::PixelFormat::{Argb8888, YCbCr420Full, YCbCr420Video};
 use crate::capture::macos::frame::Frame;
 use crate::config::Config;
 use crate::encoder::{FfmpegEncoder, FrameData};
@@ -51,18 +52,28 @@ pub type GraphicsCaptureItem = Display;
 
 impl<'a> MacOSScreenCapture<'a> {
     pub fn new(display: GraphicsCaptureItem, config: &'a Config) -> Result<Self> {
-        let format = YCbCr420Video;
+        let format = YCbCr420Full;
         let (sender, mut receiver) = tokio::sync::mpsc::channel::<Frame>(1);
+        // let (sender2, mut receiver2) = tokio::sync::mpsc::channel::<()>(10);
+        // let mut profiler = PerformanceProfiler::new(true, 60);
 
         let handler: FrameAvailableHandler =
             ConcreteBlock::new(move |status, display_time, surface, _| unsafe {
-                use crate::capture::macos::ffi::CGDisplayStreamFrameStatus::*;
+                // println!("{}", display_time);
+                // sender2.try_send(()).unwrap();
+                profiler.done_processing(0);
                 if status == FrameComplete {
-                    if let Ok(permit) = sender.try_reserve() {
-                        permit.send(Frame::new(surface, display_time));
-                    }
+                   if let Ok(permit) = sender.try_reserve() {
+                       permit.send(Frame::new(surface, display_time));
+                   }
                 }
             }).copy();
+
+        // tokio::spawn(async move {
+        //     while let Some(f) = receiver2.recv().await {
+        //         profiler.done_processing(0);
+        //     }
+        // });
 
         let queue = unsafe {
             dispatch_queue_create(
@@ -76,7 +87,7 @@ impl<'a> MacOSScreenCapture<'a> {
                 cursor: true,
                 letterbox: true,
                 throttle: 1. / (config.max_fps as f64),
-                queue_length: 1,
+                queue_length: 3,
             }.build();
             let stream = CGDisplayStreamCreateWithDispatchQueue(
                 display.id(),
@@ -114,9 +125,9 @@ impl ScreenCapture for MacOSScreenCapture<'_> {
     ) -> Result<()> {
         let mut ticker =
             tokio::time::interval(Duration::from_millis((1000 / self.config.max_fps) as u64));
-
+        // loop{}
         while let Some(frame) = self.receiver.recv().await {
-            let frame_time = frame.display_time;
+            let frame_time = frame.display_time as f64;
             profiler.accept_frame(frame_time as i64);
             profiler.done_preprocessing();
             profiler.done_conversion();

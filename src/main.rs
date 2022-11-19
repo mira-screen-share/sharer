@@ -51,10 +51,7 @@ async fn main() -> Result<()> {
     println!("Display: {} x {} {:?}", display.width(), display.height(), display.resolution());
     let profiler = PerformanceProfiler::new(args.profiler, config.max_fps);
     let resolution = display.resolution();
-    let mut capture = ScreenCaptureImpl::new(
-        display,
-        &config,
-    )?;
+    let mut capture = ScreenCaptureImpl::new(display, &config)?;
     let mut encoder = encoder::FfmpegEncoder::new(resolution.0, resolution.1, &config.encoder);
     let input_handler = Arc::new(inputs::InputHandler::new());
     let my_uuid = uuid::Uuid::new_v4().to_string();

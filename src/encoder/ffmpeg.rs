@@ -56,13 +56,13 @@ impl FfmpegEncoder {
         }
     }
 
-
     pub fn encode(&mut self, frame_data: FrameData, frame_time: i64) -> Result<Bytes> {
         let mut frame = self.frame_pool.take();
         let time_base = frame.time_base();
         frame = frame
             .with_pts(Timestamp::new(
-                (frame_time as f64 * 9. / 1000.) as i64,
+                // (frame_time as f64 * 9. / 1000.) as i64,
+                (frame_time as f64 * 9. / 1e5) as i64,
                 time_base,
             ))
             .with_picture_type(

@@ -102,10 +102,8 @@ impl PerformanceProfiler {
     }
 
     fn get_qp_counter() -> i64 {
-        /*let e = SystemTime::now()
-            .duration_since(UNIX_EPOCH);
-        (e.as_secs() * 1000 +
-            e.subsec_nanos() as u64 / 1_000_000) as i64*/0
+        let e = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
+        (e.as_secs() * 1000 + e.subsec_nanos() as u64 / 1_000_000) as i64
     }
     fn get_qp_frequency() -> i64 {
         1000
