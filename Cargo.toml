@@ -27,10 +27,11 @@ ac-ffmpeg = { path = "../rust-ac-ffmpeg" }
 toml = "0.5.9"
 itertools = "0.10.5"
 
+[target.'cfg(target_os = "macos")'.dependencies]
 libc = "0.2.108"
 block = "0.1.6"
 
-[target.'cfg(windows)'.dependencies]
+[target.'cfg(target_os = "windows")'.dependencies]
 [dependencies.windows]
 version = "0.42.0"
 features = [

@@ -1,5 +1,6 @@
+use std::time::{SystemTime, UNIX_EPOCH};
 use chrono::{Timelike, Utc};
-use windows::Win32::System::Performance::{QueryPerformanceCounter, QueryPerformanceFrequency};
+// use windows::Win32::System::Performance::{QueryPerformanceCounter, QueryPerformanceFrequency};
 
 pub struct PerformanceProfiler {
     frame_time: i64,
@@ -101,17 +102,12 @@ impl PerformanceProfiler {
     }
 
     fn get_qp_counter() -> i64 {
-        let mut qpc = 0;
-        unsafe {
-            QueryPerformanceCounter(&mut qpc);
-        }
-        qpc
+        /*let e = SystemTime::now()
+            .duration_since(UNIX_EPOCH);
+        (e.as_secs() * 1000 +
+            e.subsec_nanos() as u64 / 1_000_000) as i64*/0
     }
     fn get_qp_frequency() -> i64 {
-        let mut qpf = 0;
-        unsafe {
-            QueryPerformanceFrequency(&mut qpf);
-        }
-        qpf
+        1000
     }
 }

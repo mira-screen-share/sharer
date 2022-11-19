@@ -6,19 +6,19 @@ use windows::Win32::System::WinRT::Graphics::Capture::IGraphicsCaptureItemIntero
 use crate::result::Result;
 
 #[derive(Clone)]
-pub struct DisplayInfo {
+pub struct Display {
     pub handle: HMONITOR,
 }
 
-pub trait Display {
+pub trait DisplayInfo {
     /// Get the resolution of the display in (width, height)
     fn resolution(&self) -> (u32, u32);
 }
 
-impl DisplayInfo {
-    pub fn displays() -> Result<Vec<Self>> {
+impl Display {
+    pub fn online() -> Result<Vec<Self>> {
         unsafe {
-            let displays = Box::into_raw(Box::new(Vec::<DisplayInfo>::new()));
+            let displays = Box::into_raw(Box::new(Vec::<Display>::new()));
             EnumDisplayMonitors(HDC(0), None, Some(enum_monitor), LPARAM(displays as isize));
             Ok(*Box::from_raw(displays))
         }
@@ -38,13 +38,13 @@ impl DisplayInfo {
 extern "system" fn enum_monitor(monitor: HMONITOR, _: HDC, _: *mut RECT, state: LPARAM) -> BOOL {
     unsafe {
         // get the vector from the param, use leak because this function is not responsible for its lifetime
-        let state = Box::leak(Box::from_raw(state.0 as *mut Vec<DisplayInfo>));
-        state.push(DisplayInfo::new(monitor).unwrap());
+        let state = Box::leak(Box::from_raw(state.0 as *mut Vec<Display>));
+        state.push(Display::new(monitor).unwrap());
     }
     true.into()
 }
 
-impl Display for GraphicsCaptureItem {
+impl DisplayInfo for GraphicsCaptureItem {
     fn resolution(&self) -> (u32, u32) {
         (
             self.Size().unwrap().Width as u32,

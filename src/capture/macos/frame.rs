@@ -4,11 +4,12 @@ use std::{ops, ptr, slice};
 #[derive(Debug)]
 pub struct Frame {
     surface: IOSurfaceRef,
+    pub display_time: u64,
     inner: &'static [u8]
 }
 
 impl Frame {
-    pub unsafe fn new(surface: IOSurfaceRef) -> Frame {
+    pub unsafe fn new(surface: IOSurfaceRef, display_time: u64) -> Frame {
         CFRetain(surface);
         IOSurfaceIncrementUseCount(surface);
 
@@ -23,7 +24,7 @@ impl Frame {
             IOSurfaceGetAllocSize(surface)
         );
 
-        Frame { surface, inner }
+        Frame { surface, display_time, inner }
     }
 }
 

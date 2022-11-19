@@ -10,81 +10,23 @@ use libc::c_void;
 use tokio::sync::mpsc::Receiver;
 
 use crate::{OutputSink, ScreenCapture};
-use crate::capture::macos::config::Config;
+use crate::capture::macos::config::Config as CaptureConfig;
 use crate::capture::macos::display::Display;
-use crate::capture::macos::ffi::{CFRelease, CGDisplayStreamCreateWithDispatchQueue, CGDisplayStreamRef, CGDisplayStreamStart, CGDisplayStreamStop, CGError, dispatch_queue_create, dispatch_release, DispatchQueue, FrameAvailableHandler, PixelFormat};
+use crate::capture::macos::ffi::{CFRelease, CGDisplayStreamCreateWithDispatchQueue, CGDisplayStreamRef, CGDisplayStreamStart, CGDisplayStreamStop, CGError, dispatch_queue_create, dispatch_release, DispatchQueue, FrameAvailableHandler};
 use crate::capture::macos::ffi::CGDisplayStreamFrameStatus::FrameComplete;
-use crate::capture::macos::ffi::PixelFormat::Argb8888;
+use crate::capture::macos::ffi::PixelFormat::{Argb8888, YCbCr420Full, YCbCr420P, YCbCr420Video};
 use crate::capture::macos::frame::Frame;
-use crate::encoder::FfmpegEncoder;
+use crate::config::Config;
+use crate::encoder::{FfmpegEncoder, FrameData};
 use crate::performance_profiler::PerformanceProfiler;
 use crate::result::Result;
 
-pub struct MacOSScreenCapture {
+pub struct MacOSScreenCapture<'a> {
     stream: CGDisplayStreamRef,
     queue: DispatchQueue,
-
-    width: usize,
-    height: usize,
-    format: PixelFormat,
     display: Display,
     receiver: Receiver<Frame>,
-}
-
-impl MacOSScreenCapture {
-    pub fn new(
-        display: Display,
-        width: usize,
-        height: usize,
-        // format: PixelFormat,
-        // config: Config,
-    ) -> Result<Self> {
-        let (sender, mut receiver) = tokio::sync::mpsc::channel::<Frame>(1);
-
-        let handler: FrameAvailableHandler =
-            ConcreteBlock::new(move |status, _, surface, _| unsafe {
-                use crate::capture::macos::ffi::CGDisplayStreamFrameStatus::*;
-                if status == FrameComplete {
-                    sender.try_send(Frame::new(surface)).unwrap();
-                }
-            }).copy();
-
-        let queue = unsafe {
-            dispatch_queue_create(
-                b"quadrupleslap.scrap\0".as_ptr() as *const i8,
-                ptr::null_mut(),
-            )
-        };
-
-        let stream = unsafe {
-            let config_d: Config = Default::default();
-            let config = config_d.build();
-            let stream = CGDisplayStreamCreateWithDispatchQueue(
-                display.id(),
-                width,
-                height,
-                Argb8888,
-                config,
-                queue,
-                &*handler as *const Block<_, _> as *const c_void,
-            );
-            CFRelease(config);
-            stream
-        };
-
-        match unsafe { CGDisplayStreamStart(stream) } {
-            CGError::Success => Ok(Self {
-                stream,
-                queue,
-                width,
-                height,
-                display,
-                receiver,
-                format: Argb8888,
-            }),
-            x => Err(failure::format_err!("Failed to start capture: {:?}", x)),
-        }
-    }
+    config: &'a Config,
 }
 
 pub struct RFrame<'a>(
@@ -92,15 +34,78 @@ pub struct RFrame<'a>(
     PhantomData<&'a [u8]>,
 );
 
-impl<'a> ops::Deref for RFrame<'a> {
+unsafe impl Send for MacOSScreenCapture<'_> {}
+
+unsafe impl Send for Frame {}
+
+unsafe impl Send for RFrame<'_> {}
+
+impl<'a> Deref for RFrame<'a> {
     type Target = [u8];
     fn deref(&self) -> &[u8] {
         &*self.0
     }
 }
 
+pub type GraphicsCaptureItem = Display;
+
+impl<'a> MacOSScreenCapture<'a> {
+    pub fn new(display: GraphicsCaptureItem, config: &'a Config) -> Result<Self> {
+        let format = YCbCr420Video;
+        let (sender, mut receiver) = tokio::sync::mpsc::channel::<Frame>(1);
+
+        let handler: FrameAvailableHandler =
+            ConcreteBlock::new(move |status, display_time, surface, _| unsafe {
+                use crate::capture::macos::ffi::CGDisplayStreamFrameStatus::*;
+                if status == FrameComplete {
+                    if let Ok(permit) = sender.try_reserve() {
+                        permit.send(Frame::new(surface, display_time));
+                    }
+                }
+            }).copy();
+
+        let queue = unsafe {
+            dispatch_queue_create(
+                b"app.mirashare\0".as_ptr() as *const i8,
+                ptr::null_mut(),
+            )
+        };
+
+        let stream = unsafe {
+            let capture_config = CaptureConfig {
+                cursor: true,
+                letterbox: true,
+                throttle: 1. / (config.max_fps as f64),
+                queue_length: 1,
+            }.build();
+            let stream = CGDisplayStreamCreateWithDispatchQueue(
+                display.id(),
+                display.width(),
+                display.height(),
+                format,
+                capture_config,
+                queue,
+                &*handler as *const Block<_, _> as *const c_void,
+            );
+            CFRelease(capture_config);
+            stream
+        };
+
+        match unsafe { CGDisplayStreamStart(stream) } {
+            CGError::Success => Ok(Self {
+                stream,
+                queue,
+                display,
+                receiver,
+                config,
+            }),
+            x => Err(format_err!("Failed to start capture: {:?}", x)),
+        }
+    }
+}
+
 #[async_trait]
-impl ScreenCapture for MacOSScreenCapture {
+impl ScreenCapture for MacOSScreenCapture<'_> {
     async fn capture(
         &mut self,
         mut encoder: FfmpegEncoder,
@@ -108,25 +113,21 @@ impl ScreenCapture for MacOSScreenCapture {
         mut profiler: PerformanceProfiler,
     ) -> Result<()> {
         let mut ticker =
-            tokio::time::interval(Duration::from_millis((1000 / 60) as u64));
+            tokio::time::interval(Duration::from_millis((1000 / self.config.max_fps) as u64));
 
         while let Some(frame) = self.receiver.recv().await {
-            let frame = RFrame(frame, PhantomData);
-
-
-            // let frame_time = frame.SystemRelativeTime()?.Duration;
-            // profiler.accept_frame(frame.SystemRelativeTime()?.Duration);
-            // let (resource, frame) = unsafe { self.get_frame_content(frame)? };
-            // profiler.done_preprocessing();
-            // profiler.done_conversion();
-            let encoded = encoder.encode(frame.deref(), 0).unwrap();
-            // let encoded_len = encoded.len();
-            // profiler.done_encoding();
+            let frame_time = frame.display_time;
+            profiler.accept_frame(frame_time as i64);
+            profiler.done_preprocessing();
+            profiler.done_conversion();
+            let encoded = encoder.encode(
+                FrameData::NV12(&RFrame(frame, PhantomData)),
+                frame_time as i64,
+            ).unwrap();
+            let encoded_len = encoded.len();
+            profiler.done_encoding();
             output.write(encoded).await.unwrap();
-            // unsafe {
-            //     self.d3d_context.Unmap(&resource, 0);
-            // }
-            // profiler.done_processing(encoded_len);
+            profiler.done_processing(encoded_len);
             ticker.tick().await;
         }
 
@@ -134,10 +135,9 @@ impl ScreenCapture for MacOSScreenCapture {
     }
 }
 
-impl Drop for MacOSScreenCapture {
+impl Drop for MacOSScreenCapture<'_> {
     fn drop(&mut self) {
         unsafe {
-            //TODO: Maybe it should wait until `Stopped` before releasing?
             let _ = CGDisplayStreamStop(self.stream);
             CFRelease(self.stream);
             dispatch_release(self.queue);

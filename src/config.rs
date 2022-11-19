@@ -28,7 +28,7 @@ pub struct Config {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct EncoderConfig {
     pub encoder: String,
-    pub yuv_input: bool,
+    pub pixel_format: String,
     #[serde(serialize_with = "toml::ser::tables_last")]
     pub options: HashMap<String, String>,
 }
@@ -96,7 +96,13 @@ pub fn load(path: &Path) -> Result<Config> {
 fn libx264() -> EncoderConfig {
     EncoderConfig {
         encoder: "libx264".to_string(),
-        yuv_input: true,
+        pixel_format: if cfg!(target_os = "windows") {
+            "yuv420p".to_string()
+        } else if cfg!(target_os = "macos") {
+            "nv12".to_string()
+        } else {
+            panic!("Unsupported platform");
+        },
         options: HashMap::from([
             ("profile".into(), "baseline".into()),
             ("preset".into(), "ultrafast".into()),

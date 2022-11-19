@@ -80,7 +80,8 @@ impl WebRTCPeer {
                     if let Some(candidate) = candidate {
                         trace!("ICE candidate {:#?}", candidate);
                         signaller_peer_ice
-                            .send_ice_message(candidate.to_json().unwrap());
+                            .send_ice_message(candidate.to_json().unwrap())
+                            .await;
                     }
                 })
             }));

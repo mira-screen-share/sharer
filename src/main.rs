@@ -10,6 +10,7 @@ use std::sync::Arc;
 
 #[macro_use]
 extern crate log;
+extern crate core;
 
 mod capture;
 mod config;
@@ -46,13 +47,13 @@ async fn main() -> Result<()> {
     let args = Args::parse();
     let config = config::load(Path::new(&args.config))?;
 
-    let display = Display::primary();
+    let display = Display::online().unwrap()[args.display].select();
+    println!("Display: {} x {} {:?}", display.width(), display.height(), display.resolution());
     let profiler = PerformanceProfiler::new(args.profiler, config.max_fps);
     let resolution = display.resolution();
     let mut capture = ScreenCaptureImpl::new(
         display,
-        display.width(),
-        display.height(),
+        &config,
     )?;
     let mut encoder = encoder::FfmpegEncoder::new(resolution.0, resolution.1, &config.encoder);
     let input_handler = Arc::new(inputs::InputHandler::new());

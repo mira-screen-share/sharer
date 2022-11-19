@@ -1,5 +1,6 @@
-use super::ffi::*;
 use std::mem;
+
+use super::ffi::*;
 
 #[derive(PartialEq, Eq, Debug, Clone, Copy)]
 #[repr(C)]
@@ -26,6 +27,10 @@ impl Display {
             }
             Ok(res)
         }
+    }
+
+    pub fn select(self) -> Self {
+        self
     }
 
     pub fn id(self) -> u32 {
