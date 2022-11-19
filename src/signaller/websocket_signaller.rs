@@ -55,6 +55,11 @@ impl WebSocketSignaller {
         let send_queue_sender_clone = send_queue_sender.clone();
         tokio::spawn(async move {
             while let Some(msg) = read.next().await {
+                if let Err(e) = msg {
+                    error!("Error reading from websocket: {}", e);
+                    break;
+                }
+
                 trace!("Received websocket message: {:?}", msg);
                 let text = msg.unwrap().into_text().unwrap();
                 let msg = serde_json::from_str::<SignallerMessage>(&text).unwrap();
@@ -117,6 +122,19 @@ impl WebSocketSignaller {
                 write.send(Message::text(text)).await.unwrap();
             }
             warn!("Send queue closed");
+        });
+
+        // send a keepalive packet every 30 secs
+        let send_queue_sender_clone = send_queue_sender.clone();
+        tokio::spawn(async move {
+            let mut ticker = tokio::time::interval(std::time::Duration::from_secs(30));
+            loop {
+                ticker.tick().await;
+                send_queue_sender_clone
+                    .send(SignallerMessage::KeepAlive {})
+                    .await
+                    .unwrap(); // keep alive
+            }
         });
 
         Ok(Self {
