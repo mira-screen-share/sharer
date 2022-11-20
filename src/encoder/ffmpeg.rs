@@ -13,22 +13,26 @@ use std::sync::Arc;
 pub struct FfmpegEncoder {
     encoder: VideoEncoder,
     frame_pool: FramePool,
-    yuv_converter: BGR0YUVConverter,
-    yuv_input: bool,
+    bgr0_to_yuv: BGR0YUVConverter,
+    pixel_format: String,
+    w: usize,
+    h: usize,
     pub force_idr: Arc<AtomicBool>,
 }
 
 unsafe impl Send for FfmpegEncoder {}
 
+#[allow(dead_code)]
+pub enum FrameData<'a> {
+    NV12(&'a [u8]),
+    BGR0(&'a [u8]),
+}
+
 impl FfmpegEncoder {
     pub fn new(w: u32, h: u32, encoder_config: &EncoderConfig) -> Self {
         let time_base = TimeBase::new(1, 90_000);
 
-        let pixel_format = video::frame::get_pixel_format(if encoder_config.yuv_input {
-            "yuv420p"
-        } else {
-            "bgra"
-        });
+        let pixel_format = video::frame::get_pixel_format(&encoder_config.pixel_format);
 
         let mut encoder = VideoEncoder::builder(&encoder_config.encoder)
             .unwrap()
@@ -38,26 +42,34 @@ impl FfmpegEncoder {
             .time_base(time_base);
 
         for option in &encoder_config.options {
-            encoder = encoder.set_option(&option.0, option.1);
+            encoder = encoder.set_option(option.0, option.1);
         }
 
         let encoder = encoder.build().unwrap();
 
         Self {
             encoder,
-            yuv_input: encoder_config.yuv_input,
-            yuv_converter: BGR0YUVConverter::new(w as usize, h as usize),
+            pixel_format: encoder_config.pixel_format.clone(),
+            bgr0_to_yuv: BGR0YUVConverter::new(w as usize, h as usize),
             frame_pool: FramePool::new(w, h, time_base, pixel_format),
             force_idr: Arc::new(AtomicBool::new(false)),
+            w: w as usize,
+            h: h as usize,
         }
     }
 
-    pub fn encode(&mut self, bgra: &[u8], frame_time: i64) -> Result<Bytes> {
+    pub fn encode(&mut self, frame_data: FrameData, frame_time: i64) -> Result<Bytes> {
         let mut frame = self.frame_pool.take();
         let time_base = frame.time_base();
         frame = frame
             .with_pts(Timestamp::new(
-                (frame_time as f64 * 9. / 1000.) as i64,
+                if cfg!(target_os = "windows") {
+                    (frame_time as f64 * 9. / 1000.) as i64
+                } else if cfg!(target_os = "macos") {
+                    (frame_time as f64 * 9. / 1e5) as i64
+                } else {
+                    panic!("Unsupported OS")
+                },
                 time_base,
             ))
             .with_picture_type(
@@ -71,17 +83,32 @@ impl FfmpegEncoder {
                 },
             );
 
-        if self.yuv_input {
-            self.yuv_converter.convert(
-                bgra,
-                frame
-                    .planes_mut()
-                    .iter_mut()
-                    .map(|p| p.data_mut())
-                    .collect(),
-            );
-        } else {
-            frame.planes_mut()[0].data_mut().copy_from_slice(bgra);
+        match frame_data {
+            FrameData::NV12(nv12) => {
+                assert_eq!(self.pixel_format, "nv12");
+                frame.planes_mut()[0]
+                    .data_mut()
+                    .copy_from_slice(&nv12[0..self.w * self.h]);
+                frame.planes_mut()[1]
+                    .data_mut()
+                    .copy_from_slice(&nv12[self.w * self.h..]);
+            }
+            FrameData::BGR0(bgr0) => match self.pixel_format.as_str() {
+                "yuv420p" => {
+                    self.bgr0_to_yuv.convert(
+                        bgr0,
+                        frame
+                            .planes_mut()
+                            .iter_mut()
+                            .map(|p| p.data_mut())
+                            .collect(),
+                    );
+                }
+                "bgra" => {
+                    frame.planes_mut()[0].data_mut().copy_from_slice(bgr0);
+                }
+                _ => unimplemented!(),
+            },
         }
 
         let frame = frame.freeze();

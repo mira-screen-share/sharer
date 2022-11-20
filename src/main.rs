@@ -1,15 +1,15 @@
-use crate::capture::display::Display;
 use crate::capture::ScreenCapture;
+use crate::capture::{Display, DisplayInfo, ScreenCaptureImpl};
 use crate::output::{FileOutput, OutputSink, WebRTCOutput};
 use crate::performance_profiler::PerformanceProfiler;
 use crate::result::Result;
-use capture::display::DisplayInfo;
 use clap::Parser;
 use std::path::Path;
 use std::sync::Arc;
 
 #[macro_use]
 extern crate log;
+extern crate core;
 
 mod capture;
 mod config;
@@ -46,10 +46,10 @@ async fn main() -> Result<()> {
     let args = Args::parse();
     let config = config::load(Path::new(&args.config))?;
 
-    let display = DisplayInfo::displays()?[args.display].select()?;
+    let display = Display::online().unwrap()[args.display].select()?;
     let profiler = PerformanceProfiler::new(args.profiler, config.max_fps);
     let resolution = display.resolution();
-    let mut capture = capture::WGCScreenCapture::new(display, &config)?;
+    let mut capture = ScreenCaptureImpl::new(display, &config)?;
     let mut encoder = encoder::FfmpegEncoder::new(resolution.0, resolution.1, &config.encoder);
     let input_handler = Arc::new(inputs::InputHandler::new());
     let my_uuid = uuid::Uuid::new_v4().to_string();

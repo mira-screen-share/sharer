@@ -9,13 +9,12 @@ use windows::Graphics::Capture::{
 use windows::Graphics::DirectX::Direct3D11::IDirect3DSurface;
 use windows::Graphics::DirectX::DirectXPixelFormat;
 
-use super::ScreenCapture;
-use crate::capture::d3d;
+use crate::capture::wgc::d3d;
 use crate::config::Config;
-use crate::encoder::FfmpegEncoder;
+use crate::encoder::{FfmpegEncoder, FrameData};
 use crate::performance_profiler::PerformanceProfiler;
 use crate::result::Result;
-use crate::OutputSink;
+use crate::{OutputSink, ScreenCapture};
 use windows::Win32::Graphics::Direct3D11::{
     ID3D11Device, ID3D11DeviceContext, ID3D11Resource, ID3D11Texture2D, D3D11_BIND_FLAG,
     D3D11_CPU_ACCESS_READ, D3D11_MAP_READ, D3D11_RESOURCE_MISC_FLAG, D3D11_TEXTURE2D_DESC,
@@ -113,8 +112,7 @@ impl ScreenCapture for WGCScreenCapture<'_> {
             profiler.accept_frame(frame.SystemRelativeTime()?.Duration);
             let (resource, frame) = unsafe { self.get_frame_content(frame)? };
             profiler.done_preprocessing();
-            profiler.done_conversion();
-            let encoded = encoder.encode(frame, frame_time).unwrap();
+            let encoded = encoder.encode(FrameData::BGR0(frame), frame_time).unwrap();
             let encoded_len = encoded.len();
             profiler.done_encoding();
             output.write(encoded).await.unwrap();

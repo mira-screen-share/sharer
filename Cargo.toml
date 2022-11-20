@@ -26,7 +26,13 @@ enigo = "0.0.14"
 ac-ffmpeg = { git = "https://github.com/mira-screen-share/rust-ac-ffmpeg", branch = "dev" }
 toml = "0.5.9"
 itertools = "0.10.5"
+howlong = "0.1.7"
 
+[target.'cfg(target_os = "macos")'.dependencies]
+libc = "0.2.108"
+block = "0.1.6"
+
+[target.'cfg(target_os = "windows")'.dependencies]
 [dependencies.windows]
 version = "0.42.0"
 features = [

@@ -3,12 +3,9 @@ use crate::inputs::InputHandler;
 use log::{debug, info};
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
-
 use webrtc::ice_transport::ice_candidate::RTCIceCandidate;
-
 use webrtc::peer_connection::peer_connection_state::RTCPeerConnectionState;
 use webrtc::peer_connection::RTCPeerConnection;
-
 use webrtc::track::track_local::track_local_static_sample::TrackLocalStaticSample;
 
 use crate::signaller::SignallerPeer;

@@ -11,9 +11,9 @@ enum MouseButton {
     Middle,
 }
 
-impl Into<enigo::MouseButton> for MouseButton {
-    fn into(self) -> enigo::MouseButton {
-        match self {
+impl From<MouseButton> for enigo::MouseButton {
+    fn from(btn: MouseButton) -> enigo::MouseButton {
+        match btn {
             MouseButton::Left => enigo::MouseButton::Left,
             MouseButton::Right => enigo::MouseButton::Right,
             MouseButton::Middle => enigo::MouseButton::Middle,
@@ -38,11 +38,16 @@ pub struct InputHandler {
 
 impl InputHandler {
     pub fn new() -> Self {
-        let mut enigo = enigo::Enigo::new();
         let (sender, mut receiver) = mpsc::channel::<Bytes>(32);
         tokio::spawn(async move {
             while let Some(msg) = receiver.recv().await {
-                let input_msg = serde_json::from_slice::<InputMessage>(&msg).unwrap();
+                let mut enigo = enigo::Enigo::new(); // todo:fixme
+                let input_msg = serde_json::from_slice::<InputMessage>(&msg);
+                if let Err(e) = input_msg {
+                    error!("Failed to parse input message: {}. Ignored.", e);
+                    continue;
+                }
+                let input_msg = input_msg.unwrap();
                 debug!("Deserialized input message: {:#?}", input_msg);
                 match input_msg {
                     InputMessage::KeyDown { key } => enigo.key_down(enigo::Key::Raw(key)),
@@ -55,7 +60,7 @@ impl InputHandler {
                     InputMessage::MouseUp { x, y, button } => {
                         enigo.mouse_move_to(x, y);
                         enigo.mouse_up(button.into())
-                    },
+                    }
                     InputMessage::MouseWheel { x, y, dx, dy } => {
                         enigo.mouse_move_to(x, y);
                         enigo.mouse_scroll_y(dy);

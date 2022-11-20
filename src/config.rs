@@ -28,7 +28,7 @@ pub struct Config {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct EncoderConfig {
     pub encoder: String,
-    pub yuv_input: bool,
+    pub pixel_format: String,
     #[serde(serialize_with = "toml::ser::tables_last")]
     pub options: HashMap<String, String>,
 }
@@ -57,9 +57,9 @@ pub struct IceServer {
     pub credential_type: IceCredentialType,
 }
 
-impl Into<RTCIceCredentialType> for IceCredentialType {
-    fn into(self) -> RTCIceCredentialType {
-        match self {
+impl From<IceCredentialType> for RTCIceCredentialType {
+    fn from(t: IceCredentialType) -> Self {
+        match t {
             IceCredentialType::Unspecified => RTCIceCredentialType::Unspecified,
             IceCredentialType::Password => RTCIceCredentialType::Password,
             IceCredentialType::Oauth => RTCIceCredentialType::Oauth,
@@ -67,13 +67,13 @@ impl Into<RTCIceCredentialType> for IceCredentialType {
     }
 }
 
-impl Into<RTCIceServer> for IceServer {
-    fn into(self) -> RTCIceServer {
+impl From<IceServer> for RTCIceServer {
+    fn from(server: IceServer) -> RTCIceServer {
         RTCIceServer {
-            urls: self.urls,
-            username: self.username,
-            credential: self.credential,
-            credential_type: self.credential_type.into(),
+            urls: server.urls,
+            username: server.username,
+            credential: server.credential,
+            credential_type: server.credential_type.into(),
         }
     }
 }
@@ -96,7 +96,13 @@ pub fn load(path: &Path) -> Result<Config> {
 fn libx264() -> EncoderConfig {
     EncoderConfig {
         encoder: "libx264".to_string(),
-        yuv_input: true,
+        pixel_format: if cfg!(target_os = "windows") {
+            "yuv420p".to_string()
+        } else if cfg!(target_os = "macos") {
+            "nv12".to_string()
+        } else {
+            panic!("Unsupported platform");
+        },
         options: HashMap::from([
             ("profile".into(), "baseline".into()),
             ("preset".into(), "ultrafast".into()),
