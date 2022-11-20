@@ -55,14 +55,9 @@ impl<'a> MacOSScreenCapture<'a> {
     pub fn new(display: GraphicsCaptureItem, config: &'a Config) -> Result<Self> {
         let format = YCbCr420Full;
         let (sender, mut receiver) = tokio::sync::mpsc::channel::<Frame>(1);
-        // let (sender2, mut receiver2) = tokio::sync::mpsc::channel::<()>(10);
-        // let mut profiler = PerformanceProfiler::new(true, 60);
 
         let handler: FrameAvailableHandler =
             ConcreteBlock::new(move |status, display_time, surface, _| unsafe {
-                // println!("{}", display_time);
-                // sender2.try_send(()).unwrap();
-                profiler.done_processing(0);
                 if status == FrameComplete {
                     if let Ok(permit) = sender.try_reserve() {
                         permit.send(Frame::new(surface, display_time));
@@ -70,12 +65,6 @@ impl<'a> MacOSScreenCapture<'a> {
                 }
             })
             .copy();
-
-        // tokio::spawn(async move {
-        //     while let Some(f) = receiver2.recv().await {
-        //         profiler.done_processing(0);
-        //     }
-        // });
 
         let queue = unsafe {
             dispatch_queue_create(b"app.mirashare\0".as_ptr() as *const i8, ptr::null_mut())
@@ -125,7 +114,7 @@ impl ScreenCapture for MacOSScreenCapture<'_> {
     ) -> Result<()> {
         let mut ticker =
             tokio::time::interval(Duration::from_millis((1000 / self.config.max_fps) as u64));
-        // loop{}
+
         while let Some(frame) = self.receiver.recv().await {
             let frame_time = frame.display_time as f64;
             profiler.accept_frame(frame_time as i64);

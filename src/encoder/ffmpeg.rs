@@ -63,8 +63,11 @@ impl FfmpegEncoder {
         let time_base = frame.time_base();
         frame = frame
             .with_pts(Timestamp::new(
-                // (frame_time as f64 * 9. / 1000.) as i64,
-                (frame_time as f64 * 9. / 1e5) as i64,
+                if cfg!(target_os = "windows") {
+                    (frame_time as f64 * 9. / 1000.) as i64
+                } else if cfg!(target_os = "macos") {
+                    (frame_time as f64 * 9. / 1e5) as i64
+                },
                 time_base,
             ))
             .with_picture_type(
