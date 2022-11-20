@@ -52,6 +52,7 @@ pub enum SignallerMessage {
     Leave {
         uuid: String,
     },
+    KeepAlive {},
 }
 
 pub use websocket_signaller::WebSocketSignaller;

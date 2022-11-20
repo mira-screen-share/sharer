@@ -1,11 +1,10 @@
-use crate::capture::{Display, ScreenCaptureImpl};
 use crate::capture::ScreenCapture;
+use crate::capture::{Display, ScreenCaptureImpl};
 use crate::output::{FileOutput, OutputSink, WebRTCOutput};
 use crate::performance_profiler::PerformanceProfiler;
 use crate::result::Result;
-// use capture::display::DisplayInfo;
 use clap::Parser;
-use std::path::Path;
+use std::path::{Display, Path};
 use std::sync::Arc;
 
 #[macro_use]
@@ -48,7 +47,12 @@ async fn main() -> Result<()> {
     let config = config::load(Path::new(&args.config))?;
 
     let display = Display::online().unwrap()[args.display].select();
-    println!("Display: {} x {} {:?}", display.width(), display.height(), display.resolution());
+    println!(
+        "Display: {} x {} {:?}",
+        display.width(),
+        display.height(),
+        display.resolution()
+    );
     let profiler = PerformanceProfiler::new(args.profiler, config.max_fps);
     let resolution = display.resolution();
     let mut capture = ScreenCaptureImpl::new(display, &config)?;

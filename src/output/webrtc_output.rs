@@ -93,16 +93,24 @@ impl WebRTCOutput {
         signaller.start().await;
         tokio::spawn(async move {
             while let Some(peer) = signaller.accept_peer().await {
-                peers_clone.lock().await.push(
-                    WebRTCPeer::new(
+                let api_clone = api_clone.clone();
+                let peers_clone = peers_clone.clone();
+                let encoder_force_idr = encoder_force_idr.clone();
+                let video_track_clone = video_track_clone.clone();
+                let webrtc_config = webrtc_config.clone();
+                let input_handler = input_handler.clone();
+                tokio::spawn(async move {
+                    let peer = WebRTCPeer::new(
                         Arc::new(api_clone.new_peer_connection(webrtc_config.clone()).await?),
                         peer,
                         encoder_force_idr.clone(),
                         input_handler.clone(),
                         video_track_clone.clone(),
                     )
-                    .await?,
-                );
+                    .await
+                    .expect("Failed to create peer");
+                    peers_clone.lock().await.push(peer);
+                });
             }
             Result::<()>::Ok(())
         });

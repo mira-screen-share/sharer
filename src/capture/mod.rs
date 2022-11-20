@@ -25,5 +25,6 @@ pub use wgc::WGCScreenCapture as ScreenCaptureImpl;
 #[cfg(target_os = "macos")]
 mod macos;
 #[cfg(target_os = "macos")]
-pub use macos::MacOSScreenCapture as ScreenCaptureImpl;
 pub use macos::display::Display;
+#[cfg(target_os = "macos")]
+pub use macos::MacOSScreenCapture as ScreenCaptureImpl;

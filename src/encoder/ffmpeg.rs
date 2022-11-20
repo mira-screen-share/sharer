@@ -52,7 +52,8 @@ impl FfmpegEncoder {
             bgr0_to_yuv: BGR0YUVConverter::new(w as usize, h as usize),
             frame_pool: FramePool::new(w, h, time_base, pixel_format),
             force_idr: Arc::new(AtomicBool::new(false)),
-            w: w as usize,h: h as usize,
+            w: w as usize,
+            h: h as usize,
         }
     }
 
@@ -79,27 +80,29 @@ impl FfmpegEncoder {
         match frame_data {
             FrameData::NV12(nv12) => {
                 assert_eq!(self.pixel_format, "nv12");
-                frame.planes_mut()[0].data_mut().copy_from_slice(&nv12[0..self.w*self.h]);
-                frame.planes_mut()[1].data_mut().copy_from_slice(&nv12[self.w*self.h..]);
+                frame.planes_mut()[0]
+                    .data_mut()
+                    .copy_from_slice(&nv12[0..self.w * self.h]);
+                frame.planes_mut()[1]
+                    .data_mut()
+                    .copy_from_slice(&nv12[self.w * self.h..]);
             }
-            FrameData::BGR0(bgr0) => {
-                match self.pixel_format.as_str() {
-                    "yuv420p" => {
-                        self.bgr0_to_yuv.convert(
-                            bgr0,
-                            frame
-                                .planes_mut()
-                                .iter_mut()
-                                .map(|p| p.data_mut())
-                                .collect(),
-                        );
-                    }
-                    "bgra" => {
-                        frame.planes_mut()[0].data_mut().copy_from_slice(bgr0);
-                    }
-                    _ => unimplemented!(),
+            FrameData::BGR0(bgr0) => match self.pixel_format.as_str() {
+                "yuv420p" => {
+                    self.bgr0_to_yuv.convert(
+                        bgr0,
+                        frame
+                            .planes_mut()
+                            .iter_mut()
+                            .map(|p| p.data_mut())
+                            .collect(),
+                    );
                 }
-            }
+                "bgra" => {
+                    frame.planes_mut()[0].data_mut().copy_from_slice(bgr0);
+                }
+                _ => unimplemented!(),
+            },
         }
 
         let frame = frame.freeze();

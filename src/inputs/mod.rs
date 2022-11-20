@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
 
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 enum MouseButton {
     Left,
     Right,
@@ -26,9 +27,9 @@ enum InputMessage {
     KeyDown { key: u16 },
     KeyUp { key: u16 },
     MouseMove { x: i32, y: i32 },
-    MouseDown { button: MouseButton },
-    MouseUp { button: MouseButton },
-    MouseWheel { delta: i32 },
+    MouseDown { x: i32, y: i32, button: MouseButton },
+    MouseUp { x: i32, y: i32, button: MouseButton },
+    MouseWheel { x: i32, y: i32, dx: i32, dy: i32 },
 }
 
 pub struct InputHandler {
@@ -47,9 +48,19 @@ impl InputHandler {
                     InputMessage::KeyDown { key } => enigo.key_down(enigo::Key::Raw(key)),
                     InputMessage::KeyUp { key } => enigo.key_up(enigo::Key::Raw(key)),
                     InputMessage::MouseMove { x, y } => enigo.mouse_move_to(x, y),
-                    InputMessage::MouseDown { button } => enigo.mouse_down(button.into()),
-                    InputMessage::MouseUp { button } => enigo.mouse_up(button.into()),
-                    InputMessage::MouseWheel { delta } => enigo.mouse_scroll_y(delta),
+                    InputMessage::MouseDown { x, y, button } => {
+                        enigo.mouse_move_to(x, y);
+                        enigo.mouse_down(button.into())
+                    }
+                    InputMessage::MouseUp { x, y, button } => {
+                        enigo.mouse_move_to(x, y);
+                        enigo.mouse_up(button.into())
+                    },
+                    InputMessage::MouseWheel { x, y, dx, dy } => {
+                        enigo.mouse_move_to(x, y);
+                        enigo.mouse_scroll_y(dy);
+                        enigo.mouse_scroll_x(dx);
+                    }
                 };
             }
         });

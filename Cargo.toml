@@ -23,7 +23,7 @@ dyn-clone = "1.0.4"
 uuid = "1.2.1"
 bytes = "1.2.1"
 enigo = "0.0.14"
-ac-ffmpeg = { path = "../rust-ac-ffmpeg" }
+ac-ffmpeg = { git = "https://github.com/mira-screen-share/rust-ac-ffmpeg", branch = "dev" }
 toml = "0.5.9"
 itertools = "0.10.5"
 
@@ -58,3 +58,6 @@ features = [
     "Graphics_Imaging",
     "Win32_System_WinRT_Direct3D11",
 ]
+
+[build-dependencies]
+embed-resource = "1.7"

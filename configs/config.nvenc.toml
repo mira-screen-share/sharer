@@ -18,7 +18,11 @@ yuv_input = false
 [encoder.options]
 profile = "baseline"
 tune = "zerolatency"
+<<<<<<< HEAD
 preset = "p4"
+=======
+preset = "p7"
+>>>>>>> main
 tune = "ll"
 zerolatency = "true"
 forced-idr = "true"

@@ -32,7 +32,6 @@ struct WebSocketSignallerSender {
 pub struct WebSocketSignaller {
     send_queue: Sender<SignallerMessage>,
     peers_receiver: Receiver<WebSocketSignallerPeer>,
-    peers: Arc<RwLock<HashMap<String, WebSocketSignallerSender>>>, // uuid -> sender
     uuid: String,
 }
 
@@ -51,10 +50,14 @@ impl WebSocketSignaller {
         let (mut write, mut read) = ws_stream.split();
 
         // create a task to read all incoming websocket messages
-        let peers_clone = peers.clone();
         let send_queue_sender_clone = send_queue_sender.clone();
         tokio::spawn(async move {
             while let Some(msg) = read.next().await {
+                if let Err(e) = msg {
+                    error!("Error reading from websocket: {}", e);
+                    break;
+                }
+
                 trace!("Received websocket message: {:?}", msg);
                 let text = msg.unwrap().into_text().unwrap();
                 let msg = serde_json::from_str::<SignallerMessage>(&text).unwrap();
@@ -73,15 +76,17 @@ impl WebSocketSignaller {
                                 ice_sender,
                             },
                         );
+                        debug!("Created new peer {}", uuid);
                         peers_sender
                             .send(WebSocketSignallerPeer {
-                                uuid,
+                                uuid: uuid.clone(),
                                 answer_receiver: Arc::new(Mutex::new(answer_receiver)),
                                 ice_receiver: Arc::new(Mutex::new(ice_receiver)),
                                 send_queue: send_queue_sender_clone.clone(),
                             })
                             .await
                             .unwrap();
+                        debug!("Created new peer2 {}", uuid);
                     }
                     SignallerMessage::Answer { sdp, uuid } => {
                         let sender = {
@@ -119,9 +124,21 @@ impl WebSocketSignaller {
             warn!("Send queue closed");
         });
 
+        // send a keepalive packet every 30 secs
+        let send_queue_sender_clone = send_queue_sender.clone();
+        tokio::spawn(async move {
+            let mut ticker = tokio::time::interval(std::time::Duration::from_secs(30));
+            loop {
+                ticker.tick().await;
+                send_queue_sender_clone
+                    .send(SignallerMessage::KeepAlive {})
+                    .await
+                    .unwrap(); // keep alive
+            }
+        });
+
         Ok(Self {
             send_queue: send_queue_sender,
-            peers: peers_clone,
             peers_receiver,
             uuid: my_uuid,
         })
