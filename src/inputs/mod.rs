@@ -42,7 +42,12 @@ impl InputHandler {
         tokio::spawn(async move {
             while let Some(msg) = receiver.recv().await {
                 let mut enigo = enigo::Enigo::new(); // todo:fixme
-                let input_msg = serde_json::from_slice::<InputMessage>(&msg).unwrap();
+                let input_msg = serde_json::from_slice::<InputMessage>(&msg);
+                if let Err(e) = input_msg {
+                    error!("Failed to parse input message: {}. Ignored.", e);
+                    continue;
+                }
+                let input_msg = input_msg.unwrap();
                 debug!("Deserialized input message: {:#?}", input_msg);
                 match input_msg {
                     InputMessage::KeyDown { key } => enigo.key_down(enigo::Key::Raw(key)),

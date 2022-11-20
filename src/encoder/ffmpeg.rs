@@ -67,6 +67,8 @@ impl FfmpegEncoder {
                     (frame_time as f64 * 9. / 1000.) as i64
                 } else if cfg!(target_os = "macos") {
                     (frame_time as f64 * 9. / 1e5) as i64
+                } else {
+                    panic!("Unsupported OS")
                 },
                 time_base,
             ))
