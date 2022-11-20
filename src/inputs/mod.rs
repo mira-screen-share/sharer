@@ -11,9 +11,9 @@ enum MouseButton {
     Middle,
 }
 
-impl Into<enigo::MouseButton> for MouseButton {
-    fn into(self) -> enigo::MouseButton {
-        match self {
+impl From<MouseButton> for enigo::MouseButton {
+    fn from(btn: MouseButton) -> enigo::MouseButton {
+        match btn {
             MouseButton::Left => enigo::MouseButton::Left,
             MouseButton::Right => enigo::MouseButton::Right,
             MouseButton::Middle => enigo::MouseButton::Middle,

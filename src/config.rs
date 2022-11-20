@@ -57,9 +57,9 @@ pub struct IceServer {
     pub credential_type: IceCredentialType,
 }
 
-impl Into<RTCIceCredentialType> for IceCredentialType {
-    fn into(self) -> RTCIceCredentialType {
-        match self {
+impl From<IceCredentialType> for RTCIceCredentialType {
+    fn from(t: IceCredentialType) -> Self {
+        match t {
             IceCredentialType::Unspecified => RTCIceCredentialType::Unspecified,
             IceCredentialType::Password => RTCIceCredentialType::Password,
             IceCredentialType::Oauth => RTCIceCredentialType::Oauth,
@@ -67,13 +67,13 @@ impl Into<RTCIceCredentialType> for IceCredentialType {
     }
 }
 
-impl Into<RTCIceServer> for IceServer {
-    fn into(self) -> RTCIceServer {
+impl From<IceServer> for RTCIceServer {
+    fn from(server: IceServer) -> RTCIceServer {
         RTCIceServer {
-            urls: self.urls,
-            username: self.username,
-            credential: self.credential,
-            credential_type: self.credential_type.into(),
+            urls: server.urls,
+            username: server.username,
+            credential: server.credential,
+            credential_type: server.credential_type.into(),
         }
     }
 }

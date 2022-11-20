@@ -42,7 +42,7 @@ impl FfmpegEncoder {
             .time_base(time_base);
 
         for option in &encoder_config.options {
-            encoder = encoder.set_option(&option.0, option.1);
+            encoder = encoder.set_option(option.0, option.1);
         }
 
         let encoder = encoder.build().unwrap();
