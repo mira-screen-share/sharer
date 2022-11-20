@@ -917,8 +917,7 @@ dependencies = [
 [[package]]
 name = "enigo"
 version = "0.0.14"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "95ce8d7672e87b3155fd5e8a9226276da5c833e15bc879c7b98a78f743b67814"
+source = "git+https://github.com/mira-screen-share/enigo?branch=master#842009dc20c5499c1068454915ffa0416eaa3e31"
 dependencies = [
  "core-graphics",
  "libc",
