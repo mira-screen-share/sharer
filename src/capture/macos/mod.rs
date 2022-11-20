@@ -1,8 +1,8 @@
+mod config;
 pub mod display;
-pub mod macos_capture;
 mod ffi;
 mod frame;
-mod config;
+pub mod macos_capture;
 
-pub use macos_capture::MacOSScreenCapture;
 pub use display::Display;
+pub use macos_capture::MacOSScreenCapture;

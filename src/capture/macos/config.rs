@@ -13,7 +13,7 @@ pub struct Config {
     /// How many frames are allocated.
     /// 3 is the recommended value.
     /// 8 is the maximum value.
-    pub queue_length: i8
+    pub queue_length: i8,
 }
 
 impl Config {
@@ -23,25 +23,25 @@ impl Config {
             let throttle = CFNumberCreate(
                 ptr::null_mut(),
                 CFNumberType::Float64,
-                &self.throttle as *const _ as *const c_void
+                &self.throttle as *const _ as *const c_void,
             );
             let queue_length = CFNumberCreate(
                 ptr::null_mut(),
                 CFNumberType::SInt8,
-                &self.queue_length as *const _ as *const c_void
+                &self.queue_length as *const _ as *const c_void,
             );
 
             let keys: [CFStringRef; 4] = [
                 kCGDisplayStreamShowCursor,
                 kCGDisplayStreamPreserveAspectRatio,
                 kCGDisplayStreamMinimumFrameTime,
-                kCGDisplayStreamQueueDepth
+                kCGDisplayStreamQueueDepth,
             ];
             let values: [*mut c_void; 4] = [
                 cfbool(self.cursor),
                 cfbool(self.letterbox),
                 throttle,
-                queue_length
+                queue_length,
             ];
 
             let res = CFDictionaryCreate(
@@ -50,7 +50,7 @@ impl Config {
                 values.as_ptr(),
                 4,
                 &kCFTypeDictionaryKeyCallBacks,
-                &kCFTypeDictionaryValueCallBacks
+                &kCFTypeDictionaryValueCallBacks,
             );
 
             CFRelease(throttle);
@@ -67,7 +67,7 @@ impl Default for Config {
             cursor: false,
             letterbox: true,
             throttle: 0.0,
-            queue_length: 3
+            queue_length: 3,
         }
     }
 }

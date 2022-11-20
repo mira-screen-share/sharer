@@ -18,30 +18,31 @@ pub type CFAllocatorRef = *mut c_void;
 #[repr(C)]
 pub struct CFDictionaryKeyCallBacks {
     callbacks: [usize; 5],
-    version: i32
+    version: i32,
 }
 
 #[repr(C)]
 pub struct CFDictionaryValueCallBacks {
     callbacks: [usize; 4],
-    version: i32
+    version: i32,
 }
 
 macro_rules! pixel_format {
     ($a:expr, $b:expr, $c:expr, $d:expr) => {
-          ($a as i32) << 24
-        | ($b as i32) << 16
-        | ($c as i32) << 8
-        | ($d as i32)
-    }
+        ($a as i32) << 24 | ($b as i32) << 16 | ($c as i32) << 8 | ($d as i32)
+    };
 }
 
-pub const SURFACE_LOCK_READ_ONLY: u32  = 0x0000_0001;
+pub const SURFACE_LOCK_READ_ONLY: u32 = 0x0000_0001;
 pub const SURFACE_LOCK_AVOID_SYNC: u32 = 0x0000_0002;
 
 pub fn cfbool(x: bool) -> CFBooleanRef {
     unsafe {
-        if x { kCFBooleanTrue } else { kCFBooleanFalse }
+        if x {
+            kCFBooleanTrue
+        } else {
+            kCFBooleanFalse
+        }
     }
 }
 
@@ -57,7 +58,7 @@ pub enum CGDisplayStreamFrameStatus {
     /// The display stream was stopped.
     Stopped = 3,
     #[doc(hidden)]
-    __Nonexhaustive
+    __Nonexhaustive,
 }
 
 #[repr(i32)]
@@ -69,7 +70,7 @@ pub enum CFNumberType {
     SInt32 = 3,
     SInt64 = 4,
     Float32 = 5,
-    Float64 = 6,   /* 64-bit IEEE 754 */
+    Float64 = 6, /* 64-bit IEEE 754 */
     /* Basic C types */
     Char = 7,
     Short = 8,
@@ -81,7 +82,7 @@ pub enum CFNumberType {
     /* Other */
     CFIndex = 14,
     NSInteger = 15,
-    CGFloat = 16
+    CGFloat = 16,
 }
 
 #[repr(i32)]
@@ -100,38 +101,41 @@ pub enum CGError {
     InvalidOperation = 1010,
     NoneAvailable = 1011,
     #[doc(hidden)]
-    __Nonexhaustive
+    __Nonexhaustive,
 }
 
 #[repr(i32)]
 #[derive(PartialEq, Eq, Debug, Clone, Copy)]
 pub enum PixelFormat {
     /// Packed Little Endian ARGB8888
-    Argb8888 = pixel_format!('B','G','R','A'),
+    Argb8888 = pixel_format!('B', 'G', 'R', 'A'),
     /// Packed Little Endian ARGB2101010
-    Argb2101010 = pixel_format!('l','1','0','r'),
+    Argb2101010 = pixel_format!('l', '1', '0', 'r'),
     /// 2-plane "video" range YCbCr 4:2:0
-    YCbCr420Video = pixel_format!('4','2','0','v'),
+    YCbCr420Video = pixel_format!('4', '2', '0', 'v'),
     /// 2-plane "full" range YCbCr 4:2:0
-    YCbCr420Full = pixel_format!('4','2','0','f'),
+    YCbCr420Full = pixel_format!('4', '2', '0', 'f'),
     #[doc(hidden)]
-    __Nonexhaustive
+    __Nonexhaustive,
 }
 
 pub type CGDisplayStreamFrameAvailableHandler = *const c_void;
 
-pub type FrameAvailableHandler = RcBlock<(
-    CGDisplayStreamFrameStatus, // status
-    u64, // displayTime
-    IOSurfaceRef, // frameSurface
-    CGDisplayStreamUpdateRef // updateRef
-), ()>;
+pub type FrameAvailableHandler = RcBlock<
+    (
+        CGDisplayStreamFrameStatus, // status
+        u64,                        // displayTime
+        IOSurfaceRef,               // frameSurface
+        CGDisplayStreamUpdateRef,   // updateRef
+    ),
+    (),
+>;
 
-#[link(name="System", kind="dylib")]
-#[link(name="CoreGraphics", kind="framework")]
-#[link(name="CoreFoundation", kind="framework")]
-#[link(name="IOSurface", kind="framework")]
-extern {
+#[link(name = "System", kind = "dylib")]
+#[link(name = "CoreGraphics", kind = "framework")]
+#[link(name = "CoreFoundation", kind = "framework")]
+#[link(name = "IOSurface", kind = "framework")]
+extern "C" {
     // CoreGraphics
 
     pub static kCGDisplayStreamShowCursor: CFStringRef;
@@ -146,16 +150,12 @@ extern {
         pixel_format: PixelFormat,
         properties: CFDictionaryRef,
         queue: DispatchQueue,
-        handler: CGDisplayStreamFrameAvailableHandler
+        handler: CGDisplayStreamFrameAvailableHandler,
     ) -> CGDisplayStreamRef;
 
-    pub fn CGDisplayStreamStart(
-        displayStream: CGDisplayStreamRef
-    ) -> CGError;
+    pub fn CGDisplayStreamStart(displayStream: CGDisplayStreamRef) -> CGError;
 
-    pub fn CGDisplayStreamStop(
-        displayStream: CGDisplayStreamRef
-    ) -> CGError;
+    pub fn CGDisplayStreamStop(displayStream: CGDisplayStreamRef) -> CGError;
 
     pub fn CGMainDisplayID() -> u32;
     pub fn CGDisplayPixelsWide(display: u32) -> usize;
@@ -164,7 +164,7 @@ extern {
     pub fn CGGetOnlineDisplayList(
         max_displays: u32,
         online_displays: *mut u32,
-        display_count: *mut u32
+        display_count: *mut u32,
     ) -> CGError;
 
     pub fn CGDisplayIsBuiltin(display: u32) -> i32;
@@ -178,27 +178,14 @@ extern {
     pub fn IOSurfaceGetBaseAddress(buffer: IOSurfaceRef) -> *mut c_void;
     pub fn IOSurfaceIncrementUseCount(buffer: IOSurfaceRef);
     pub fn IOSurfaceDecrementUseCount(buffer: IOSurfaceRef);
-    pub fn IOSurfaceLock(
-        buffer: IOSurfaceRef,
-        options: u32,
-        seed: *mut u32
-    ) -> i32;
-    pub fn IOSurfaceUnlock(
-        buffer: IOSurfaceRef,
-        options: u32,
-        seed: *mut u32
-    ) -> i32;
+    pub fn IOSurfaceLock(buffer: IOSurfaceRef, options: u32, seed: *mut u32) -> i32;
+    pub fn IOSurfaceUnlock(buffer: IOSurfaceRef, options: u32, seed: *mut u32) -> i32;
 
     // Dispatch
 
-    pub fn dispatch_queue_create(
-        label: *const i8,
-        attr: DispatchQueueAttr
-    ) -> DispatchQueue;
+    pub fn dispatch_queue_create(label: *const i8, attr: DispatchQueueAttr) -> DispatchQueue;
 
-    pub fn dispatch_release(
-        object: DispatchQueue
-    );
+    pub fn dispatch_release(object: DispatchQueue);
 
     // Core Foundation
 
@@ -212,7 +199,7 @@ extern {
     pub fn CFNumberCreate(
         allocator: CFAllocatorRef,
         theType: CFNumberType,
-        valuePtr: *const c_void
+        valuePtr: *const c_void,
     ) -> CFNumberRef;
 
     pub fn CFDictionaryCreate(
@@ -221,7 +208,7 @@ extern {
         values: *const *mut c_void,
         numValues: i64,
         keyCallBacks: *const CFDictionaryKeyCallBacks,
-        valueCallBacks: *const CFDictionaryValueCallBacks
+        valueCallBacks: *const CFDictionaryValueCallBacks,
     ) -> CFDictionaryRef;
 
     pub fn CFRetain(cf: *const c_void);

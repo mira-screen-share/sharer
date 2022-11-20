@@ -55,7 +55,7 @@ impl InputHandler {
                     InputMessage::MouseUp { x, y, button } => {
                         enigo.mouse_move_to(x, y);
                         enigo.mouse_up(button.into())
-                    },
+                    }
                     InputMessage::MouseWheel { x, y, dx, dy } => {
                         enigo.mouse_move_to(x, y);
                         enigo.mouse_scroll_y(dy);
