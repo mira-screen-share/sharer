@@ -1,3 +1,4 @@
+use crate::capture::DisplayInfo;
 use std::mem;
 
 use super::ffi::*;
@@ -18,7 +19,7 @@ impl Display {
 
             match CGGetOnlineDisplayList(16, arr.as_mut_ptr(), &mut len) {
                 CGError::Success => (),
-                x => return Err(x)
+                x => return Err(x),
             }
 
             let mut res = Vec::with_capacity(16);
@@ -29,8 +30,8 @@ impl Display {
         }
     }
 
-    pub fn select(self) -> Self {
-        self
+    pub fn select(self) -> Result<Self> {
+        Ok(self)
     }
 
     pub fn id(self) -> u32 {
@@ -60,11 +61,10 @@ impl Display {
     pub fn is_online(self) -> bool {
         unsafe { CGDisplayIsOnline(self.0) != 0 }
     }
+}
 
-    pub fn resolution(&self) -> (u32, u32) {
-        (
-            self.width() as u32,
-            self.height() as u32,
-        )
+impl DisplayInfo for Display {
+    fn resolution(&self) -> (u32, u32) {
+        (self.width() as u32, self.height() as u32)
     }
 }

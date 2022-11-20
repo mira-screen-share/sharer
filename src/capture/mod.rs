@@ -11,6 +11,11 @@ pub trait ScreenCapture {
     ) -> Result<()>;
 }
 
+pub trait DisplayInfo {
+    /// Get the resolution of the display in (width, height)
+    fn resolution(&self) -> (u32, u32);
+}
+
 mod yuv_converter;
 
 use crate::encoder::FfmpegEncoder;
@@ -19,6 +24,8 @@ pub use yuv_converter::BGR0YUVConverter;
 
 #[cfg(target_os = "windows")]
 mod wgc;
+#[cfg(target_os = "windows")]
+pub use wgc::display::Display;
 #[cfg(target_os = "windows")]
 pub use wgc::WGCScreenCapture as ScreenCaptureImpl;
 

@@ -1,18 +1,13 @@
+use crate::capture::DisplayInfo;
+use crate::result::Result;
 use windows::Graphics::Capture::GraphicsCaptureItem;
 use windows::Win32::Foundation::{BOOL, LPARAM, RECT};
 use windows::Win32::Graphics::Gdi::{EnumDisplayMonitors, HDC, HMONITOR};
 use windows::Win32::System::WinRT::Graphics::Capture::IGraphicsCaptureItemInterop;
 
-use crate::result::Result;
-
 #[derive(Clone)]
 pub struct Display {
     pub handle: HMONITOR,
-}
-
-pub trait DisplayInfo {
-    /// Get the resolution of the display in (width, height)
-    fn resolution(&self) -> (u32, u32);
 }
 
 impl Display {

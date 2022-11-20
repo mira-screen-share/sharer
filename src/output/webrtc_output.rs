@@ -101,7 +101,12 @@ impl WebRTCOutput {
                 let input_handler = input_handler.clone();
                 tokio::spawn(async move {
                     let peer = WebRTCPeer::new(
-                        Arc::new(api_clone.new_peer_connection(webrtc_config.clone()).await?),
+                        Arc::new(
+                            api_clone
+                                .new_peer_connection(webrtc_config.clone())
+                                .await
+                                .unwrap(),
+                        ),
                         peer,
                         encoder_force_idr.clone(),
                         input_handler.clone(),

@@ -22,6 +22,7 @@ pub struct FfmpegEncoder {
 
 unsafe impl Send for FfmpegEncoder {}
 
+#[allow(dead_code)]
 pub enum FrameData<'a> {
     NV12(&'a [u8]),
     BGR0(&'a [u8]),
