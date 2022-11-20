@@ -1,5 +1,7 @@
 use crate::capture::DisplayInfo;
+use crate::result::Result;
 use std::mem;
+use failure::format_err;
 
 use super::ffi::*;
 
@@ -12,20 +14,21 @@ impl Display {
         Display(unsafe { CGMainDisplayID() })
     }
 
-    pub fn online() -> Result<Vec<Display>, CGError> {
+    pub fn online() -> Result<Vec<Display>> {
         unsafe {
             let mut arr: [u32; 16] = mem::uninitialized();
             let mut len: u32 = 0;
 
             match CGGetOnlineDisplayList(16, arr.as_mut_ptr(), &mut len) {
                 CGError::Success => (),
-                x => return Err(x),
+                x => return Err(format_err!("CGGetOnlineDisplayList failed: {:?}", x)),
             }
 
             let mut res = Vec::with_capacity(16);
             for i in 0..len as usize {
                 res.push(Display(*arr.get_unchecked(i)));
             }
+
             Ok(res)
         }
     }
