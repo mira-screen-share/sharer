@@ -119,7 +119,6 @@ impl ScreenCapture for MacOSScreenCapture<'_> {
             let frame_time = frame.display_time as f64;
             profiler.accept_frame(frame_time as i64);
             profiler.done_preprocessing();
-            profiler.done_conversion();
             let encoded = encoder
                 .encode(
                     FrameData::NV12(&RFrame(frame, PhantomData)),
