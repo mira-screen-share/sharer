@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
 
 mod parse_key;
-use parse_key::FromJsKey;
+use crate::inputs::parse_key::KeyOrSequence;
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -46,8 +46,14 @@ impl InputHandler {
         let input_msg = serde_json::from_slice::<InputMessage>(&input_msg)?;
         debug!("Deserialized input message: {:#?}", input_msg);
         match input_msg {
-            InputMessage::KeyDown { key } => enigo.key_down(enigo::Key::from_js_key(&key)?),
-            InputMessage::KeyUp { key } => enigo.key_up(enigo::Key::from_js_key(&key)?),
+            InputMessage::KeyDown { key } => match KeyOrSequence::from_js_key(&key)? {
+                KeyOrSequence::Key(key) => enigo.key_down(key),
+                KeyOrSequence::Sequence(c) => enigo.key_sequence(&c.to_string()),
+            },
+            InputMessage::KeyUp { key } => match KeyOrSequence::from_js_key(&key)? {
+                KeyOrSequence::Key(key) => enigo.key_up(key),
+                KeyOrSequence::Sequence(_c) => {}
+            },
             InputMessage::MouseMove { x, y } => enigo.mouse_move_to(x, y),
             InputMessage::MouseDown { x, y, button } => {
                 enigo.mouse_move_to(x, y);
