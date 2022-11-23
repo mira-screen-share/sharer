@@ -1,3 +1,4 @@
 /target
 *.dll
 /config.toml
+**/.DS_Store

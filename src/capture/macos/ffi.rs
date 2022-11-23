@@ -13,7 +13,12 @@ pub type CGDisplayStreamUpdateRef = *mut c_void;
 pub type IOSurfaceRef = *mut c_void;
 pub type DispatchQueue = *mut c_void;
 pub type DispatchQueueAttr = *mut c_void;
-pub type CFAllocatorRef = *mut c_void;
+pub type CVImageBufferRef = *mut c_void;
+pub type CFAllocatorRef = *const c_void;
+
+pub enum CGDisplayMode {}
+pub type CGDisplayModeRef = *mut CGDisplayMode;
+pub type CVPixelBufferRef = CVImageBufferRef;
 
 #[repr(C)]
 pub struct CFDictionaryKeyCallBacks {
@@ -133,11 +138,11 @@ pub type FrameAvailableHandler = RcBlock<
 
 #[link(name = "System", kind = "dylib")]
 #[link(name = "CoreGraphics", kind = "framework")]
+#[link(name = "CoreVideo", kind = "framework")]
 #[link(name = "CoreFoundation", kind = "framework")]
 #[link(name = "IOSurface", kind = "framework")]
 extern "C" {
     // CoreGraphics
-
     pub static kCGDisplayStreamShowCursor: CFStringRef;
     pub static kCGDisplayStreamPreserveAspectRatio: CFStringRef;
     pub static kCGDisplayStreamMinimumFrameTime: CFStringRef;
@@ -154,10 +159,12 @@ extern "C" {
     ) -> CGDisplayStreamRef;
 
     pub fn CGDisplayStreamStart(displayStream: CGDisplayStreamRef) -> CGError;
-
     pub fn CGDisplayStreamStop(displayStream: CGDisplayStreamRef) -> CGError;
 
     pub fn CGMainDisplayID() -> u32;
+    pub fn CGDisplayCopyDisplayMode(display: u32) -> CGDisplayModeRef;
+    pub fn CGDisplayModeGetPixelHeight(mode: CGDisplayModeRef) -> libc::size_t;
+    pub fn CGDisplayModeGetPixelWidth(mode: CGDisplayModeRef) -> libc::size_t;
     pub fn CGDisplayPixelsWide(display: u32) -> usize;
     pub fn CGDisplayPixelsHigh(display: u32) -> usize;
 
@@ -172,8 +179,23 @@ extern "C" {
     pub fn CGDisplayIsActive(display: u32) -> i32;
     pub fn CGDisplayIsOnline(display: u32) -> i32;
 
-    // IOSurface
+    // CoreVideo
+    pub fn CVPixelBufferGetWidth(pixel_buffer: CVPixelBufferRef) -> usize;
+    pub fn CVPixelBufferGetHeight(pixel_buffer: CVPixelBufferRef) -> usize;
+    pub fn CGDisplayStreamUpdateGetDropCount(update_ref: CGDisplayStreamUpdateRef) -> u32;
+    pub fn CVPixelBufferRelease(texture: CVPixelBufferRef);
+    pub fn CVPixelBufferLockBaseAddress(pixel_buffer: CVPixelBufferRef, lock_flags: u32) -> i32;
+    pub fn CVPixelBufferCreateWithIOSurface(
+        allocator: CFAllocatorRef,
+        surface: IOSurfaceRef,
+        pixel_buffer_attributes: CFDictionaryRef,
+        pixel_buffer_out: *mut CVPixelBufferRef,
+    ) -> i32;
+    pub fn CVPixelBufferGetBytesPerRowOfPlane(pixel_buffer: CVPixelBufferRef, planeIndex: usize) -> usize;
+    pub fn CVPixelBufferGetBaseAddressOfPlane(pixel_buffer: CVPixelBufferRef, planeIndex: usize) -> *mut c_void;
+    pub fn CVPixelBufferUnlockBaseAddress(pixel_buffer: CVPixelBufferRef, unlock_flags: u32) -> i32;
 
+    // IOSurface
     pub fn IOSurfaceGetAllocSize(buffer: IOSurfaceRef) -> usize;
     pub fn IOSurfaceGetBaseAddress(buffer: IOSurfaceRef) -> *mut c_void;
     pub fn IOSurfaceIncrementUseCount(buffer: IOSurfaceRef);
@@ -182,13 +204,10 @@ extern "C" {
     pub fn IOSurfaceUnlock(buffer: IOSurfaceRef, options: u32, seed: *mut u32) -> i32;
 
     // Dispatch
-
     pub fn dispatch_queue_create(label: *const i8, attr: DispatchQueueAttr) -> DispatchQueue;
-
     pub fn dispatch_release(object: DispatchQueue);
 
     // Core Foundation
-
     pub static kCFTypeDictionaryKeyCallBacks: CFDictionaryKeyCallBacks;
     pub static kCFTypeDictionaryValueCallBacks: CFDictionaryValueCallBacks;
 
@@ -213,6 +232,4 @@ extern "C" {
 
     pub fn CFRetain(cf: *const c_void);
     pub fn CFRelease(cf: *const c_void);
-
-    // pub fn mach_timebase_info(info: *mut mach_timebase_info) -> i32;
 }

@@ -54,6 +54,7 @@ async fn main() -> Result<()> {
     let input_handler = Arc::new(inputs::InputHandler::new());
     let my_uuid = uuid::Uuid::new_v4().to_string();
 
+    info!("Resolution: {:?}", resolution);
     info!(
         "Invite link: {}?room={}&signaller={}",
         config.viewer_url, my_uuid, config.signaller_url
