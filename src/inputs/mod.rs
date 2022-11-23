@@ -1,11 +1,11 @@
 use crate::Result;
 use bytes::Bytes;
-use enigo::{KeyboardControllable, MouseControllable};
+use enigo::{Enigo, KeyboardControllable, MouseControllable};
+use parse_key::FromJsKey;
 use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
 
 mod parse_key;
-use crate::inputs::parse_key::KeyOrSequence;
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -28,7 +28,7 @@ impl From<MouseButton> for enigo::MouseButton {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 enum InputMessage {
-    KeyDown { key: String }, // Key from KeyboardEvent.key
+    KeyDown { key: String }, // Key from KeyboardEvent.code
     KeyUp { key: String },
     MouseMove { x: i32, y: i32 },
     MouseDown { x: i32, y: i32, button: MouseButton },
@@ -46,14 +46,8 @@ impl InputHandler {
         let input_msg = serde_json::from_slice::<InputMessage>(&input_msg)?;
         debug!("Deserialized input message: {:#?}", input_msg);
         match input_msg {
-            InputMessage::KeyDown { key } => match KeyOrSequence::from_js_key(&key)? {
-                KeyOrSequence::Key(key) => enigo.key_down(key),
-                KeyOrSequence::Sequence(c) => enigo.key_sequence(&c.to_string()),
-            },
-            InputMessage::KeyUp { key } => match KeyOrSequence::from_js_key(&key)? {
-                KeyOrSequence::Key(key) => enigo.key_up(key),
-                KeyOrSequence::Sequence(_c) => {}
-            },
+            InputMessage::KeyDown { key } => enigo.key_down(enigo::Key::from_js_key(&key)?),
+            InputMessage::KeyUp { key } => enigo.key_up(enigo::Key::from_js_key(&key)?),
             InputMessage::MouseMove { x, y } => enigo.mouse_move_to(x, y),
             InputMessage::MouseDown { x, y, button } => {
                 enigo.mouse_move_to(x, y);

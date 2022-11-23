@@ -1,49 +1,77 @@
 use crate::Result;
 use failure::format_err;
 
-pub enum KeyOrSequence {
-    Key(enigo::Key),
-    Sequence(char),
+pub trait FromJsKey {
+    /// convert from KeyboardEvent.code
+    fn from_js_key(s: &str) -> Result<Self>
+    where
+        Self: Sized;
 }
 
-impl KeyOrSequence {
-    pub fn from_js_key(s: &str) -> Result<KeyOrSequence> {
-        if s.len() == 1 {
-            return Ok(KeyOrSequence::Sequence(s.chars().next().unwrap()));
+impl FromJsKey for enigo::Key {
+    fn from_js_key(s: &str) -> Result<Self> {
+        // Handle Digit0-9
+        if s.starts_with("Digit") || (s.len() == 7 && s.starts_with("Numpad")) {
+            let digit = s.chars().last().unwrap();
+            return Ok(enigo::Key::Layout(digit));
         }
 
+        // Handle KeyA-Z
+        if s.starts_with("Key") {
+            let letter = s.chars().last().unwrap().to_ascii_lowercase();
+            return Ok(enigo::Key::Layout(letter));
+        }
+
+        // Unsupported Keys:
+        // Pause, NumLock, Context Menu, Numpad*
+        // Currently does not distinguish between left and right keys
         match s {
-            "Alt" => Ok(KeyOrSequence::Key(enigo::Key::Alt)),
-            "Backspace" => Ok(KeyOrSequence::Key(enigo::Key::Backspace)),
-            "Control" => Ok(KeyOrSequence::Key(enigo::Key::Control)),
-            "Delete" => Ok(KeyOrSequence::Key(enigo::Key::Delete)),
-            "End" => Ok(KeyOrSequence::Key(enigo::Key::End)),
-            "Escape" => Ok(KeyOrSequence::Key(enigo::Key::Escape)),
-            "F1" => Ok(KeyOrSequence::Key(enigo::Key::F1)),
-            "F2" => Ok(KeyOrSequence::Key(enigo::Key::F2)),
-            "F3" => Ok(KeyOrSequence::Key(enigo::Key::F3)),
-            "F4" => Ok(KeyOrSequence::Key(enigo::Key::F4)),
-            "F5" => Ok(KeyOrSequence::Key(enigo::Key::F5)),
-            "F6" => Ok(KeyOrSequence::Key(enigo::Key::F6)),
-            "F7" => Ok(KeyOrSequence::Key(enigo::Key::F7)),
-            "F8" => Ok(KeyOrSequence::Key(enigo::Key::F8)),
-            "F9" => Ok(KeyOrSequence::Key(enigo::Key::F9)),
-            "F10" => Ok(KeyOrSequence::Key(enigo::Key::F10)),
-            "F11" => Ok(KeyOrSequence::Key(enigo::Key::F11)),
-            "F12" => Ok(KeyOrSequence::Key(enigo::Key::F12)),
-            "Home" => Ok(KeyOrSequence::Key(enigo::Key::Home)),
-            "ArrowLeft" => Ok(KeyOrSequence::Key(enigo::Key::LeftArrow)),
-            "ArrowUp" => Ok(KeyOrSequence::Key(enigo::Key::UpArrow)),
-            "ArrowRight" => Ok(KeyOrSequence::Key(enigo::Key::RightArrow)),
-            "ArrowDown" => Ok(KeyOrSequence::Key(enigo::Key::DownArrow)),
-            "Meta" => Ok(KeyOrSequence::Key(enigo::Key::Meta)),
-            "Tab" => Ok(KeyOrSequence::Key(enigo::Key::Tab)),
-            "Enter" => Ok(KeyOrSequence::Key(enigo::Key::Return)),
-            "Shift" => Ok(KeyOrSequence::Key(enigo::Key::Shift)),
-            "CapsLock" => Ok(KeyOrSequence::Key(enigo::Key::CapsLock)),
-            "Space" => Ok(KeyOrSequence::Key(enigo::Key::Space)),
-            "PageUp" => Ok(KeyOrSequence::Key(enigo::Key::PageUp)),
-            "PageDown" => Ok(KeyOrSequence::Key(enigo::Key::PageDown)),
+            "Backspace" => Ok(enigo::Key::Backspace),
+            "Tab" => Ok(enigo::Key::Tab),
+            "ShiftLeft" => Ok(enigo::Key::Shift),
+            "ShiftRight" => Ok(enigo::Key::Shift),
+            "ControlLeft" => Ok(enigo::Key::Control),
+            "ControlRight" => Ok(enigo::Key::Control),
+            "AltLeft" => Ok(enigo::Key::Alt),
+            "AltRight" => Ok(enigo::Key::Alt),
+            "CapsLock" => Ok(enigo::Key::CapsLock),
+            "Escape" => Ok(enigo::Key::Escape),
+            "Space" => Ok(enigo::Key::Space),
+            "ArrowLeft" => Ok(enigo::Key::LeftArrow),
+            "ArrowUp" => Ok(enigo::Key::UpArrow),
+            "ArrowRight" => Ok(enigo::Key::RightArrow),
+            "ArrowDown" => Ok(enigo::Key::DownArrow),
+            "MetaLeft" => Ok(enigo::Key::Meta),
+            "MetaRight" => Ok(enigo::Key::Meta),
+            "End" => Ok(enigo::Key::End),
+            "F1" => Ok(enigo::Key::F1),
+            "F2" => Ok(enigo::Key::F2),
+            "F3" => Ok(enigo::Key::F3),
+            "F4" => Ok(enigo::Key::F4),
+            "F5" => Ok(enigo::Key::F5),
+            "F6" => Ok(enigo::Key::F6),
+            "F7" => Ok(enigo::Key::F7),
+            "F8" => Ok(enigo::Key::F8),
+            "F9" => Ok(enigo::Key::F9),
+            "F10" => Ok(enigo::Key::F10),
+            "F11" => Ok(enigo::Key::F11),
+            "F12" => Ok(enigo::Key::F12),
+            "BracketLeft" => Ok(enigo::Key::Layout('[')),
+            "BracketRight" => Ok(enigo::Key::Layout(']')),
+            "Backslash" => Ok(enigo::Key::Layout('\\')),
+            "Semicolon" => Ok(enigo::Key::Layout(';')),
+            "Backquote" => Ok(enigo::Key::Layout('`')),
+            "Quote" => Ok(enigo::Key::Layout('\'')),
+            "Equal" => Ok(enigo::Key::Layout('=')),
+            "Minus" => Ok(enigo::Key::Layout('-')),
+            "Comma" => Ok(enigo::Key::Layout(',')),
+            "Period" => Ok(enigo::Key::Layout('.')),
+            "Slash" => Ok(enigo::Key::Layout('/')),
+            "Delete" => Ok(enigo::Key::Delete),
+            "Home" => Ok(enigo::Key::Home),
+            "Enter" => Ok(enigo::Key::Return),
+            "PageUp" => Ok(enigo::Key::PageUp),
+            "PageDown" => Ok(enigo::Key::PageDown),
             _ => Err(format_err!("Unknown key: {}", s)),
         }
     }
