@@ -23,3 +23,4 @@ GPLv3
 
 ## Attributions
 * Some code is adapted from [scrap](https://github.com/quadrupleslap/scrap), which is licensed under the MIT license.
+* Some code from [MirrorX](https://github.com/MirrorX-Desktop/MirrorX), licensed under GPLv3.

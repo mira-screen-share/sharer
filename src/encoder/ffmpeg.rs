@@ -1,14 +1,16 @@
-use crate::result::Result;
-use ac_ffmpeg::codec::video::VideoEncoder;
-use ac_ffmpeg::codec::{video, Encoder};
-use ac_ffmpeg::time::{TimeBase, Timestamp};
+use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
 
-use crate::capture::BGR0YUVConverter;
+use ac_ffmpeg::codec::{Encoder, video};
+use ac_ffmpeg::codec::video::VideoEncoder;
+use ac_ffmpeg::time::{TimeBase, Timestamp};
+use bytes::Bytes;
+use itertools::enumerate;
+
+use crate::capture::{BGR0YUVConverter, YUVFrame};
 use crate::config::EncoderConfig;
 use crate::encoder::frame_pool::FramePool;
-use bytes::Bytes;
-use std::sync::atomic::AtomicBool;
-use std::sync::Arc;
+use crate::result::Result;
 
 pub struct FfmpegEncoder {
     encoder: VideoEncoder,
@@ -24,7 +26,7 @@ unsafe impl Send for FfmpegEncoder {}
 
 #[allow(dead_code)]
 pub enum FrameData<'a> {
-    NV12(&'a [u8]),
+    NV12(&'a YUVFrame),
     BGR0(&'a [u8]),
 }
 
@@ -86,12 +88,20 @@ impl FfmpegEncoder {
         match frame_data {
             FrameData::NV12(nv12) => {
                 assert_eq!(self.pixel_format, "nv12");
-                frame.planes_mut()[0]
-                    .data_mut()
-                    .copy_from_slice(&nv12[0..self.w * self.h]);
-                frame.planes_mut()[1]
-                    .data_mut()
-                    .copy_from_slice(&nv12[self.w * self.h..]);
+                let encoder_buffer_len = frame.planes_mut()[0].data().len();
+                let encoder_line_size = encoder_buffer_len / self.h;
+                let y = &nv12.luminance_bytes;
+                let uv = &nv12.chrominance_bytes;
+                for (r, row) in enumerate(y.chunks(nv12.luminance_stride as usize)) {
+                    frame.planes_mut()[0]
+                        .data_mut()[r * encoder_line_size..r * encoder_line_size + self.w]
+                        .copy_from_slice(&row[..self.w])
+                }
+                for (r, row) in enumerate(uv.chunks(nv12.chrominance_stride as usize)) {
+                    frame.planes_mut()[1]
+                        .data_mut()[r * encoder_line_size..r * encoder_line_size + self.w]
+                        .copy_from_slice(&row[..self.w])
+                }
             }
             FrameData::BGR0(bgr0) => match self.pixel_format.as_str() {
                 "yuv420p" => {
