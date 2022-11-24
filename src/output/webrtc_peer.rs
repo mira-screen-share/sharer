@@ -1,6 +1,8 @@
 use crate::inputs::InputHandler;
 
 use log::{debug, info};
+use rtcp::goodbye::Goodbye;
+use rtcp::payload_feedbacks::picture_loss_indication::PictureLossIndication;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use webrtc::ice_transport::ice_candidate::RTCIceCandidate;
@@ -11,6 +13,11 @@ use webrtc::track::track_local::track_local_static_sample::TrackLocalStaticSampl
 use crate::signaller::SignallerPeer;
 
 use crate::Result;
+use rtcp::packet::unmarshal;
+use rtcp::payload_feedbacks::full_intra_request::FullIntraRequest;
+use rtcp::payload_feedbacks::receiver_estimated_maximum_bitrate::ReceiverEstimatedMaximumBitrate;
+use rtcp::receiver_report::ReceiverReport;
+use rtcp::sender_report::SenderReport;
 
 pub struct WebRTCPeer {}
 
@@ -24,7 +31,41 @@ impl WebRTCPeer {
     ) -> Result<Self> {
         debug!("Initializing a new WebRTC peer");
 
-        peer_connection.add_track(video_track).await?;
+        let rtp_sender = peer_connection.add_track(video_track).await?;
+
+        let encoder_force_idr_clone = encoder_force_idr.clone();
+        tokio::spawn(async move {
+            let mut rtcp_buf = vec![0u8; 1500];
+            while let Ok((size, _)) = rtp_sender.read(&mut rtcp_buf).await {
+                let mut buffer = &rtcp_buf[..size];
+                let pkts = unmarshal(&mut buffer).unwrap();
+                for pkt in pkts {
+                    if let Some(_pli) = pkt.as_any().downcast_ref::<PictureLossIndication>() {
+                        info!("PLI received");
+                        encoder_force_idr_clone.store(true, std::sync::atomic::Ordering::Relaxed);
+                    } else if let Some(_fir) = pkt.as_any().downcast_ref::<FullIntraRequest>() {
+                        info!("FIR received");
+                        encoder_force_idr_clone.store(true, std::sync::atomic::Ordering::Relaxed);
+                    } else if let Some(report) = pkt.as_any().downcast_ref::<ReceiverReport>() {
+                        let report = report.reports.first().unwrap();
+                        trace!(
+                            "RR: jitter: {:.2} ms, lost: {}, delay: {:.2} ms",
+                            (report.jitter as f64 / 90_000. * 1000.),
+                            report.total_lost,
+                            (report.delay as f64 / 65536. * 1000.)
+                        );
+                    } else if let Some(bitrate) = pkt
+                        .as_any()
+                        .downcast_ref::<ReceiverEstimatedMaximumBitrate>()
+                    {
+                        trace!("Estimated bitrate: {:#?}", bitrate.bitrate);
+                    } else {
+                        warn!("Unknown RTCP packet: {:#?}", pkt);
+                    }
+                }
+            }
+            Result::<()>::Ok(())
+        });
 
         let data_channel = peer_connection.create_data_channel("control", None).await?;
         let input_handler = input_handler.clone();

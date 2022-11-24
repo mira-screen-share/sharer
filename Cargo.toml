@@ -27,6 +27,7 @@ ac-ffmpeg = { git = "https://github.com/mira-screen-share/rust-ac-ffmpeg", branc
 toml = "0.5.9"
 itertools = "0.10.5"
 howlong = "0.1.7"
+rtcp = "0.7.1"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 libc = "0.2.108"
