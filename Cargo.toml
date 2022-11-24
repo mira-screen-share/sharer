@@ -22,7 +22,7 @@ chrono = "0.4.22"
 dyn-clone = "1.0.4"
 uuid = "1.2.1"
 bytes = "1.2.1"
-enigo = "0.0.14"
+enigo = { git = "https://github.com/mira-screen-share/enigo", branch = "master" }
 ac-ffmpeg = { git = "https://github.com/mira-screen-share/rust-ac-ffmpeg", branch = "dev" }
 toml = "0.5.9"
 itertools = "0.10.5"
