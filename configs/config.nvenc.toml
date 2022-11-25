@@ -1,6 +1,6 @@
 signaller_url = "wss://ws.mirashare.app"
 viewer_url = "https://mirashare.app/"
-max_fps = 60
+max_fps = 30
 
 [[ice_servers]]
 urls = ["stun:stun.l.google.com:19302"]
@@ -13,7 +13,7 @@ credential_type = "Password"
 
 [encoder]
 encoder = "h264_nvenc"
-yuv_input = false
+pixel_format = "bgra"
 
 [encoder.options]
 profile = "baseline"

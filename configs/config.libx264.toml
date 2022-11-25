@@ -13,7 +13,7 @@ credential_type = "Password"
 
 [encoder]
 encoder = "libx264"
-yuv_input = true
+pixel_format = "yuv420p"
 
 [encoder.options]
 profile = "baseline"
