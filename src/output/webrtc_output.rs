@@ -9,7 +9,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::Mutex;
 use webrtc::api::interceptor_registry::register_default_interceptors;
-use webrtc::api::media_engine::{MediaEngine, MIME_TYPE_H264};
+use webrtc::api::media_engine::MediaEngine;
 use webrtc::api::APIBuilder;
 use webrtc::interceptor::registry::Registry;
 use webrtc::media::Sample;
@@ -66,7 +66,7 @@ impl WebRTCOutput {
         // Create a video track
         let video_track = Arc::new(TrackLocalStaticSample::new(
             RTCRtpCodecCapability {
-                mime_type: MIME_TYPE_H264.to_owned(),
+                mime_type: config.encoder.encoding.clone(),
                 ..Default::default()
             },
             "video".to_owned(),
