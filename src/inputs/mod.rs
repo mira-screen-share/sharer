@@ -59,8 +59,8 @@ impl InputHandler {
             }
             InputMessage::MouseWheel { x, y, dx, dy } => {
                 enigo.mouse_move_to(x, y);
-                enigo.mouse_scroll_y(dy);
-                enigo.mouse_scroll_x(dx);
+                enigo.mouse_scroll_y(dy * -1 / 120);
+                enigo.mouse_scroll_x(dx / 120);
             }
         };
         Ok(())
