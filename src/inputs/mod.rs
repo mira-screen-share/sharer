@@ -46,7 +46,6 @@ impl InputHandler {
         let mut enigo = enigo::Enigo::new();
         let input_msg = serde_json::from_slice::<InputMessage>(&input_msg)?;
         debug!("Deserialized input message: {:#?}", input_msg);
-        /// Only make remote control effective if the user has explicitly enabled it
         match input_msg {
             InputMessage::KeyDown { key } => enigo.key_down(enigo::Key::from_js_key(&key)?),
             InputMessage::KeyUp { key } => enigo.key_up(enigo::Key::from_js_key(&key)?),
@@ -68,17 +67,18 @@ impl InputHandler {
         Ok(())
     }
 
-    pub fn new(control: bool) -> Self {
+    pub fn new(disabled_control: bool) -> Self {
         let (sender, mut receiver) = mpsc::channel::<Bytes>(32);
         tokio::spawn(async move {
-            if control {
-                while let Some(msg) = receiver.recv().await {
-                    if let Err(err) = Self::handle_input_event(msg) {
-                        warn!("Error handling input event: {}", err);
-                    }
+            while let Some(msg) = receiver.recv().await {
+                if disabled_control{
+                    continue; // Skip the message if user disabled remote control
+                }
+                if let Err(err) = Self::handle_input_event(msg) {
+                    warn!("Error handling input event: {}", err);
                 }
             }
         });
-        Self { sender, remote_control: control }
+        Self { sender, remote_control: disabled_control }
     }
 }
