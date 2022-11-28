@@ -2,7 +2,6 @@ use failure::format_err;
 
 use crate::capture::DisplayInfo;
 use crate::result::Result;
-use failure::format_err;
 use std::mem;
 
 use super::ffi::*;

@@ -66,10 +66,13 @@ impl InputHandler {
         Ok(())
     }
 
-    pub fn new() -> Self {
+    pub fn new(disabled_control: bool) -> Self {
         let (sender, mut receiver) = mpsc::channel::<Bytes>(32);
         tokio::spawn(async move {
             while let Some(msg) = receiver.recv().await {
+                if disabled_control{
+                    continue; // Skip the message if user disabled remote control
+                }
                 if let Err(err) = Self::handle_input_event(msg) {
                     warn!("Error handling input event: {}", err);
                 }

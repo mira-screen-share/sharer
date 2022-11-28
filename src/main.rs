@@ -35,6 +35,9 @@ struct Args {
     /// Config file path
     #[arg(short, long, default_value = "config.toml")]
     config: String,
+    /// Disable remote control
+    #[arg(long, default_value = "false")]
+    disable_control: bool,
 }
 
 #[tokio::main]
@@ -51,7 +54,7 @@ async fn main() -> Result<()> {
     let resolution = display.resolution();
     let mut capture = ScreenCaptureImpl::new(display, &config)?;
     let mut encoder = encoder::FfmpegEncoder::new(resolution.0, resolution.1, &config.encoder);
-    let input_handler = Arc::new(inputs::InputHandler::new());
+    let input_handler = Arc::new(inputs::InputHandler::new(args.disable_control));
     let my_uuid = uuid::Uuid::new_v4().to_string();
 
     info!("Resolution: {:?}", resolution);
