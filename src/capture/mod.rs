@@ -14,6 +14,8 @@ pub trait ScreenCapture {
 pub trait DisplayInfo {
     /// Get the resolution of the display in (width, height)
     fn resolution(&self) -> (u32, u32);
+    /// Get the DPI factor for input handling
+    fn dpi_conversion_factor(&self) -> f64;
 }
 
 mod yuv_converter;

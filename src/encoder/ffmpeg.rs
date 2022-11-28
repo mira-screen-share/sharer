@@ -89,14 +89,19 @@ impl FfmpegEncoder {
         match frame_data {
             FrameData::NV12(nv12) => {
                 assert_eq!(self.pixel_format, "nv12");
+                let encoder_buffer_len = frame.planes_mut()[0].data_mut().len();
+                let encoder_line_size = encoder_buffer_len / self.h as usize;
+
                 self.copy_nv12(
                     &nv12.luminance_bytes,
                     nv12.luminance_stride as usize,
+                    encoder_line_size,
                     frame.planes_mut()[0].data_mut(),
                 );
                 self.copy_nv12(
                     &nv12.chrominance_bytes,
                     nv12.chrominance_stride as usize,
+                    encoder_line_size,
                     frame.planes_mut()[1].data_mut(),
                 );
             }
@@ -127,10 +132,7 @@ impl FfmpegEncoder {
         Ok(Bytes::from(ret))
     }
 
-    fn copy_nv12(&self, source: &[u8], stride: usize, destination: &mut [u8]) {
-        let encoder_buffer_len = destination.len();
-        let encoder_line_size = encoder_buffer_len / self.h as usize;
-
+    fn copy_nv12(&self, source: &[u8], stride: usize, encoder_line_size: usize, destination: &mut [u8]) {
         for (r, row) in enumerate(source.chunks(stride)) {
             destination[r * encoder_line_size..r * encoder_line_size + self.w as usize]
                 .copy_from_slice(&row[..self.w as usize])

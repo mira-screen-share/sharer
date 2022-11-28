@@ -41,39 +41,42 @@ pub struct InputHandler {
 }
 
 impl InputHandler {
-    fn handle_input_event(input_msg: Bytes) -> Result<()> {
+    fn handle_input_event(input_msg: Bytes, dpi_factor: f64) -> Result<()> {
+        let scroll_reverse_factor = if cfg!(target_os = "windows") { -1. } else { 1. };
         let mut enigo = enigo::Enigo::new();
         let input_msg = serde_json::from_slice::<InputMessage>(&input_msg)?;
         debug!("Deserialized input message: {:#?}", input_msg);
         match input_msg {
             InputMessage::KeyDown { key } => enigo.key_down(enigo::Key::from_js_key(&key)?),
             InputMessage::KeyUp { key } => enigo.key_up(enigo::Key::from_js_key(&key)?),
-            InputMessage::MouseMove { x, y } => enigo.mouse_move_to(x, y),
+            InputMessage::MouseMove { x, y } => enigo.mouse_move_to(
+                (x as f64 * dpi_factor) as i32, (y as f64 * dpi_factor) as i32
+            ),
             InputMessage::MouseDown { x, y, button } => {
-                enigo.mouse_move_to(x, y);
+                enigo.mouse_move_to((x as f64 * dpi_factor) as i32, (y as f64 * dpi_factor) as i32);
                 enigo.mouse_down(button.into())
             }
             InputMessage::MouseUp { x, y, button } => {
-                enigo.mouse_move_to(x, y);
+                enigo.mouse_move_to((x as f64 * dpi_factor) as i32, (y as f64 * dpi_factor) as i32);
                 enigo.mouse_up(button.into())
             }
             InputMessage::MouseWheel { x, y, dx, dy } => {
-                enigo.mouse_move_to(x, y);
-                enigo.mouse_scroll_y(dy);
-                enigo.mouse_scroll_x(dx);
+                enigo.mouse_move_to((x as f64 * dpi_factor) as i32, (y as f64 * dpi_factor) as i32);
+                enigo.mouse_scroll_y((dy as f64 / 120. * scroll_reverse_factor) as i32);
+                enigo.mouse_scroll_x((dx as f64 / 120.) as i32 );
             }
         };
         Ok(())
     }
 
-    pub fn new(disabled_control: bool) -> Self {
+    pub fn new(disabled_control: bool, dpi_factor: f64) -> Self {
         let (sender, mut receiver) = mpsc::channel::<Bytes>(32);
         tokio::spawn(async move {
             while let Some(msg) = receiver.recv().await {
                 if disabled_control {
                     continue; // Skip the message if user disabled remote control
                 }
-                if let Err(err) = Self::handle_input_event(msg) {
+                if let Err(err) = Self::handle_input_event(msg, dpi_factor) {
                     warn!("Error handling input event: {}", err);
                 }
             }
