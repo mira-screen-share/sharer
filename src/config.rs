@@ -29,6 +29,7 @@ pub struct Config {
 pub struct EncoderConfig {
     pub encoder: String,
     pub pixel_format: String,
+    pub encoding: String,
     #[serde(serialize_with = "toml::ser::tables_last")]
     pub options: HashMap<String, String>,
 }
@@ -83,6 +84,7 @@ pub fn load(path: &Path) -> Result<Config> {
     if !path.exists() {
         let mut file = File::create(path)?;
         let config = toml::from_str::<Config>("")?;
+        file.write_all("# for more sample configs, see https://github.com/mira-screen-share/sharer/tree/main/configs".as_bytes())?;
         file.write_all(toml::to_string(&config)?.as_ref())?;
         return Ok(config);
     }
@@ -103,6 +105,7 @@ fn libx264() -> EncoderConfig {
         } else {
             panic!("Unsupported platform");
         },
+        encoding: "video/H264".to_string(),
         options: HashMap::from([
             ("profile".into(), "baseline".into()),
             ("preset".into(), "ultrafast".into()),

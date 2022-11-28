@@ -1,6 +1,6 @@
 use crate::Result;
 use bytes::Bytes;
-use enigo::{Enigo, KeyboardControllable, MouseControllable};
+use enigo::{KeyboardControllable, MouseControllable};
 use parse_key::FromJsKey;
 use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
