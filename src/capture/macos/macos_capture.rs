@@ -1,5 +1,5 @@
-use std::{ptr, slice};
 use std::time::Duration;
+use std::{ptr, slice};
 
 use async_trait::async_trait;
 use block::{Block, ConcreteBlock};
@@ -8,17 +8,25 @@ use libc::c_void;
 use tokio::sync::mpsc::Receiver;
 use tokio::sync::mpsc::Sender;
 
-use crate::{OutputSink, ScreenCapture};
 use crate::capture::frame::YUVFrame;
 use crate::capture::macos::config::Config as CaptureConfig;
 use crate::capture::macos::display::Display;
-use crate::capture::macos::ffi::{CFRelease, CGDisplayStreamCreateWithDispatchQueue, CGDisplayStreamFrameStatus, CGDisplayStreamRef, CGDisplayStreamStart, CGDisplayStreamStop, CGDisplayStreamUpdateGetDropCount, CGDisplayStreamUpdateRef, CGError, CVPixelBufferCreateWithIOSurface, CVPixelBufferGetBaseAddressOfPlane, CVPixelBufferGetBytesPerRowOfPlane, CVPixelBufferGetHeight, CVPixelBufferGetWidth, CVPixelBufferLockBaseAddress, CVPixelBufferRelease, CVPixelBufferUnlockBaseAddress, dispatch_queue_create, dispatch_release, DispatchQueue, FrameAvailableHandler, IOSurfaceRef};
 use crate::capture::macos::ffi::CGDisplayStreamFrameStatus::{FrameComplete, Stopped};
 use crate::capture::macos::ffi::PixelFormat::YCbCr420Full;
+use crate::capture::macos::ffi::{
+    dispatch_queue_create, dispatch_release, CFRelease, CGDisplayStreamCreateWithDispatchQueue,
+    CGDisplayStreamFrameStatus, CGDisplayStreamRef, CGDisplayStreamStart, CGDisplayStreamStop,
+    CGDisplayStreamUpdateGetDropCount, CGDisplayStreamUpdateRef, CGError,
+    CVPixelBufferCreateWithIOSurface, CVPixelBufferGetBaseAddressOfPlane,
+    CVPixelBufferGetBytesPerRowOfPlane, CVPixelBufferGetHeight, CVPixelBufferGetWidth,
+    CVPixelBufferLockBaseAddress, CVPixelBufferRelease, CVPixelBufferUnlockBaseAddress,
+    DispatchQueue, FrameAvailableHandler, IOSurfaceRef,
+};
 use crate::config::Config;
 use crate::encoder::{FfmpegEncoder, FrameData};
 use crate::performance_profiler::PerformanceProfiler;
 use crate::result::Result;
+use crate::{OutputSink, ScreenCapture};
 
 pub struct MacOSScreenCapture<'a> {
     stream: CGDisplayStreamRef,
@@ -37,23 +45,17 @@ impl<'a> MacOSScreenCapture<'a> {
         let (sender, receiver) = tokio::sync::mpsc::channel::<YUVFrame>(1);
         let sender = Box::into_raw(Box::new(sender));
 
-        let handler: FrameAvailableHandler =
-            ConcreteBlock::new(
-                move |status: CGDisplayStreamFrameStatus,
-                      display_time: u64,
-                      frame_surface: IOSurfaceRef,
-                      update_ref: CGDisplayStreamUpdateRef| {
-                    unsafe {
-                        frame_available_handler(
-                            display_time,
-                            sender,
-                            status,
-                            frame_surface,
-                            update_ref,
-                        )
-                    }
-                },
-            ).copy();
+        let handler: FrameAvailableHandler = ConcreteBlock::new(
+            move |status: CGDisplayStreamFrameStatus,
+                  display_time: u64,
+                  frame_surface: IOSurfaceRef,
+                  update_ref: CGDisplayStreamUpdateRef| {
+                unsafe {
+                    frame_available_handler(display_time, sender, status, frame_surface, update_ref)
+                }
+            },
+        )
+        .copy();
 
         let queue = unsafe {
             dispatch_queue_create(b"app.mirashare\0".as_ptr() as *const i8, ptr::null_mut())
@@ -66,7 +68,7 @@ impl<'a> MacOSScreenCapture<'a> {
                 throttle: 1. / (config.max_fps as f64),
                 queue_length: 3,
             }
-                .build();
+            .build();
             let stream = CGDisplayStreamCreateWithDispatchQueue(
                 display.id(),
                 display.width(),
@@ -108,10 +110,7 @@ impl ScreenCapture for MacOSScreenCapture<'_> {
             profiler.accept_frame(frame_time as i64);
             profiler.done_preprocessing();
             let encoded = encoder
-                .encode(
-                    FrameData::NV12(&frame),
-                    frame_time as i64,
-                )
+                .encode(FrameData::NV12(&frame), frame_time as i64)
                 .unwrap();
             let encoded_len = encoded.len();
             profiler.done_encoding();
@@ -150,7 +149,8 @@ unsafe fn frame_available_handler(
         frame_surface,
         ptr::null_mut(),
         &mut pixel_buffer,
-    ) != 0 {
+    ) != 0
+    {
         error!("CVPixelBufferCreateWithIOSurface failed");
         return;
     }
@@ -165,14 +165,16 @@ unsafe fn frame_available_handler(
     let luminance_bytes = slice::from_raw_parts(
         luminance_bytes_address as *mut u8,
         height * luminance_stride,
-    ).to_vec();
+    )
+    .to_vec();
 
     let chrominance_bytes_address = CVPixelBufferGetBaseAddressOfPlane(pixel_buffer, 1);
     let chrominance_stride = CVPixelBufferGetBytesPerRowOfPlane(pixel_buffer, 1);
     let chrominance_bytes = slice::from_raw_parts(
         chrominance_bytes_address as *mut u8,
         height * chrominance_stride / 2,
-    ).to_vec();
+    )
+    .to_vec();
 
     CVPixelBufferUnlockBaseAddress(pixel_buffer, 0);
 
