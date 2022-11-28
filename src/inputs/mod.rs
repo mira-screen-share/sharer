@@ -50,20 +50,30 @@ impl InputHandler {
             InputMessage::KeyDown { key } => enigo.key_down(enigo::Key::from_js_key(&key)?),
             InputMessage::KeyUp { key } => enigo.key_up(enigo::Key::from_js_key(&key)?),
             InputMessage::MouseMove { x, y } => enigo.mouse_move_to(
-                (x as f64 * dpi_factor) as i32, (y as f64 * dpi_factor) as i32
+                (x as f64 * dpi_factor) as i32,
+                (y as f64 * dpi_factor) as i32,
             ),
             InputMessage::MouseDown { x, y, button } => {
-                enigo.mouse_move_to((x as f64 * dpi_factor) as i32, (y as f64 * dpi_factor) as i32);
+                enigo.mouse_move_to(
+                    (x as f64 * dpi_factor) as i32,
+                    (y as f64 * dpi_factor) as i32,
+                );
                 enigo.mouse_down(button.into())
             }
             InputMessage::MouseUp { x, y, button } => {
-                enigo.mouse_move_to((x as f64 * dpi_factor) as i32, (y as f64 * dpi_factor) as i32);
+                enigo.mouse_move_to(
+                    (x as f64 * dpi_factor) as i32,
+                    (y as f64 * dpi_factor) as i32,
+                );
                 enigo.mouse_up(button.into())
             }
             InputMessage::MouseWheel { x, y, dx, dy } => {
-                enigo.mouse_move_to((x as f64 * dpi_factor) as i32, (y as f64 * dpi_factor) as i32);
+                enigo.mouse_move_to(
+                    (x as f64 * dpi_factor) as i32,
+                    (y as f64 * dpi_factor) as i32,
+                );
                 enigo.mouse_scroll_y((dy as f64 / 120. * scroll_reverse_factor) as i32);
-                enigo.mouse_scroll_x((dx as f64 / 120.) as i32 );
+                enigo.mouse_scroll_x((dx as f64 / 120.) as i32);
             }
         };
         Ok(())
@@ -76,7 +86,7 @@ impl InputHandler {
                 if disabled_control {
                     continue; // Skip the message if user disabled remote control
                 }
-                if let Err(err) = Self::handle_input_event(msg, dpi_factor) {
+                if let Err(err) = Self::handle_input_event(msg, 1. / dpi_factor) {
                     warn!("Error handling input event: {}", err);
                 }
             }

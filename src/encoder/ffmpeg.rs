@@ -12,7 +12,6 @@ use crate::config::EncoderConfig;
 use crate::encoder::frame_pool::FramePool;
 use crate::result::Result;
 
-
 pub struct FfmpegEncoder {
     encoder: VideoEncoder,
     frame_pool: FramePool,
@@ -132,7 +131,13 @@ impl FfmpegEncoder {
         Ok(Bytes::from(ret))
     }
 
-    fn copy_nv12(&self, source: &[u8], stride: usize, encoder_line_size: usize, destination: &mut [u8]) {
+    fn copy_nv12(
+        &self,
+        source: &[u8],
+        stride: usize,
+        encoder_line_size: usize,
+        destination: &mut [u8],
+    ) {
         for (r, row) in enumerate(source.chunks(stride)) {
             destination[r * encoder_line_size..r * encoder_line_size + self.w as usize]
                 .copy_from_slice(&row[..self.w as usize])
