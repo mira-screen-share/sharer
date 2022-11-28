@@ -38,7 +38,6 @@ enum InputMessage {
 
 pub struct InputHandler {
     pub sender: mpsc::Sender<Bytes>,
-    pub remote_control: bool,
 }
 
 impl InputHandler {
@@ -79,6 +78,6 @@ impl InputHandler {
                 }
             }
         });
-        Self { sender, remote_control: disabled_control }
+        Self { sender }
     }
 }
