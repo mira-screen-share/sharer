@@ -191,9 +191,16 @@ extern "C" {
         pixel_buffer_attributes: CFDictionaryRef,
         pixel_buffer_out: *mut CVPixelBufferRef,
     ) -> i32;
-    pub fn CVPixelBufferGetBytesPerRowOfPlane(pixel_buffer: CVPixelBufferRef, planeIndex: usize) -> usize;
-    pub fn CVPixelBufferGetBaseAddressOfPlane(pixel_buffer: CVPixelBufferRef, planeIndex: usize) -> *mut c_void;
-    pub fn CVPixelBufferUnlockBaseAddress(pixel_buffer: CVPixelBufferRef, unlock_flags: u32) -> i32;
+    pub fn CVPixelBufferGetBytesPerRowOfPlane(
+        pixel_buffer: CVPixelBufferRef,
+        planeIndex: usize,
+    ) -> usize;
+    pub fn CVPixelBufferGetBaseAddressOfPlane(
+        pixel_buffer: CVPixelBufferRef,
+        planeIndex: usize,
+    ) -> *mut c_void;
+    pub fn CVPixelBufferUnlockBaseAddress(pixel_buffer: CVPixelBufferRef, unlock_flags: u32)
+        -> i32;
 
     // IOSurface
     pub fn IOSurfaceGetAllocSize(buffer: IOSurfaceRef) -> usize;

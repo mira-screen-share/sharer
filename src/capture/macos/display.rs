@@ -1,8 +1,6 @@
-use failure::format_err;
-
 use crate::capture::DisplayInfo;
 use crate::result::Result;
-use std::mem;
+use failure::format_err;
 
 use super::ffi::*;
 
@@ -36,16 +34,22 @@ impl Display {
     }
 
     pub fn width(self) -> usize {
-        unsafe { CGDisplayModeGetPixelWidth(CGDisplayCopyDisplayMode(self.id())) }
+        unsafe { CGDisplayPixelsWide(self.id()) }
+        // unsafe { CGDisplayModeGetPixelWidth(CGDisplayCopyDisplayMode(self.id())) }
     }
 
     pub fn height(self) -> usize {
-        unsafe { CGDisplayModeGetPixelHeight(CGDisplayCopyDisplayMode(self.id())) }
+        unsafe { CGDisplayPixelsHigh(self.id()) }
+
+        //unsafe { CGDisplayModeGetPixelHeight(CGDisplayCopyDisplayMode(self.id())) }
     }
 }
 
 impl DisplayInfo for Display {
     fn resolution(&self) -> (u32, u32) {
         (self.width() as u32, self.height() as u32)
+    }
+    fn dpi_conversion_factor(&self) -> f64 {
+        self.height() as f64 / unsafe { CGDisplayPixelsHigh(self.id()) } as f64
     }
 }

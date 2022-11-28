@@ -46,4 +46,7 @@ impl DisplayInfo for GraphicsCaptureItem {
             self.Size().unwrap().Height as u32,
         )
     }
+    fn dpi_conversion_factor(&self) -> f64 {
+        1.0
+    }
 }

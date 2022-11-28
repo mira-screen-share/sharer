@@ -14,6 +14,8 @@ pub trait ScreenCapture {
 pub trait DisplayInfo {
     /// Get the resolution of the display in (width, height)
     fn resolution(&self) -> (u32, u32);
+    /// Get the DPI factor for input handling
+    fn dpi_conversion_factor(&self) -> f64;
 }
 
 mod yuv_converter;
@@ -29,12 +31,12 @@ pub use wgc::display::Display;
 #[cfg(target_os = "windows")]
 pub use wgc::WGCScreenCapture as ScreenCaptureImpl;
 
+mod frame;
 #[cfg(target_os = "macos")]
 mod macos;
-mod frame;
 
+pub use frame::YUVFrame;
 #[cfg(target_os = "macos")]
 pub use macos::display::Display;
 #[cfg(target_os = "macos")]
 pub use macos::MacOSScreenCapture as ScreenCaptureImpl;
-pub use frame::YUVFrame;

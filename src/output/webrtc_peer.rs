@@ -18,7 +18,6 @@ use rtcp::payload_feedbacks::full_intra_request::FullIntraRequest;
 use rtcp::payload_feedbacks::receiver_estimated_maximum_bitrate::ReceiverEstimatedMaximumBitrate;
 use rtcp::receiver_report::ReceiverReport;
 
-
 pub struct WebRTCPeer {}
 
 impl WebRTCPeer {

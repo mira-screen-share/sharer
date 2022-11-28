@@ -1,6 +1,6 @@
 mod config;
-mod ffi;
 pub mod display;
+mod ffi;
 pub mod macos_capture;
 
 pub use display::Display;
