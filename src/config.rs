@@ -84,7 +84,7 @@ pub fn load(path: &Path) -> Result<Config> {
     if !path.exists() {
         let mut file = File::create(path)?;
         let config = toml::from_str::<Config>("")?;
-        file.write_all("# for more sample configs, see https://github.com/mira-screen-share/sharer/tree/main/configs".as_bytes())?;
+        file.write_all("# for more sample configs, see https://github.com/mira-screen-share/sharer/tree/main/configs\n".as_bytes())?;
         file.write_all(toml::to_string(&config)?.as_ref())?;
         return Ok(config);
     }
@@ -123,7 +123,7 @@ fn default_viewer() -> String {
 }
 
 fn default_max_fps() -> u32 {
-    120
+    30
 }
 
 fn default_ice_servers() -> Vec<IceServer> {

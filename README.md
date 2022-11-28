@@ -9,7 +9,7 @@ You need to have ffmpeg installed.
 
 * For macOS, you could use `brew install ffmpeg`.
 * For Windows, you need to download ffmpeg from [here](https://github.com/BtbN/FFmpeg-Builds/releases).
-Make sure you download a shared library build such as `ffmpeg-n5.1-latest-win64-gpl-5.1.zip`.
+Make sure you download a shared library build such as `ffmpeg-master-latest-win64-gpl-shared.zip`.
 
 Then, simply run `cargo build --release` to build the project. and `cargo run --release` to run it.
 
