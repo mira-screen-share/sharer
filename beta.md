@@ -13,7 +13,6 @@ You can fill it out even if you havn't gotten a chance/don't want to use Mira ye
 
 1. Download the Mira sharer executable for your OS [here](https://github.com/mira-screen-share/sharer/releases/tag/v0.1).
 
-> - macOS users: you might need to install ffmpeg with `brew install ffmpeg`.
 > - Apple Silicon users: we don't yet have a native build and we have no idea if Rosetta would work.
 
 2. 
