@@ -26,7 +26,8 @@ You can fill it out even if you havn't gotten a chance/don't want to use Mira ye
      If so, please navigate to System Preferences -> Security & Privacy -> General and click "Allow Anyway" at the bottom for "mira_sharer_macos_intel", then try step iii again.
  
 - Windows:
-  1. *??? What do I do I'm an absolute noob? There's a zip, do I eat it?*
+  1. Unzip `mira_sharer_windows_x64.zip`
+  2. Run `mira_sharer.exe`
 
 3. [Optional] Use `-d` parameter to select the monitor you want to share if you have multiple (e.g. `-d 1` selects the second display). There is also a config file so you could tweak encoder settings or set your desired frame rate. Hardware encoding and VP9 codec are also experimentally supported.
 4. Share the "Invite link" (found in the second line of the INFO log) to other people, they can simply open it in a browser to start viewing & controlling your screen.
@@ -44,5 +45,5 @@ Anyone with the link could see your screen and control your mouse or keyboard (u
 ## Known issues
 This project is still in its early stage development phase, further optimization is anticipated, especially for macOS.
 
-* Latency might (frequently) be higher than what we're aiming for (100-300ms).
+* Latency might (frequently) be higher than what we're aiming for (<100ms).
 * The resolution is relatively low in macOS (capturing at full Retina resolution is turned off currently) since the encoding performance can't keep up.
