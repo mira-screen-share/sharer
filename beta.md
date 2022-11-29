@@ -19,9 +19,9 @@ You can fill it out even if you havn't gotten a chance/don't want to use Mira ye
 - macOS with Intel CPU:
   1. Install ffmpeg with `brew install ffmpeg`.
   2. Give the executable permission with `chmod +x mira_sharer_macos_intel`.
-  3. Attempt to launch it with `./mira_sharer_macos_intel`
+  3. Attempt to launch it with `./mira_sharer_macos_intel`.
   4. You might get 
-      > mira_sharer_macos_intel” cannot be opened because the developer cannot be verified.
+      > "mira_sharer_macos_intel” cannot be opened because the developer cannot be verified.
      
      If so, please navigate to System Preferences -> Security & Privacy -> General and click "Allow Anyway" at the bottom for "mira_sharer_macos_intel", then try step iii again.
  
