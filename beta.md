@@ -24,6 +24,7 @@ You can fill it out even if you havn't gotten a chance/don't want to use Mira ye
       > "mira_sharer_macos_intel” cannot be opened because the developer cannot be verified.
      
      If so, please navigate to System Preferences -> Security & Privacy -> General and click "Allow Anyway" at the bottom for "mira_sharer_macos_intel", then try step iii again.
+  5. Make sure to grant Accessibility and Screen Recording permissions to Terminal (or whichever CLI app you use to launch Mira) in System Preferences -> Security & Privacy -> Privacy for screen capturing and controlling to work :)
  
 - Windows:
   1. Unzip `mira_sharer_windows_x64.zip`
