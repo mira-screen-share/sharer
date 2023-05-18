@@ -3,6 +3,7 @@ use async_trait::async_trait;
 
 use crate::config::Config;
 use bytes::Bytes;
+use howlong::HighResolutionTimer;
 use log::info;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;

@@ -87,7 +87,7 @@ impl FfmpegEncoder {
 
         match frame_data {
             FrameData::NV12(nv12) => {
-                assert_eq!(self.pixel_format, "nv12");
+                assert!(self.pixel_format == "nv12" || self.pixel_format == "yuv420p");
                 let encoder_buffer_len = frame.planes_mut()[0].data_mut().len();
                 let encoder_line_size = encoder_buffer_len / self.h as usize;
 

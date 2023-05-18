@@ -40,3 +40,6 @@ pub use frame::YUVFrame;
 pub use macos::display::Display;
 #[cfg(target_os = "macos")]
 pub use macos::MacOSScreenCapture as ScreenCaptureImpl;
+
+mod yuv_convert;
+pub use yuv_convert::Duplicator;
