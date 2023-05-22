@@ -121,9 +121,11 @@ impl ScreenCapture for WGCScreenCapture<'_> {
         while let Some(frame) = receiver.recv().await {
             let frame_time = frame.SystemRelativeTime()?.Duration;
             profiler.accept_frame(frame.SystemRelativeTime()?.Duration);
-            let yuv_frame = self
-                .duplicator
-                .capture(d3d::get_d3d_interface_from_object(&frame.Surface()?)?)?;
+            let yuv_frame = unsafe {
+                let source_texture: ID3D11Texture2D =
+                    d3d::get_d3d_interface_from_object(&frame.Surface()?)?;
+                self.duplicator.capture(source_texture)?
+            };
             profiler.done_preprocessing();
             let encoded = encoder
                 .encode(FrameData::NV12(&yuv_frame), frame_time)

@@ -9,6 +9,7 @@ use crate::result::Result;
 use clap::__macro_refs::once_cell;
 use std::os::raw::c_void;
 use std::rc::Rc;
+use std::slice;
 use std::sync::Arc;
 use windows::{
     core::{Interface, PCSTR, PCWSTR},
@@ -33,6 +34,10 @@ pub struct Duplicator {
     pixel_shader_luminance: ID3D11PixelShader,
     pixel_shader_chrominance: ID3D11PixelShader,
 
+    backend_texture: ID3D11Texture2D,
+    backend_viewport: [D3D11_VIEWPORT; 1],
+    backend_rtv: [Option<ID3D11RenderTargetView>; 1],
+
     luminance_render_texture: ID3D11Texture2D,
     luminance_staging_texture: ID3D11Texture2D,
     luminance_viewport: [D3D11_VIEWPORT; 1],
@@ -55,6 +60,9 @@ impl Duplicator {
         resolution: (u32, u32),
     ) -> Result<Duplicator> {
         unsafe {
+            let (backend_texture, backend_rtv, backend_viewport) =
+                init_backend_resources(&device, resolution)?;
+
             let (vertex_shader, vertex_buffer, pixel_shader_lumina, pixel_shader_chrominance) =
                 init_shaders(&device)?;
 
@@ -75,6 +83,9 @@ impl Duplicator {
                 vertex_buffer: Some(vertex_buffer),
                 pixel_shader_luminance: pixel_shader_lumina,
                 pixel_shader_chrominance,
+                backend_texture,
+                backend_viewport: [backend_viewport],
+                backend_rtv: [Some(backend_rtv)],
                 luminance_render_texture: lumina_render_texture,
                 luminance_staging_texture: lumina_staging_texture,
                 luminance_viewport: [lumina_viewport],
@@ -88,19 +99,44 @@ impl Duplicator {
         }
     }
 
-    pub fn capture(&mut self, backend_texture: ID3D11Texture2D) -> Result<YUVFrame> {
+    fn inspect_texture(&self, source_texture: &ID3D11Texture2D) -> Result<()> {
         unsafe {
-            self.draw_lumina_and_chrominance_texture(backend_texture)?;
+            let mut desc = D3D11_TEXTURE2D_DESC::default();
+            source_texture.GetDesc(&mut desc);
+
+            println!("source_texture: {:?}", desc);
+            desc.BindFlags = D3D11_BIND_FLAG(0);
+            desc.MiscFlags = D3D11_RESOURCE_MISC_FLAG(0);
+            desc.Usage = D3D11_USAGE_STAGING;
+            desc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+            let copy_texture = self.device.CreateTexture2D(&desc, None)?;
+            let src: ID3D11Resource = source_texture.cast()?;
+            let dst: ID3D11Resource = copy_texture.cast()?;
+            self.device_context.CopyResource(&dst, &src);
+
+            let resource: ID3D11Resource = copy_texture.cast()?;
+            let mapped = self.device_context.Map(&resource, 0, D3D11_MAP_READ, 0)?;
+            let frame: &[u8] = slice::from_raw_parts(
+                mapped.pData as *const _,
+                (desc.Height as u32 * mapped.RowPitch) as usize,
+            );
+            println!("frame: {:?}", frame[..20].to_vec());
+            Ok(())
+        }
+    }
+
+    pub fn capture(&mut self, desktop_texture: ID3D11Texture2D) -> Result<YUVFrame> {
+        unsafe {
+            self.device_context
+                .CopyResource(&self.backend_texture, &desktop_texture);
+            self.draw_lumina_and_chrominance_texture()?;
             self.create_capture_frame(self.resolution)
         }
     }
 
-    unsafe fn draw_lumina_and_chrominance_texture(
-        &self,
-        backend_texture: ID3D11Texture2D,
-    ) -> Result<()> {
+    unsafe fn draw_lumina_and_chrominance_texture(&self) -> Result<()> {
         let mut backend_texture_desc = std::mem::zeroed();
-        backend_texture.GetDesc(&mut backend_texture_desc);
+        self.backend_texture.GetDesc(&mut backend_texture_desc);
 
         let shader_resouce_view_desc = D3D11_SHADER_RESOURCE_VIEW_DESC {
             Format: backend_texture_desc.Format,
@@ -115,7 +151,7 @@ impl Duplicator {
 
         let shader_resource_view = self
             .device
-            .CreateShaderResourceView(&backend_texture, Some(&shader_resouce_view_desc))?;
+            .CreateShaderResourceView(&self.backend_texture, Some(&shader_resouce_view_desc))?;
 
         let shader_resource_view = [Some(shader_resource_view)];
 
@@ -144,6 +180,8 @@ impl Duplicator {
             .RSSetViewports(Some(&self.luminance_viewport));
 
         self.device_context.Draw(VERTICES.len() as u32, 0);
+
+        self.inspect_texture(&self.luminance_render_texture)?;
 
         // draw chrominance plane
 
@@ -339,4 +377,39 @@ unsafe fn init_chrominance_resources(
     let rtv = device.CreateRenderTargetView(&render_texture, None)?;
 
     Ok((render_texture, staging_texture, viewport, rtv))
+}
+
+unsafe fn init_backend_resources(
+    device: &ID3D11Device,
+    resolution: (u32, u32),
+) -> Result<(ID3D11Texture2D, ID3D11RenderTargetView, D3D11_VIEWPORT)> {
+    let mut texture_desc: D3D11_TEXTURE2D_DESC = std::mem::zeroed();
+    texture_desc.Width = resolution.0;
+    texture_desc.Height = resolution.1;
+    texture_desc.MipLevels = 1;
+    texture_desc.ArraySize = 1;
+    texture_desc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+    texture_desc.SampleDesc.Count = 1;
+    texture_desc.SampleDesc.Quality = 0;
+    texture_desc.Usage = D3D11_USAGE_DEFAULT;
+    texture_desc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
+
+    let texture = device.CreateTexture2D(&texture_desc, None)?;
+
+    texture_desc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+    texture_desc.Usage = D3D11_USAGE_STAGING;
+    texture_desc.BindFlags = D3D11_BIND_FLAG::default();
+
+    let rtv = device.CreateRenderTargetView(&texture, None)?;
+
+    let viewport = D3D11_VIEWPORT {
+        TopLeftX: 0.0,
+        TopLeftY: 0.0,
+        Width: resolution.0 as f32,
+        Height: resolution.1 as f32,
+        MinDepth: 0.0,
+        MaxDepth: 1.0,
+    };
+
+    Ok((texture, rtv, viewport))
 }
