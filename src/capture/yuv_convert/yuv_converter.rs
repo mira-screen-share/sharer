@@ -11,17 +11,10 @@ use crate::result::Result;
 
 use std::os::raw::c_void;
 
-
 use std::sync::Arc;
 use windows::{
-    core::{PCSTR},
-    Win32::{
-        Graphics::{
-            Direct3D::*,
-            Direct3D11::*,
-            Dxgi::{Common::*},
-        },
-    },
+    core::PCSTR,
+    Win32::Graphics::{Direct3D::*, Direct3D11::*, Dxgi::Common::*},
 };
 
 pub struct YuvConverter {
@@ -35,8 +28,6 @@ pub struct YuvConverter {
     pixel_shader_chrominance: ID3D11PixelShader,
 
     backend_texture: ID3D11Texture2D,
-    backend_viewport: [D3D11_VIEWPORT; 1],
-    backend_rtv: [Option<ID3D11RenderTargetView>; 1],
 
     luminance_render_texture: ID3D11Texture2D,
     luminance_staging_texture: ID3D11Texture2D,
@@ -60,7 +51,7 @@ impl YuvConverter {
         resolution: (u32, u32),
     ) -> Result<YuvConverter> {
         unsafe {
-            let (backend_texture, backend_rtv, backend_viewport) =
+            let (backend_texture, _backend_rtv, _backend_viewport) =
                 init_backend_resources(&device, resolution)?;
 
             let (vertex_shader, vertex_buffer, pixel_shader_lumina, pixel_shader_chrominance) =
@@ -90,8 +81,6 @@ impl YuvConverter {
                 pixel_shader_luminance: pixel_shader_lumina,
                 pixel_shader_chrominance,
                 backend_texture,
-                backend_viewport: [backend_viewport],
-                backend_rtv: [Some(backend_rtv)],
                 luminance_render_texture: lumina_render_texture,
                 luminance_staging_texture: lumina_staging_texture,
                 luminance_viewport: [lumina_viewport],
@@ -408,24 +397,6 @@ unsafe fn init_sampler_state(device: &ID3D11Device) -> Result<ID3D11SamplerState
     let sampler_state = device.CreateSamplerState(&sampler_desc)?;
 
     Ok(sampler_state)
-}
-
-unsafe fn init_blend_state(device: &ID3D11Device) -> Result<ID3D11BlendState> {
-    let mut blend_desc: D3D11_BLEND_DESC = std::mem::zeroed();
-    blend_desc.AlphaToCoverageEnable = true.into();
-    blend_desc.IndependentBlendEnable = false.into();
-    blend_desc.RenderTarget[0].BlendEnable = true.into();
-    blend_desc.RenderTarget[0].SrcBlend = D3D11_BLEND_SRC_ALPHA;
-    blend_desc.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
-    blend_desc.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
-    blend_desc.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_INV_DEST_ALPHA; //D3D11_BLEND_ONE ;
-    blend_desc.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_ONE; //D3D11_BLEND_ZERO;
-    blend_desc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD; //D3D11_BLEND_OP_ADD;
-    blend_desc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL.0 as u8;
-
-    let blend_state = device.CreateBlendState(&blend_desc)?;
-
-    Ok(blend_state)
 }
 
 unsafe fn init_input_layout(device: &ID3D11Device) -> Result<ID3D11InputLayout> {

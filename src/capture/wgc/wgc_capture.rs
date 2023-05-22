@@ -16,14 +16,9 @@ use crate::encoder::{FfmpegEncoder, FrameData};
 use crate::performance_profiler::PerformanceProfiler;
 use crate::result::Result;
 use crate::{OutputSink, ScreenCapture};
-use windows::Win32::Graphics::Direct3D11::{
-    ID3D11Device, ID3D11DeviceContext, ID3D11Texture2D,
-};
 
 pub struct WGCScreenCapture<'a> {
     item: GraphicsCaptureItem,
-    device: Arc<ID3D11Device>,
-    d3d_context: Arc<ID3D11DeviceContext>,
     frame_pool: Direct3D11CaptureFramePool,
     config: &'a Config,
     duplicator: YuvConverter,
@@ -48,8 +43,6 @@ impl<'a> WGCScreenCapture<'a> {
         )?;
         Ok(Self {
             item,
-            device,
-            d3d_context,
             frame_pool,
             config,
             duplicator,
@@ -89,10 +82,9 @@ impl ScreenCapture for WGCScreenCapture<'_> {
         while let Some(frame) = receiver.recv().await {
             let frame_time = frame.SystemRelativeTime()?.Duration;
             profiler.accept_frame(frame.SystemRelativeTime()?.Duration);
-            let yuv_frame = unsafe {
-                let source_texture: ID3D11Texture2D =
-                    d3d::get_d3d_interface_from_object(&frame.Surface()?)?;
-                self.duplicator.capture(source_texture)?
+            let yuv_frame = {
+                self.duplicator
+                    .capture(d3d::get_d3d_interface_from_object(&frame.Surface()?)?)?
             };
             profiler.done_preprocessing();
             let encoded = encoder
