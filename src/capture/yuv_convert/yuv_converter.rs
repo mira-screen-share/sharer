@@ -7,7 +7,6 @@ use crate::capture::YUVFrame;
 use crate::encoder::FrameData;
 use crate::result::Result;
 use clap::__macro_refs::once_cell;
-use renderdoc::{RenderDoc, V110};
 use std::os::raw::c_void;
 use std::rc::Rc;
 use std::slice;
@@ -25,7 +24,7 @@ use windows::{
     },
 };
 
-pub struct Duplicator {
+pub struct YuvConverter {
     device: Arc<ID3D11Device>,
     device_context: Arc<ID3D11DeviceContext>,
 
@@ -50,17 +49,16 @@ pub struct Duplicator {
     chrominance_rtv: [Option<ID3D11RenderTargetView>; 1],
 
     resolution: (u32, u32),
-    //rd: RenderDoc<V110>,
 }
 
-unsafe impl Send for Duplicator {}
+unsafe impl Send for YuvConverter {}
 
-impl Duplicator {
+impl YuvConverter {
     pub fn new(
         device: Arc<ID3D11Device>,
         device_context: Arc<ID3D11DeviceContext>,
         resolution: (u32, u32),
-    ) -> Result<Duplicator> {
+    ) -> Result<YuvConverter> {
         unsafe {
             let (backend_texture, backend_rtv, backend_viewport) =
                 init_backend_resources(&device, resolution)?;
@@ -84,7 +82,7 @@ impl Duplicator {
 
             device_context.IASetInputLayout(&init_input_layout(&device)?);
 
-            Ok(Duplicator {
+            Ok(YuvConverter {
                 device,
                 device_context,
                 vertex_shader,
@@ -103,47 +101,16 @@ impl Duplicator {
                 chrominance_viewport: [chrominance_viewport],
                 chrominance_rtv: [Some(chrominance_rtv)],
                 resolution,
-                //rd: RenderDoc::new().unwrap(),
             })
-        }
-    }
-
-    fn inspect_texture(&self, source_texture: &ID3D11Texture2D) -> Result<()> {
-        unsafe {
-            let mut desc = D3D11_TEXTURE2D_DESC::default();
-            source_texture.GetDesc(&mut desc);
-
-            println!("source_texture: {:?}", desc);
-            desc.BindFlags = D3D11_BIND_FLAG(0);
-            desc.MiscFlags = D3D11_RESOURCE_MISC_FLAG(0);
-            desc.Usage = D3D11_USAGE_STAGING;
-            desc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
-            let copy_texture = self.device.CreateTexture2D(&desc, None)?;
-            let src: ID3D11Resource = source_texture.cast()?;
-            let dst: ID3D11Resource = copy_texture.cast()?;
-            self.device_context.CopyResource(&dst, &src);
-
-            let resource: ID3D11Resource = copy_texture.cast()?;
-            let mapped = self.device_context.Map(&resource, 0, D3D11_MAP_READ, 0)?;
-            let frame: &[u8] = slice::from_raw_parts(
-                mapped.pData as *const _,
-                (desc.Height as u32 * mapped.RowPitch) as usize,
-            );
-            println!("frame: {:?}", frame[..20].to_vec());
-            Ok(())
         }
     }
 
     pub fn capture(&mut self, desktop_texture: ID3D11Texture2D) -> Result<YUVFrame> {
         unsafe {
-            //self.rd
-            //    .start_frame_capture(std::ptr::null(), std::ptr::null());
             self.device_context
                 .CopyResource(&self.backend_texture, &desktop_texture);
             self.draw_lumina_and_chrominance_texture()?;
             let result = self.create_capture_frame(self.resolution);
-            //self.rd
-            //    .end_frame_capture(std::ptr::null(), std::ptr::null());
             result
         }
     }

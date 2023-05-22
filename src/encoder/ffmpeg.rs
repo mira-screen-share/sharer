@@ -103,12 +103,6 @@ impl FfmpegEncoder {
                     encoder_line_size,
                     frame.planes_mut()[1].data_mut(),
                 );
-                //self.copy_nv12(
-                //    &nv12.chrominance_bytes[nv12.chrominance_bytes.len() / 2..],
-                //    nv12.chrominance_stride as usize,
-                //    encoder_line_size,
-                //    frame.planes_mut()[2].data_mut(),
-                //);
             }
             FrameData::BGR0(bgr0) => match self.pixel_format.as_str() {
                 "yuv420p" => {

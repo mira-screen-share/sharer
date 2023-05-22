@@ -1,5 +1,5 @@
-mod duplicator;
 mod dx_math;
 mod shader;
+mod yuv_converter;
 
-pub use duplicator::Duplicator;
+pub use yuv_converter::YuvConverter;
