@@ -1,3 +1,5 @@
+// adapted from
+// https://github.com/MirrorX-Desktop/MirrorX/tree/master/mirrorx_core/src/component/desktop/windows
 use super::{
     dx_math::{VERTEX_STRIDES, VERTICES},
     shader,
@@ -110,8 +112,7 @@ impl YuvConverter {
             self.device_context
                 .CopyResource(&self.backend_texture, &desktop_texture);
             self.draw_lumina_and_chrominance_texture()?;
-            let result = self.create_capture_frame(self.resolution);
-            result
+            self.create_capture_frame(self.resolution)
         }
     }
 

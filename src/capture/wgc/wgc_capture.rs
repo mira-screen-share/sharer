@@ -1,8 +1,7 @@
 use async_trait::async_trait;
-use std::slice;
 use std::sync::Arc;
 use std::time::Duration;
-use windows::core::{IInspectable, Interface};
+use windows::core::IInspectable;
 use windows::Foundation::TypedEventHandler;
 use windows::Graphics::Capture::{
     Direct3D11CaptureFrame, Direct3D11CaptureFramePool, GraphicsCaptureItem,

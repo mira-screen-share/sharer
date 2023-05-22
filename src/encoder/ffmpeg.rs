@@ -7,7 +7,7 @@ use ac_ffmpeg::time::{TimeBase, Timestamp};
 use bytes::Bytes;
 use itertools::enumerate;
 
-use crate::capture::{BGR0YUVConverter, YUVFrame};
+use crate::capture::YUVFrame;
 use crate::config::EncoderConfig;
 use crate::encoder::frame_pool::FramePool;
 use crate::result::Result;
@@ -15,7 +15,6 @@ use crate::result::Result;
 pub struct FfmpegEncoder {
     encoder: VideoEncoder,
     frame_pool: FramePool,
-    bgr0_to_yuv: BGR0YUVConverter,
     pixel_format: String,
     w: usize,
     h: usize,
@@ -52,7 +51,6 @@ impl FfmpegEncoder {
         Self {
             encoder,
             pixel_format: encoder_config.pixel_format.clone(),
-            bgr0_to_yuv: BGR0YUVConverter::new(w as usize, h as usize),
             frame_pool: FramePool::new(w, h, time_base, pixel_format),
             force_idr: Arc::new(AtomicBool::new(false)),
             w: w as usize,
@@ -105,16 +103,6 @@ impl FfmpegEncoder {
                 );
             }
             FrameData::BGR0(bgr0) => match self.pixel_format.as_str() {
-                "yuv420p" => {
-                    self.bgr0_to_yuv.convert(
-                        bgr0,
-                        frame
-                            .planes_mut()
-                            .iter_mut()
-                            .map(|p| p.data_mut())
-                            .collect(),
-                    );
-                }
                 "bgra" => {
                     frame.planes_mut()[0].data_mut().copy_from_slice(bgr0);
                 }

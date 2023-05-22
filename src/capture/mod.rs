@@ -20,7 +20,6 @@ pub trait DisplayInfo {
 
 use crate::encoder::FfmpegEncoder;
 use crate::performance_profiler::PerformanceProfiler;
-pub use yuv_converter::BGR0YUVConverter;
 
 #[cfg(target_os = "windows")]
 mod wgc;
