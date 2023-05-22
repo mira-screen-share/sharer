@@ -7,6 +7,7 @@ use crate::capture::YUVFrame;
 use crate::encoder::FrameData;
 use crate::result::Result;
 use clap::__macro_refs::once_cell;
+use renderdoc::{RenderDoc, V110};
 use std::os::raw::c_void;
 use std::rc::Rc;
 use std::slice;
@@ -49,6 +50,7 @@ pub struct Duplicator {
     chrominance_rtv: [Option<ID3D11RenderTargetView>; 1],
 
     resolution: (u32, u32),
+    //rd: RenderDoc<V110>,
 }
 
 unsafe impl Send for Duplicator {}
@@ -76,6 +78,12 @@ impl Duplicator {
                 chrominance_rtv,
             ) = init_chrominance_resources(&device, resolution)?;
 
+            let sampler_state = init_sampler_state(&device)?;
+
+            device_context.PSSetSamplers(0, Some(&[Some(sampler_state)]));
+
+            device_context.IASetInputLayout(&init_input_layout(&device)?);
+
             Ok(Duplicator {
                 device,
                 device_context,
@@ -95,6 +103,7 @@ impl Duplicator {
                 chrominance_viewport: [chrominance_viewport],
                 chrominance_rtv: [Some(chrominance_rtv)],
                 resolution,
+                //rd: RenderDoc::new().unwrap(),
             })
         }
     }
@@ -127,10 +136,15 @@ impl Duplicator {
 
     pub fn capture(&mut self, desktop_texture: ID3D11Texture2D) -> Result<YUVFrame> {
         unsafe {
+            //self.rd
+            //    .start_frame_capture(std::ptr::null(), std::ptr::null());
             self.device_context
                 .CopyResource(&self.backend_texture, &desktop_texture);
             self.draw_lumina_and_chrominance_texture()?;
-            self.create_capture_frame(self.resolution)
+            let result = self.create_capture_frame(self.resolution);
+            //self.rd
+            //    .end_frame_capture(std::ptr::null(), std::ptr::null());
+            result
         }
     }
 
@@ -154,6 +168,9 @@ impl Duplicator {
             .CreateShaderResourceView(&self.backend_texture, Some(&shader_resouce_view_desc))?;
 
         let shader_resource_view = [Some(shader_resource_view)];
+
+        self.device_context
+            .IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
         self.device_context.IASetVertexBuffers(
             0,
@@ -180,8 +197,6 @@ impl Duplicator {
             .RSSetViewports(Some(&self.luminance_viewport));
 
         self.device_context.Draw(VERTICES.len() as u32, 0);
-
-        self.inspect_texture(&self.luminance_render_texture)?;
 
         // draw chrominance plane
 
@@ -412,4 +427,65 @@ unsafe fn init_backend_resources(
     };
 
     Ok((texture, rtv, viewport))
+}
+
+unsafe fn init_sampler_state(device: &ID3D11Device) -> Result<ID3D11SamplerState> {
+    let mut sampler_desc: D3D11_SAMPLER_DESC = std::mem::zeroed();
+    sampler_desc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+    sampler_desc.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
+    sampler_desc.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
+    sampler_desc.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
+    sampler_desc.ComparisonFunc = D3D11_COMPARISON_NEVER;
+    sampler_desc.MinLOD = 0f32;
+    sampler_desc.MaxLOD = D3D11_FLOAT32_MAX;
+
+    let sampler_state = device.CreateSamplerState(&sampler_desc)?;
+
+    Ok(sampler_state)
+}
+
+unsafe fn init_blend_state(device: &ID3D11Device) -> Result<ID3D11BlendState> {
+    let mut blend_desc: D3D11_BLEND_DESC = std::mem::zeroed();
+    blend_desc.AlphaToCoverageEnable = true.into();
+    blend_desc.IndependentBlendEnable = false.into();
+    blend_desc.RenderTarget[0].BlendEnable = true.into();
+    blend_desc.RenderTarget[0].SrcBlend = D3D11_BLEND_SRC_ALPHA;
+    blend_desc.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
+    blend_desc.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
+    blend_desc.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_INV_DEST_ALPHA; //D3D11_BLEND_ONE ;
+    blend_desc.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_ONE; //D3D11_BLEND_ZERO;
+    blend_desc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD; //D3D11_BLEND_OP_ADD;
+    blend_desc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL.0 as u8;
+
+    let blend_state = device.CreateBlendState(&blend_desc)?;
+
+    Ok(blend_state)
+}
+
+unsafe fn init_input_layout(device: &ID3D11Device) -> Result<ID3D11InputLayout> {
+    let input_element_desc_array = [
+        D3D11_INPUT_ELEMENT_DESC {
+            SemanticName: PCSTR(b"POSITION\0".as_ptr()),
+            SemanticIndex: 0,
+            Format: DXGI_FORMAT_R32G32B32_FLOAT,
+            InputSlot: 0,
+            AlignedByteOffset: 0,
+            InputSlotClass: D3D11_INPUT_PER_VERTEX_DATA,
+            InstanceDataStepRate: 0,
+        },
+        D3D11_INPUT_ELEMENT_DESC {
+            SemanticName: PCSTR(b"TEXCOORD\0".as_ptr()),
+            SemanticIndex: 0,
+            Format: DXGI_FORMAT_R32G32_FLOAT,
+            InputSlot: 0,
+            AlignedByteOffset: 12,
+            InputSlotClass: D3D11_INPUT_PER_VERTEX_DATA,
+            InstanceDataStepRate: 0,
+        },
+    ];
+
+    let input_layout =
+        device.CreateInputLayout(&input_element_desc_array, shader::VERTEX_SHADER_BYTES)?;
+
+    Ok(input_layout)
 }

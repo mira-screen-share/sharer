@@ -87,7 +87,7 @@ impl FfmpegEncoder {
 
         match frame_data {
             FrameData::NV12(nv12) => {
-                assert!(self.pixel_format == "nv12" || self.pixel_format == "yuv420p");
+                assert_eq!(self.pixel_format, "nv12");
                 let encoder_buffer_len = frame.planes_mut()[0].data_mut().len();
                 let encoder_line_size = encoder_buffer_len / self.h as usize;
 
@@ -98,17 +98,17 @@ impl FfmpegEncoder {
                     frame.planes_mut()[0].data_mut(),
                 );
                 self.copy_nv12(
-                    &nv12.chrominance_bytes[..nv12.chrominance_bytes.len() / 2],
+                    &nv12.chrominance_bytes,
                     nv12.chrominance_stride as usize,
                     encoder_line_size,
                     frame.planes_mut()[1].data_mut(),
                 );
-                self.copy_nv12(
-                    &nv12.chrominance_bytes[nv12.chrominance_bytes.len() / 2..],
-                    nv12.chrominance_stride as usize,
-                    encoder_line_size,
-                    frame.planes_mut()[2].data_mut(),
-                );
+                //self.copy_nv12(
+                //    &nv12.chrominance_bytes[nv12.chrominance_bytes.len() / 2..],
+                //    nv12.chrominance_stride as usize,
+                //    encoder_line_size,
+                //    frame.planes_mut()[2].data_mut(),
+                //);
             }
             FrameData::BGR0(bgr0) => match self.pixel_format.as_str() {
                 "yuv420p" => {
