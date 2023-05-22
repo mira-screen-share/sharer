@@ -7,7 +7,7 @@ use std::path::Path;
 use webrtc::ice_transport::ice_credential_type::RTCIceCredentialType;
 use webrtc::ice_transport::ice_server::RTCIceServer;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Config {
     #[serde(default = "default_signaller")]
     pub signaller_url: String,
@@ -25,7 +25,7 @@ pub struct Config {
     pub encoder: EncoderConfig,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct EncoderConfig {
     pub encoder: String,
     pub pixel_format: String,
