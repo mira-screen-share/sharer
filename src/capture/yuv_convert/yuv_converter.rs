@@ -4,25 +4,23 @@ use super::{
     dx_math::{VERTEX_STRIDES, VERTICES},
     shader,
 };
-use crate::capture::yuv_convert::dx_math::Vertex;
+
 use crate::capture::YUVFrame;
-use crate::encoder::FrameData;
+
 use crate::result::Result;
-use clap::__macro_refs::once_cell;
+
 use std::os::raw::c_void;
-use std::rc::Rc;
-use std::slice;
+
+
 use std::sync::Arc;
 use windows::{
-    core::{Interface, PCSTR, PCWSTR},
+    core::{PCSTR},
     Win32::{
         Graphics::{
             Direct3D::*,
             Direct3D11::*,
-            Dxgi::{Common::*, *},
-            Gdi::*,
+            Dxgi::{Common::*},
         },
-        UI::WindowsAndMessaging::*,
     },
 };
 
