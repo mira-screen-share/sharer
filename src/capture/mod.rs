@@ -33,6 +33,7 @@ pub use wgc::WGCScreenCapture as ScreenCaptureImpl;
 mod frame;
 #[cfg(target_os = "macos")]
 mod macos;
+pub mod capturer;
 
 pub use frame::YUVFrame;
 #[cfg(target_os = "macos")]

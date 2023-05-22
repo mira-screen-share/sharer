@@ -44,7 +44,7 @@ impl WebRTCOutput {
     }
 
     pub async fn new(
-        mut signaller: Box<dyn Signaller>,
+        mut signaller: Box<dyn Signaller + Send + Sync>,
         encoder_force_idr: &mut Arc<AtomicBool>,
         input_handler: Arc<InputHandler>,
         config: &Config,
