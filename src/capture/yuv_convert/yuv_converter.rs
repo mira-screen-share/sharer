@@ -118,11 +118,14 @@ impl YuvConverter {
             },
         };
 
-        let shader_resource_view = self
-            .device
-            .CreateShaderResourceView(&self.backend_texture, Some(&shader_resouce_view_desc))?;
+        let mut shader_resource_view = None;
+        self.device.CreateShaderResourceView(
+            &self.backend_texture,
+            Some(&shader_resouce_view_desc),
+            Some(&mut shader_resource_view),
+        )?;
 
-        let shader_resource_view = [Some(shader_resource_view)];
+        let shader_resource_view = [shader_resource_view];
 
         self.device_context
             .IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
@@ -183,9 +186,15 @@ impl YuvConverter {
             &self.chrominance_render_texture,
         );
 
-        let lumina_mapped_resource =
-            self.device_context
-                .Map(&self.luminance_staging_texture, 0, D3D11_MAP_READ, 0)?;
+        let mut lumina_mapped_resource = std::mem::zeroed();
+
+        self.device_context.Map(
+            &self.luminance_staging_texture,
+            0,
+            D3D11_MAP_READ,
+            0,
+            Some(&mut lumina_mapped_resource),
+        )?;
 
         let luminance_stride = lumina_mapped_resource.RowPitch;
 
@@ -198,9 +207,15 @@ impl YuvConverter {
         self.device_context
             .Unmap(&self.luminance_staging_texture, 0);
 
-        let chrominance_mapped_resource =
-            self.device_context
-                .Map(&self.chrominance_staging_texture, 0, D3D11_MAP_READ, 0)?;
+        let mut chrominance_mapped_resource = std::mem::zeroed();
+
+        self.device_context.Map(
+            &self.chrominance_staging_texture,
+            0,
+            D3D11_MAP_READ,
+            0,
+            Some(&mut chrominance_mapped_resource),
+        )?;
 
         let chrominance_stride = chrominance_mapped_resource.RowPitch;
 
@@ -233,7 +248,8 @@ unsafe fn init_shaders(
     ID3D11PixelShader,
     ID3D11PixelShader,
 )> {
-    let vertex_shader = device.CreateVertexShader(shader::VERTEX_SHADER_BYTES, None)?;
+    let mut vertex_shader = None;
+    device.CreateVertexShader(shader::VERTEX_SHADER_BYTES, None, Some(&mut vertex_shader))?;
 
     let vertex_buffer_desc = D3D11_BUFFER_DESC {
         ByteWidth: VERTEX_STRIDES * VERTICES.len() as u32,
@@ -250,18 +266,32 @@ unsafe fn init_shaders(
         SysMemSlicePitch: 0,
     };
 
-    let vertex_buffer = device.CreateBuffer(&vertex_buffer_desc, Some(&subresource_data))?;
+    let mut vertex_buffer = None;
+    device.CreateBuffer(
+        &vertex_buffer_desc,
+        Some(&subresource_data),
+        Some(&mut vertex_buffer),
+    )?;
 
-    let pixel_shader_lumina = device.CreatePixelShader(shader::PIXEL_SHADER_LUMINA_BYTES, None)?;
+    let mut pixel_shader_lumina = None;
+    device.CreatePixelShader(
+        shader::PIXEL_SHADER_LUMINA_BYTES,
+        None,
+        Some(&mut pixel_shader_lumina),
+    )?;
 
-    let pixel_shader_chrominance =
-        device.CreatePixelShader(shader::PIXEL_SHADER_CHROMINANCE_BYTES, None)?;
+    let mut pixel_shader_chrominance = None;
+    device.CreatePixelShader(
+        shader::PIXEL_SHADER_CHROMINANCE_BYTES,
+        None,
+        Some(&mut pixel_shader_chrominance),
+    )?;
 
     Ok((
-        vertex_shader,
-        vertex_buffer,
-        pixel_shader_lumina,
-        pixel_shader_chrominance,
+        vertex_shader.unwrap(),
+        vertex_buffer.unwrap(),
+        pixel_shader_lumina.unwrap(),
+        pixel_shader_chrominance.unwrap(),
     ))
 }
 
@@ -285,13 +315,17 @@ unsafe fn init_lumina_resources(
     texture_desc.Usage = D3D11_USAGE_DEFAULT;
     texture_desc.BindFlags = D3D11_BIND_RENDER_TARGET;
 
-    let render_texture = device.CreateTexture2D(&texture_desc, None)?;
+    let mut render_texture = std::mem::zeroed();
+
+    device.CreateTexture2D(&texture_desc, None, Some(&mut render_texture))?;
+    let render_texture = render_texture.unwrap();
 
     texture_desc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
     texture_desc.Usage = D3D11_USAGE_STAGING;
     texture_desc.BindFlags = D3D11_BIND_FLAG::default();
 
-    let staging_texture = device.CreateTexture2D(&texture_desc, None)?;
+    let mut staging_texture = std::mem::zeroed();
+    device.CreateTexture2D(&texture_desc, None, Some(&mut staging_texture))?;
 
     let viewport = D3D11_VIEWPORT {
         TopLeftX: 0.0,
@@ -302,9 +336,15 @@ unsafe fn init_lumina_resources(
         MaxDepth: 1.0,
     };
 
-    let rtv = device.CreateRenderTargetView(&render_texture, None)?;
+    let mut rtv = None;
+    device.CreateRenderTargetView(&render_texture, None, Some(&mut rtv))?;
 
-    Ok((render_texture, staging_texture, viewport, rtv))
+    Ok((
+        render_texture,
+        staging_texture.unwrap(),
+        viewport,
+        rtv.unwrap(),
+    ))
 }
 
 unsafe fn init_chrominance_resources(
@@ -327,13 +367,16 @@ unsafe fn init_chrominance_resources(
     texture_desc.Usage = D3D11_USAGE_DEFAULT;
     texture_desc.BindFlags = D3D11_BIND_RENDER_TARGET;
 
-    let render_texture = device.CreateTexture2D(&texture_desc, None)?;
+    let mut render_texture = None;
+    device.CreateTexture2D(&texture_desc, None, Some(&mut render_texture))?;
+    let render_texture = render_texture.unwrap();
 
     texture_desc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
     texture_desc.Usage = D3D11_USAGE_STAGING;
     texture_desc.BindFlags = D3D11_BIND_FLAG::default();
 
-    let staging_texture = device.CreateTexture2D(&texture_desc, None)?;
+    let mut staging_texture = None;
+    device.CreateTexture2D(&texture_desc, None, Some(&mut staging_texture))?;
 
     let viewport = D3D11_VIEWPORT {
         TopLeftX: 0.0,
@@ -344,9 +387,15 @@ unsafe fn init_chrominance_resources(
         MaxDepth: 1.0,
     };
 
-    let rtv = device.CreateRenderTargetView(&render_texture, None)?;
+    let mut rtv = None;
+    device.CreateRenderTargetView(&render_texture, None, Some(&mut rtv))?;
 
-    Ok((render_texture, staging_texture, viewport, rtv))
+    Ok((
+        render_texture,
+        staging_texture.unwrap(),
+        viewport,
+        rtv.unwrap(),
+    ))
 }
 
 unsafe fn init_backend_resources(
@@ -364,13 +413,16 @@ unsafe fn init_backend_resources(
     texture_desc.Usage = D3D11_USAGE_DEFAULT;
     texture_desc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
 
-    let texture = device.CreateTexture2D(&texture_desc, None)?;
+    let mut texture = None;
+    device.CreateTexture2D(&texture_desc, None, Some(&mut texture))?;
+    let texture = texture.unwrap();
 
     texture_desc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
     texture_desc.Usage = D3D11_USAGE_STAGING;
     texture_desc.BindFlags = D3D11_BIND_FLAG::default();
 
-    let rtv = device.CreateRenderTargetView(&texture, None)?;
+    let mut rtv = None;
+    device.CreateRenderTargetView(&texture, None, Some(&mut rtv))?;
 
     let viewport = D3D11_VIEWPORT {
         TopLeftX: 0.0,
@@ -381,7 +433,7 @@ unsafe fn init_backend_resources(
         MaxDepth: 1.0,
     };
 
-    Ok((texture, rtv, viewport))
+    Ok((texture, rtv.unwrap(), viewport))
 }
 
 unsafe fn init_sampler_state(device: &ID3D11Device) -> Result<ID3D11SamplerState> {
@@ -394,9 +446,10 @@ unsafe fn init_sampler_state(device: &ID3D11Device) -> Result<ID3D11SamplerState
     sampler_desc.MinLOD = 0f32;
     sampler_desc.MaxLOD = D3D11_FLOAT32_MAX;
 
-    let sampler_state = device.CreateSamplerState(&sampler_desc)?;
+    let mut sampler_state = None;
+    device.CreateSamplerState(&sampler_desc, Some(&mut sampler_state))?;
 
-    Ok(sampler_state)
+    Ok(sampler_state.unwrap())
 }
 
 unsafe fn init_input_layout(device: &ID3D11Device) -> Result<ID3D11InputLayout> {
@@ -421,8 +474,13 @@ unsafe fn init_input_layout(device: &ID3D11Device) -> Result<ID3D11InputLayout> 
         },
     ];
 
-    let input_layout =
-        device.CreateInputLayout(&input_element_desc_array, shader::VERTEX_SHADER_BYTES)?;
+    let mut input_layout = None;
 
-    Ok(input_layout)
+    device.CreateInputLayout(
+        &input_element_desc_array,
+        shader::VERTEX_SHADER_BYTES,
+        Some(&mut input_layout),
+    )?;
+
+    Ok(input_layout.unwrap())
 }
