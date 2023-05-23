@@ -98,13 +98,7 @@ pub fn load(path: &Path) -> Result<Config> {
 fn libx264() -> EncoderConfig {
     EncoderConfig {
         encoder: "libx264".to_string(),
-        pixel_format: if cfg!(target_os = "windows") {
-            "yuv420p".to_string()
-        } else if cfg!(target_os = "macos") {
-            "nv12".to_string()
-        } else {
-            panic!("Unsupported platform");
-        },
+        pixel_format: "nv12".to_string(),
         encoding: "video/H264".to_string(),
         options: HashMap::from([
             ("profile".into(), "baseline".into()),
@@ -123,7 +117,7 @@ fn default_viewer() -> String {
 }
 
 fn default_max_fps() -> u32 {
-    30
+    60
 }
 
 fn default_ice_servers() -> Vec<IceServer> {
