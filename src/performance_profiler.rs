@@ -77,6 +77,9 @@ impl PerformanceProfiler {
             (self.total_time - self.encoding_time) as f64 / self.counter_conv_to_s as f64 * 1000.0;
         let total_time =
             (self.total_time - self.frame_time) as f64 / self.counter_conv_to_s as f64 * 1000.0;
+        if webrtc_time > 8. {
+            warn!("send time abnormal: {}", webrtc_time);
+        }
 
         info!(
             "Total time {:.1}ms ({:.1} p, {:.1} e, {:.1} s) {:.1}% at {} FPS. Current FPS: {}/{:.1}. {:.1} kbps",

@@ -18,11 +18,8 @@ pub trait DisplayInfo {
     fn dpi_conversion_factor(&self) -> f64;
 }
 
-mod yuv_converter;
-
 use crate::encoder::FfmpegEncoder;
 use crate::performance_profiler::PerformanceProfiler;
-pub use yuv_converter::BGR0YUVConverter;
 
 #[cfg(target_os = "windows")]
 mod wgc;
@@ -40,3 +37,6 @@ pub use frame::YUVFrame;
 pub use macos::display::Display;
 #[cfg(target_os = "macos")]
 pub use macos::MacOSScreenCapture as ScreenCaptureImpl;
+
+mod yuv_convert;
+pub use yuv_convert::YuvConverter;

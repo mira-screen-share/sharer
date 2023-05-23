@@ -1,79 +1,51 @@
 use async_trait::async_trait;
-use std::slice;
+use std::sync::Arc;
 use std::time::Duration;
-use windows::core::{IInspectable, Interface};
+use windows::core::IInspectable;
 use windows::Foundation::TypedEventHandler;
 use windows::Graphics::Capture::{
     Direct3D11CaptureFrame, Direct3D11CaptureFramePool, GraphicsCaptureItem,
 };
-use windows::Graphics::DirectX::Direct3D11::IDirect3DSurface;
+
 use windows::Graphics::DirectX::DirectXPixelFormat;
 
 use crate::capture::wgc::d3d;
+use crate::capture::YuvConverter;
 use crate::config::Config;
 use crate::encoder::{FfmpegEncoder, FrameData};
 use crate::performance_profiler::PerformanceProfiler;
 use crate::result::Result;
 use crate::{OutputSink, ScreenCapture};
-use windows::Win32::Graphics::Direct3D11::{
-    ID3D11Device, ID3D11DeviceContext, ID3D11Resource, ID3D11Texture2D, D3D11_BIND_FLAG,
-    D3D11_CPU_ACCESS_READ, D3D11_MAP_READ, D3D11_RESOURCE_MISC_FLAG, D3D11_TEXTURE2D_DESC,
-    D3D11_USAGE_STAGING,
-};
 
 pub struct WGCScreenCapture<'a> {
     item: GraphicsCaptureItem,
-    device: ID3D11Device,
-    d3d_context: ID3D11DeviceContext,
     frame_pool: Direct3D11CaptureFramePool,
     config: &'a Config,
+    duplicator: YuvConverter,
 }
 
 impl<'a> WGCScreenCapture<'a> {
-    unsafe fn surface_to_texture(&mut self, surface: &IDirect3DSurface) -> Result<ID3D11Texture2D> {
-        let source_texture: ID3D11Texture2D = d3d::get_d3d_interface_from_object(surface)?;
-        let mut desc = D3D11_TEXTURE2D_DESC::default();
-        source_texture.GetDesc(&mut desc);
-        desc.BindFlags = D3D11_BIND_FLAG(0);
-        desc.MiscFlags = D3D11_RESOURCE_MISC_FLAG(0);
-        desc.Usage = D3D11_USAGE_STAGING;
-        desc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
-        let copy_texture = self.device.CreateTexture2D(&desc, None)?;
-        let src: ID3D11Resource = source_texture.cast()?;
-        let dst: ID3D11Resource = copy_texture.cast()?;
-        self.d3d_context.CopyResource(&dst, &src);
-        Ok(copy_texture)
-    }
-
-    unsafe fn get_frame_content(
-        &mut self,
-        frame: Direct3D11CaptureFrame,
-    ) -> Result<(ID3D11Resource, &[u8])> {
-        let texture = self.surface_to_texture(&frame.Surface()?)?;
-        let resource: ID3D11Resource = texture.cast()?;
-        let mapped = self.d3d_context.Map(&resource, 0, D3D11_MAP_READ, 0)?;
-        let frame: &[u8] = slice::from_raw_parts(
-            mapped.pData as *const _,
-            (self.item.Size()?.Height as u32 * mapped.RowPitch) as usize,
-        );
-        Ok((resource, frame))
-    }
-
     pub fn new(item: GraphicsCaptureItem, config: &'a Config) -> Result<Self> {
         let item_size = item.Size()?;
         let (device, d3d_device, d3d_context) = d3d::create_direct3d_devices_and_context()?;
+        let device = Arc::new(device);
+        let d3d_context = Arc::new(d3d_context);
         let frame_pool = Direct3D11CaptureFramePool::CreateFreeThreaded(
             &d3d_device,
             DirectXPixelFormat::B8G8R8A8UIntNormalized,
             1,
             item_size,
         )?;
+        let duplicator = YuvConverter::new(
+            device.clone(),
+            d3d_context.clone(),
+            (item_size.Width as u32, item_size.Height as u32),
+        )?;
         Ok(Self {
             item,
-            device,
-            d3d_context,
             frame_pool,
             config,
+            duplicator,
         })
     }
 }
@@ -110,15 +82,17 @@ impl ScreenCapture for WGCScreenCapture<'_> {
         while let Some(frame) = receiver.recv().await {
             let frame_time = frame.SystemRelativeTime()?.Duration;
             profiler.accept_frame(frame.SystemRelativeTime()?.Duration);
-            let (resource, frame) = unsafe { self.get_frame_content(frame)? };
+            let yuv_frame = {
+                self.duplicator
+                    .capture(d3d::get_d3d_interface_from_object(&frame.Surface()?)?)?
+            };
             profiler.done_preprocessing();
-            let encoded = encoder.encode(FrameData::BGR0(frame), frame_time).unwrap();
+            let encoded = encoder
+                .encode(FrameData::NV12(&yuv_frame), frame_time)
+                .unwrap();
             let encoded_len = encoded.len();
             profiler.done_encoding();
             output.write(encoded).await.unwrap();
-            unsafe {
-                self.d3d_context.Unmap(&resource, 0);
-            }
             profiler.done_processing(encoded_len);
             ticker.tick().await;
         }
