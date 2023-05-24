@@ -30,7 +30,6 @@ pub struct EncoderConfig {
     pub encoder: String,
     pub pixel_format: String,
     pub encoding: String,
-    #[serde(serialize_with = "toml::ser::tables_last")]
     pub options: HashMap<String, String>,
 }
 
