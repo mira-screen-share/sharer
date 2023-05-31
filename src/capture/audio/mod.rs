@@ -6,12 +6,13 @@ use ac_ffmpeg::codec::Encoder;
 use bytes::Bytes;
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::{SampleFormat, Stream};
+use std::sync::mpsc::Sender;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
 pub struct AudioCapture {
     encoder: AudioEncoder,
-    output: Arc<Mutex<dyn OutputSink + Send>>,
+    sender: Sender<Bytes>,
 }
 
 fn convert_sample_format(format: SampleFormat) -> ac_ffmpeg::codec::audio::SampleFormat {
@@ -34,20 +35,24 @@ impl AudioCapture {
             self.encoder.codec_parameters().channel_layout(),
             self.encoder.codec_parameters().sample_format(),
             self.encoder.codec_parameters().sample_rate(),
-            input.len() as _,
+            960,
         );
-        info!(
-            "data len = {}; input len = {}",
-            frame.planes_mut()[0].data_mut().len(),
-            input.len()
-        );
-        //copy_from_slice(input);
+        let mut plane = &mut frame.planes_mut()[0];
+        let mut data = plane.data_mut();
+        let mut samples: &mut [T] = unsafe {
+            std::slice::from_raw_parts_mut(
+                data.as_mut_ptr() as *mut T,
+                data.len() / std::mem::size_of::<T>(),
+            )
+        };
+        //info!("data len = {}; input len = {}", samples.len(), input.len());
+        samples[..input.len()].copy_from_slice(input);
         self.encoder.push(frame.freeze()).unwrap();
         let mut ret = Vec::new();
         while let Some(packet) = self.encoder.take().unwrap() {
             ret.extend(packet.data());
         }
-        self.output.blocking_lock().write_audio(Bytes::from(ret));
+        self.sender.send(Bytes::from(ret)).unwrap();
     }
 
     pub fn capture(output: Arc<Mutex<dyn OutputSink + Send>>) -> Result<Stream> {
@@ -66,16 +71,25 @@ impl AudioCapture {
         let encoder = AudioEncoder::builder("libopus")
             .unwrap()
             .sample_rate(config.sample_rate().0 as _)
-            .channel_layout(ChannelLayout::from_channels(config.channels() as _).unwrap())
+            .channel_layout(ChannelLayout::from_channels(1).unwrap())
             .sample_format(convert_sample_format(config.sample_format()))
             .build()
             .unwrap();
 
         info!("Begin recording audio");
 
-        let mut capturer = AudioCapture { encoder, output };
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let mut capturer = AudioCapture { encoder, sender };
 
         let err_fn = |err| error!("an error occurred on audio stream: {}", err);
+
+        tokio::spawn(async move {
+            loop {
+                let data = receiver.recv().unwrap();
+                let mut output = output.lock().await;
+                output.write_audio(data).await.unwrap();
+            }
+        });
 
         let stream = match config.sample_format() {
             cpal::SampleFormat::I8 => device.build_input_stream(

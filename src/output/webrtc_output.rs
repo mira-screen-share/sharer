@@ -153,7 +153,6 @@ impl OutputSink for WebRTCOutput {
         Ok(())
     }
     async fn write_audio(&mut self, input: Bytes) -> Result<()> {
-        info!("writing audio sample length={}", input.len());
         self.audio_track
             .write_sample(&Sample {
                 data: input,
