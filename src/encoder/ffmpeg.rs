@@ -126,6 +126,12 @@ impl FfmpegEncoder {
         encoder_line_size: usize,
         destination: &mut [u8],
     ) {
+        // fast path
+        if stride == encoder_line_size {
+            destination.copy_from_slice(source);
+            return;
+        }
+
         for (r, row) in enumerate(source.chunks(stride)) {
             destination[r * encoder_line_size..r * encoder_line_size + self.w as usize]
                 .copy_from_slice(&row[..self.w as usize])
