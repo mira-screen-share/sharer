@@ -99,7 +99,7 @@ impl ScreenCapture for MacOSScreenCapture<'_> {
     async fn capture(
         &mut self,
         mut encoder: FfmpegEncoder,
-        mut output: Box<impl OutputSink + Send + ?Sized>,
+        mut output: Arc<Mutex<impl OutputSink + Send + ?Sized>>,
         mut profiler: PerformanceProfiler,
     ) -> Result<()> {
         let mut ticker =

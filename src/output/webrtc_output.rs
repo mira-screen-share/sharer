@@ -26,6 +26,7 @@ pub struct WebRTCOutput {
     api: Arc<webrtc::api::API>,
     peers: Arc<Mutex<Vec<WebRTCPeer>>>,
     video_track: Arc<TrackLocalStaticSample>,
+    audio_track: Arc<TrackLocalStaticSample>,
     frame_rate: u32,
 }
 
@@ -47,7 +48,7 @@ impl WebRTCOutput {
         encoder_force_idr: &mut Arc<AtomicBool>,
         input_handler: Arc<InputHandler>,
         config: &Config,
-    ) -> Result<Box<WebRTCOutput>> {
+    ) -> Result<Arc<Mutex<WebRTCOutput>>> {
         info!("Initializing WebRTC");
         // Create a MediaEngine object to configure the supported codec
         let mut m = MediaEngine::default();
@@ -73,22 +74,37 @@ impl WebRTCOutput {
             "screen".to_owned(),
         ));
 
-        let output = Box::new(Self {
-            api: Arc::new(
-                APIBuilder::new()
-                    .with_media_engine(m)
-                    .with_interceptor_registry(registry)
-                    .build(),
-            ),
-            peers: Arc::new(Mutex::new(Vec::new())),
-            video_track: video_track.clone(),
-            frame_rate: config.max_fps,
-        });
+        // Audio track
+        let audio_track = Arc::new(TrackLocalStaticSample::new(
+            RTCRtpCodecCapability {
+                mime_type: "audio/opus".to_owned(),
+                ..Default::default()
+            },
+            "audio".to_owned(),
+            "screen_audio".to_owned(),
+        ));
 
-        let api_clone = output.api.clone();
-        let peers_clone = output.peers.clone();
+        let api = Arc::new(
+            APIBuilder::new()
+                .with_media_engine(m)
+                .with_interceptor_registry(registry)
+                .build(),
+        );
+        let peers = Arc::new(Mutex::new(Vec::new()));
+
+        let output = Arc::new(Mutex::new(Self {
+            api: api.clone(),
+            peers: peers.clone(),
+            video_track: video_track.clone(),
+            audio_track: audio_track.clone(),
+            frame_rate: config.max_fps,
+        }));
+
+        let api_clone = api.clone();
+        let peers_clone = peers.clone();
         let encoder_force_idr = encoder_force_idr.clone();
         let video_track_clone = video_track.clone();
+        let audio_track_clone = audio_track.clone();
         let webrtc_config = Self::make_config(config);
         signaller.start().await;
         tokio::spawn(async move {
@@ -97,6 +113,7 @@ impl WebRTCOutput {
                 let peers_clone = peers_clone.clone();
                 let encoder_force_idr = encoder_force_idr.clone();
                 let video_track_clone = video_track_clone.clone();
+                let audio_track_clone = audio_track_clone.clone();
                 let webrtc_config = webrtc_config.clone();
                 let input_handler = input_handler.clone();
                 tokio::spawn(async move {
@@ -106,6 +123,7 @@ impl WebRTCOutput {
                         encoder_force_idr,
                         input_handler,
                         video_track_clone,
+                        audio_track_clone,
                     )
                     .await
                     .expect("Failed to create peer");
@@ -125,6 +143,18 @@ impl WebRTCOutput {
 impl OutputSink for WebRTCOutput {
     async fn write(&mut self, input: Bytes) -> Result<()> {
         self.video_track
+            .write_sample(&Sample {
+                data: input,
+                duration: Duration::from_millis((1000. / self.frame_rate as f64) as u64),
+                ..Default::default()
+            })
+            .await
+            .expect("TODO: panic message");
+        Ok(())
+    }
+    async fn write_audio(&mut self, input: Bytes) -> Result<()> {
+        info!("writing audio sample length={}", input.len());
+        self.audio_track
             .write_sample(&Sample {
                 data: input,
                 duration: Duration::from_millis((1000. / self.frame_rate as f64) as u64),

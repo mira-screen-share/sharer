@@ -23,6 +23,9 @@ impl OutputSink for FileOutput {
         self.file.write_all(&input)?;
         Ok(())
     }
+    async fn write_audio(&mut self, input: Bytes) -> Result<()> {
+        Ok(())
+    }
 }
 
 impl Drop for FileOutput {

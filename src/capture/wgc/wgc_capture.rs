@@ -16,6 +16,7 @@ use crate::encoder::{FfmpegEncoder, FrameData};
 use crate::performance_profiler::PerformanceProfiler;
 use crate::result::Result;
 use crate::{OutputSink, ScreenCapture};
+use tokio::sync::Mutex;
 
 pub struct WGCScreenCapture<'a> {
     item: GraphicsCaptureItem,
@@ -55,7 +56,7 @@ impl ScreenCapture for WGCScreenCapture<'_> {
     async fn capture(
         &mut self,
         mut encoder: FfmpegEncoder,
-        mut output: Box<impl OutputSink + Send + ?Sized>,
+        output: Arc<Mutex<impl OutputSink + Send + ?Sized>>,
         mut profiler: PerformanceProfiler,
     ) -> Result<()> {
         let session = self.frame_pool.CreateCaptureSession(&self.item)?;
@@ -92,7 +93,7 @@ impl ScreenCapture for WGCScreenCapture<'_> {
                 .unwrap();
             let encoded_len = encoded.len();
             profiler.done_encoding();
-            output.write(encoded).await.unwrap();
+            output.lock().await.write(encoded).await.unwrap();
             profiler.done_processing(encoded_len);
             ticker.tick().await;
         }

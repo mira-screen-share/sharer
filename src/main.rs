@@ -1,4 +1,4 @@
-use crate::capture::ScreenCapture;
+use crate::capture::{AudioCapture, ScreenCapture};
 use crate::capture::{Display, DisplayInfo, ScreenCaptureImpl};
 use crate::output::{FileOutput, OutputSink, WebRTCOutput};
 use crate::performance_profiler::PerformanceProfiler;
@@ -6,6 +6,7 @@ use crate::result::Result;
 use clap::Parser;
 use std::path::Path;
 use std::sync::Arc;
+use tokio::sync::Mutex;
 
 #[macro_use]
 extern crate log;
@@ -67,8 +68,8 @@ async fn main() -> Result<()> {
         config.viewer_url, my_uuid, config.signaller_url
     );
 
-    let output: Box<dyn OutputSink + Send> = if let Some(path) = args.file {
-        Box::new(FileOutput::new(&path))
+    let output: Arc<Mutex<dyn OutputSink + Send>> = if let Some(path) = args.file {
+        Arc::new(Mutex::new(FileOutput::new(&path)))
     } else {
         WebRTCOutput::new(
             Box::new(signaller::WebSocketSignaller::new(&config.signaller_url, my_uuid).await?),
@@ -79,6 +80,7 @@ async fn main() -> Result<()> {
         .await?
     };
 
+    let stream = AudioCapture::capture(output.clone())?;
     capture.capture(encoder, output, profiler).await?;
 
     Ok(())

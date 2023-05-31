@@ -27,10 +27,13 @@ impl WebRTCPeer {
         encoder_force_idr: Arc<AtomicBool>,
         input_handler: Arc<InputHandler>,
         video_track: Arc<TrackLocalStaticSample>,
+        audio_track: Arc<TrackLocalStaticSample>,
     ) -> Result<Self> {
         debug!("Initializing a new WebRTC peer");
 
         let rtp_sender = peer_connection.add_track(video_track).await?;
+
+        peer_connection.add_track(audio_track).await?;
 
         let encoder_force_idr_clone = encoder_force_idr.clone();
         tokio::spawn(async move {
