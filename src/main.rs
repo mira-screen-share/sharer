@@ -2,7 +2,7 @@ extern crate core;
 #[macro_use]
 extern crate log;
 
-use iced::Application;
+use iced::{Application, Settings};
 
 use crate::capture::ScreenCapture;
 use crate::gui::app::App;
@@ -24,6 +24,13 @@ async fn main() {
     env_logger::init_from_env(
         env_logger::Env::default().filter_or(env_logger::DEFAULT_FILTER_ENV, "info"),
     );
-    App::run(Default::default()).unwrap();
+    App::run(Settings {
+        window: iced::window::Settings {
+            size: (300, 200),
+            resizable: false,
+            ..Default::default()
+        },
+        ..Default::default()
+    }).unwrap();
 }
 

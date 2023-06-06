@@ -1,10 +1,11 @@
 use std::sync::Arc;
 
 use clap::Parser;
+use tokio_util::sync::CancellationToken;
 
-use crate::encoder;
 use crate::capture::{Display, DisplayInfo, ScreenCapture, ScreenCaptureImpl};
 use crate::config::Config;
+use crate::encoder;
 use crate::inputs::InputHandler;
 use crate::output::{FileOutput, OutputSink, WebRTCOutput};
 use crate::performance_profiler::PerformanceProfiler;
@@ -31,7 +32,42 @@ pub struct Args {
     disable_control: bool,
 }
 
-pub async fn start_capture(
+pub struct Capturer {
+    pub args: Args,
+    pub config: Config,
+    shutdown_token_opt: Option<CancellationToken>,
+}
+
+impl Capturer {
+    pub fn new(args: Args, config: Config) -> Self {
+        Self { args, config, shutdown_token_opt: None }
+    }
+
+    pub fn run(&mut self) -> () {
+        let args = self.args.clone();
+        let config = self.config.clone();
+        let shutdown_token = CancellationToken::new();
+        self.shutdown_token_opt = Some(shutdown_token.clone());
+        tokio::spawn(async move {
+            tokio::select! {
+                _ = start_capture(args, config) => {}
+                _ = shutdown_token.cancelled() => {}
+            }
+        });
+    }
+
+    pub fn shutdown(&mut self) {
+        if let Some(shutdown_token) = self.shutdown_token_opt.take() {
+            shutdown_token.cancel();
+        }
+    }
+
+    pub fn is_running(&self) -> bool {
+        self.shutdown_token_opt.is_some()
+    }
+}
+
+async fn start_capture(
     args: Args,
     config: Config,
 ) -> Result<()> {
@@ -65,3 +101,5 @@ pub async fn start_capture(
     capture.capture(encoder, output, profiler).await?;
     Ok(())
 }
+
+
