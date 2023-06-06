@@ -5,8 +5,10 @@ use iced::{
     Application, Command, Element, executor, Theme,
 };
 use iced::widget::{button, row, text, text_input};
+use tokio_util::sync::CancellationToken;
 
 use crate::capture::capturer;
+use crate::capture::capturer::Capturer;
 use crate::config;
 use crate::config::Config;
 use crate::gui::macros::column_iced;
@@ -20,9 +22,7 @@ pub enum Message {
 }
 
 pub struct App {
-    args: capturer::Args,
-    config: Config,
-    capturer_thread: Option<tokio::task::JoinHandle<()>>,
+    capturer: Capturer,
 }
 
 impl Application for App {
@@ -37,9 +37,7 @@ impl Application for App {
         let config = config::load(Path::new(&args.config)).unwrap();
         (
             App {
-                args,
-                config,
-                capturer_thread: None,
+                capturer: Capturer::new(args, config),
             },
             Command::none(),
         )
@@ -52,25 +50,19 @@ impl Application for App {
     fn update(&mut self, message: Message) -> Command<Message> {
         match message {
             Message::Start => {
-                let args = self.args.clone();
-                let config = self.config.clone();
-                self.capturer_thread = Some(tokio::spawn(async move {
-                    capturer::start_capture(args, config).await.unwrap();
-                }));
+                self.capturer.run();
             }
             Message::Stop => {
-                if let Some(thread) = self.capturer_thread.take() {
-                    thread.abort();
-                }
+                self.capturer.shutdown();
             }
             Message::SetMaxFps(value) => {
                 if let Ok(value) = value.parse::<u32>() {
-                    self.config.max_fps = value;
+                    self.capturer.config.max_fps = value;
                 }
             }
             Message::SetDisplay(value) => {
                 if let Ok(value) = value.parse::<usize>() {
-                    self.args.display = value;
+                    self.capturer.args.display = value;
                 }
             }
         }
@@ -79,11 +71,11 @@ impl Application for App {
     }
 
     fn view(&self) -> Element<Message> {
-        let is_sharing = self.capturer_thread.is_some();
+        let is_sharing = self.capturer.is_running();
 
         column_iced![
-            input("Display", &self.args.display.to_string(), &Message::SetDisplay),
-            input("Max FPS", &self.config.max_fps.to_string(), &Message::SetMaxFps),
+            input("Display", &self.capturer.args.display.to_string(), &Message::SetDisplay),
+            input("Max FPS", &self.capturer.config.max_fps.to_string(), &Message::SetMaxFps),
             row![
                 button(
                     if is_sharing {
