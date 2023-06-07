@@ -83,45 +83,18 @@ impl Application for App {
             // input("Display", &self.capturer.args.display.to_string(), Message::SetDisplay),
             // input("Max FPS", &self.capturer.config.max_fps.to_string(), Message::SetMaxFps),
             column_iced![
-                button(
-                    text(
-                        if is_sharing {
-                            "Stop Sharing"
-                        } else {
-                            "Start Sharing"
-                        })
-                    .size(16),
-                ).style(
-                    iced::theme::Button::Custom(Box::new(MaterialButton::new(
-                        if is_sharing {
-                            iced::theme::Button::Destructive
-                        } else {
-                            iced::theme::Button::Primary
-                        }
-                    )))
-                )
-                .padding([10, 24, 10, 24])
-                .on_press(
-                    if is_sharing {
-                        Message::Stop
-                    } else {
-                        Message::Start
-                    }
+                material_fab(
+                    if is_sharing { "Stop Sharing" } else { "Start Sharing" },
+                    if is_sharing { Message::Stop } else { Message::Start },
+                    if is_sharing { iced::theme::Button::Destructive }
+                    else { Button::Primary }
                 ),
                 if is_sharing {
-                    Element::from(
-                        button(
-                            text(
-                                "Copy invite link"
-                            ).size(16),
-                        ).style(
-                            iced::theme::Button::Custom(Box::new(MaterialButton::new(
-                                iced::theme::Button::Primary
-                            )))
-                        )
-                        .padding([10, 24, 10, 24])
-                        .on_press(Message::CopyInviteLink)
-                    )
+                    Element::from(material_button(
+                        "Copy invite link",
+                        Message::CopyInviteLink,
+                        Button::Primary
+                    ))
                 } else {
                     Element::from(row![])
                 }
@@ -140,14 +113,16 @@ impl Application for App {
     }
 
     fn theme(&self) -> Self::Theme {
-        Theme::Custom(
-            Box::from(iced::theme::Custom::new(
-                Palette {
-                    background: Color::from_rgb(0.2, 0.2, 0.2),
-                    primary: Color::from_rgb(0.0, 0.5, 0.5),
-                    ..Palette::DARK
-                }
-            ))
+        Theme::custom(
+            Palette {
+                background: Color::from_rgb8(30, 30, 30),
+                primary: Color::from_rgb8(79, 55, 139),
+                text: Color::from_rgb8(255, 255, 255),
+                // text: Default::default(),
+                // success: Default::default(),
+                // danger: Default::default(),
+                ..Palette::DARK
+            }
         )
     }
 }
@@ -159,12 +134,8 @@ fn input<'a>(
 ) -> Element<'a, Message> {
     row![
         text(format!("{}: ", name)),
-        text_input(
-            name,
-            value,
-        ).on_input(move |value| {
-            message(value)
-        })
+        text_input(name,value)
+        .on_input(move |value| { message(value) })
         .width(iced::Length::Fixed(100.)),
     ]
         .width(iced::Length::Shrink)
@@ -174,60 +145,103 @@ fn input<'a>(
         .into()
 }
 
+fn material_button<'a>(
+    button_text: &str,
+    on_press: Message,
+    style: Button,
+) -> Element<'a, Message> {
+    button(text(button_text).size(16))
+        .style(Button::Custom(Box::new(MaterialButton::new(style))))
+        .padding([10, 24, 10, 24])
+        .on_press(on_press)
+        .into()
+}
+
+fn material_fab<'a>(
+    button_text: &str,
+    on_press: Message,
+    style: Button,
+) -> Element<'a, Message> {
+    button(text(button_text).size(16))
+        .style(Button::Custom(Box::new(MaterialFAB::new(style))))
+        .padding([18, 20, 18, 20])
+        .on_press(on_press)
+        .into()
+}
+
+fn active(base: Appearance, style: &Button, theme: &Theme) -> Appearance {
+    let from_pair = |pair: iced::theme::palette::Pair| Appearance {
+        background: Some(pair.color.into()),
+        text_color: pair.text,
+        ..base
+    };
+
+    let palette = theme.extended_palette();
+
+    match style {
+        Button::Primary => from_pair(palette.primary.strong),
+        Button::Secondary => from_pair(palette.secondary.base),
+        Button::Positive => from_pair(palette.success.base),
+        Button::Destructive => from_pair(palette.danger.base),
+        Button::Text | Button::Custom(_) => Appearance {
+            text_color: palette.background.base.text,
+            ..base
+        },
+    }
+}
+
+fn hovered(base: Appearance) -> Appearance {
+    Appearance {
+        background: base.background.map(|background| match background {
+            Background::Color(color) => Background::Color(Color {
+                r: color.r - 0.1,
+                g: color.g - 0.1,
+                b: color.b - 0.1,
+                a: color.a,
+            }),
+        }),
+        ..base
+    }
+}
+
 struct MaterialButton {
     style: Button,
 }
 
-impl MaterialButton {
-    pub fn new(style: Button) -> Self {
-        Self {
-            style
-        }
-    }
-}
+impl MaterialButton { pub fn new(style: Button) -> Self { Self { style } } }
 
 impl button::StyleSheet for MaterialButton {
     type Style = Theme;
 
     fn active(&self, style: &Self::Style) -> Appearance {
-        let appearance = Appearance {
+        active(Appearance {
             border_radius: 32.0,
-            border_width: 0.0,
             ..Appearance::default()
-        };
-
-        let from_pair = |pair: iced::theme::palette::Pair| Appearance {
-            background: Some(pair.color.into()),
-            text_color: pair.text,
-            ..appearance
-        };
-
-        let palette = style.extended_palette();
-
-        match self.style {
-            Button::Primary => from_pair(palette.primary.strong),
-            Button::Secondary => from_pair(palette.secondary.base),
-            Button::Positive => from_pair(palette.success.base),
-            Button::Destructive => from_pair(palette.danger.base),
-            Button::Text | Button::Custom(_) => Appearance {
-                text_color: palette.background.base.text,
-                ..appearance
-            },
-        }
+        }, &self.style, style)
     }
 
     fn hovered(&self, style: &Self::Style) -> Appearance {
-        let active = self.active(style);
-        Appearance {
-            background: active.background.map(|background| match background {
-                Background::Color(color) => Background::Color(Color {
-                    r: color.r - 0.1,
-                    g: color.g - 0.1,
-                    b: color.b - 0.1,
-                    a: color.a,
-                }),
-            }),
-            ..active
-        }
+        hovered(self.active(style))
+    }
+}
+
+struct MaterialFAB {
+    style: Button,
+}
+
+impl MaterialFAB { pub fn new(style: Button) -> Self { Self { style } } }
+
+impl button::StyleSheet for MaterialFAB {
+    type Style = Theme;
+
+    fn active(&self, style: &Self::Style) -> Appearance {
+        active(Appearance {
+            border_radius: 16.0,
+            ..Appearance::default()
+        }, &self.style, style)
+    }
+
+    fn hovered(&self, style: &Self::Style) -> Appearance {
+        hovered(self.active(style))
     }
 }
