@@ -31,11 +31,18 @@ impl AudioCapture {
     where
         T: cpal::Sample,
     {
+        let sample_size = (self.encoder.codec_parameters().sample_rate() * 20 / 1000) as usize;
+
+        println!("sample_size = {} {}", sample_size, input.len());
+        if input.len() < sample_size {
+            return;
+        }
+
         let mut frame = AudioFrameMut::silence(
             self.encoder.codec_parameters().channel_layout(),
             self.encoder.codec_parameters().sample_format(),
             self.encoder.codec_parameters().sample_rate(),
-            960,
+            sample_size as _,
         );
         let mut plane = &mut frame.planes_mut()[0];
         let mut data = plane.data_mut();
@@ -46,7 +53,7 @@ impl AudioCapture {
             )
         };
         //info!("data len = {}; input len = {}", samples.len(), input.len());
-        samples[..input.len()].copy_from_slice(input);
+        samples[..sample_size as _].copy_from_slice(input);
         self.encoder.push(frame.freeze()).unwrap();
         let mut ret = Vec::new();
         while let Some(packet) = self.encoder.take().unwrap() {
@@ -71,7 +78,7 @@ impl AudioCapture {
         let encoder = AudioEncoder::builder("libopus")
             .unwrap()
             .sample_rate(config.sample_rate().0 as _)
-            .channel_layout(ChannelLayout::from_channels(1).unwrap())
+            .channel_layout(ChannelLayout::from_channels(2).unwrap())
             .sample_format(convert_sample_format(config.sample_format()))
             .build()
             .unwrap();
