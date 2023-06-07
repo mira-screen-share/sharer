@@ -88,7 +88,7 @@ impl Application for App {
                     if is_sharing { Message::Stop } else { Message::Start },
                     if is_sharing { iced::theme::Button::Destructive }
                     else { Button::Primary },
-                    Some(if is_sharing { "stop.svg" } else { "play.png" }),
+                    Some(if is_sharing { "stop.png" } else { "play.png" }),
                 ),
                 if is_sharing {
                     Element::from(material_button(
