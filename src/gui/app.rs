@@ -4,7 +4,7 @@ use clap::Parser;
 use clipboard::{ClipboardContext, ClipboardProvider};
 use iced::{Application, Background, Color, Command, Element, executor, Theme};
 use iced::theme::{Button, Palette};
-use iced::widget::{button, row, text, text_input};
+use iced::widget::{button, horizontal_space, image, row, text, text_input};
 use iced::widget::button::Appearance;
 
 use crate::capture::capturer;
@@ -87,7 +87,8 @@ impl Application for App {
                     if is_sharing { "Stop Sharing" } else { "Start Sharing" },
                     if is_sharing { Message::Stop } else { Message::Start },
                     if is_sharing { iced::theme::Button::Destructive }
-                    else { Button::Primary }
+                    else { Button::Primary },
+                    Some(if is_sharing { "stop.svg" } else { "play.png" }),
                 ),
                 if is_sharing {
                     Element::from(material_button(
@@ -161,8 +162,23 @@ fn material_fab<'a>(
     button_text: &str,
     on_press: Message,
     style: Button,
+    icon: Option<&str>,
 ) -> Element<'a, Message> {
-    button(text(button_text).size(16))
+    button(
+        row![
+            if let Some(icon) = icon {
+                Element::from(
+                    row![
+                        image(format!("resources/{}", icon))
+                            .width(iced::Length::Fixed(18.))
+                            .height(iced::Length::Fixed(18.)),
+                        horizontal_space(15),
+                    ]
+                )
+            } else { Element::from(row![]) },
+            text(button_text).size(16)
+        ]
+    )
         .style(Button::Custom(Box::new(MaterialFAB::new(style))))
         .padding([18, 20, 18, 20])
         .on_press(on_press)
