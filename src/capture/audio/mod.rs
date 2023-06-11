@@ -34,18 +34,13 @@ impl AudioCapture {
     {
         let sample_size = self.encoder.samples_per_frame().unwrap();
 
-        // TODO: Ring buffer
-        if input.len() < sample_size {
-            warn!("Input data too small: {}", input.len());
-            return;
-        }
-
         let mut frame = AudioFrameMut::silence(
             self.encoder.codec_parameters().channel_layout(),
             self.encoder.codec_parameters().sample_format(),
             self.encoder.codec_parameters().sample_rate(),
             sample_size,
         );
+
         let plane = &mut frame.planes_mut()[0];
         let data = plane.data_mut();
         let samples: &mut [T] = unsafe {
@@ -54,12 +49,18 @@ impl AudioCapture {
                 data.len() / std::mem::size_of::<T>(),
             )
         };
-        samples.copy_from_slice(input);
+
+        // copy from input to ffmpeg buffer
+        samples[..input.len()].copy_from_slice(input);
+
         self.encoder.push(frame.freeze()).unwrap();
+
         let mut ret = Vec::new();
+
         while let Some(packet) = self.encoder.take().unwrap() {
             ret.extend(packet.data());
         }
+
         self.sender.send(Bytes::from(ret)).unwrap();
     }
 
@@ -101,25 +102,25 @@ impl AudioCapture {
         });
 
         let stream = match config.sample_format() {
-            cpal::SampleFormat::I8 => device.build_input_stream(
+            SampleFormat::I8 => device.build_input_stream(
                 &config.into(),
                 move |data, _: &_| capturer.write_input_data::<i8>(data),
                 err_fn,
                 None,
             )?,
-            cpal::SampleFormat::I16 => device.build_input_stream(
+            SampleFormat::I16 => device.build_input_stream(
                 &config.into(),
                 move |data, _: &_| capturer.write_input_data::<i16>(data),
                 err_fn,
                 None,
             )?,
-            cpal::SampleFormat::I32 => device.build_input_stream(
+            SampleFormat::I32 => device.build_input_stream(
                 &config.into(),
                 move |data, _: &_| capturer.write_input_data::<i32>(data),
                 err_fn,
                 None,
             )?,
-            cpal::SampleFormat::F32 => device.build_input_stream(
+            SampleFormat::F32 => device.build_input_stream(
                 &config.into(),
                 move |data, _: &_| capturer.write_input_data::<f32>(data),
                 err_fn,
