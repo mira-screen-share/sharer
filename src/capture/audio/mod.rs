@@ -6,6 +6,7 @@ use ac_ffmpeg::codec::Encoder;
 use bytes::Bytes;
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::{SampleFormat, Stream};
+use howlong::HighResolutionTimer;
 use std::sync::mpsc::Sender;
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -31,10 +32,11 @@ impl AudioCapture {
     where
         T: cpal::Sample,
     {
-        let sample_size = (self.encoder.codec_parameters().sample_rate() * 20 / 1000) as usize;
+        let sample_size = self.encoder.samples_per_frame().unwrap();
 
-        println!("sample_size = {} {}", sample_size, input.len());
+        // TODO: Ring buffer
         if input.len() < sample_size {
+            warn!("Input data too small: {}", input.len());
             return;
         }
 
@@ -42,18 +44,17 @@ impl AudioCapture {
             self.encoder.codec_parameters().channel_layout(),
             self.encoder.codec_parameters().sample_format(),
             self.encoder.codec_parameters().sample_rate(),
-            sample_size as _,
+            sample_size,
         );
-        let mut plane = &mut frame.planes_mut()[0];
-        let mut data = plane.data_mut();
-        let mut samples: &mut [T] = unsafe {
+        let plane = &mut frame.planes_mut()[0];
+        let data = plane.data_mut();
+        let samples: &mut [T] = unsafe {
             std::slice::from_raw_parts_mut(
                 data.as_mut_ptr() as *mut T,
                 data.len() / std::mem::size_of::<T>(),
             )
         };
-        //info!("data len = {}; input len = {}", samples.len(), input.len());
-        samples[..sample_size as _].copy_from_slice(input);
+        samples.copy_from_slice(input);
         self.encoder.push(frame.freeze()).unwrap();
         let mut ret = Vec::new();
         while let Some(packet) = self.encoder.take().unwrap() {
@@ -80,6 +81,7 @@ impl AudioCapture {
             .sample_rate(config.sample_rate().0 as _)
             .channel_layout(ChannelLayout::from_channels(2).unwrap())
             .sample_format(convert_sample_format(config.sample_format()))
+            .set_option("frame_duration", "10")
             .build()
             .unwrap();
 

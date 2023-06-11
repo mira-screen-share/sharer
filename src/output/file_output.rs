@@ -14,7 +14,7 @@ impl FileOutput {
     pub fn new(path: &str) -> Self {
         Self {
             file: File::create(path).unwrap(),
-            file_audio: File::create(path.to_string() + ".opal").unwrap(),
+            file_audio: File::create(path.to_string() + ".opus").unwrap(),
         }
     }
 }
