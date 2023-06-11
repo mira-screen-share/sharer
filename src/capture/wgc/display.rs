@@ -13,7 +13,7 @@ pub struct Display {
 impl Display {
     pub fn online() -> Result<Vec<Self>> {
         unsafe {
-            let displays = Box::into_raw(Box::new(Vec::<Display>::new()));
+            let displays = Box::into_raw(Box::default());
             EnumDisplayMonitors(HDC(0), None, Some(enum_monitor), LPARAM(displays as isize));
             Ok(*Box::from_raw(displays))
         }

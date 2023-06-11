@@ -90,7 +90,7 @@ impl PerformanceProfiler {
             (total_time / (1.0 / self.max_fps as f64 * 1000.0)) * 100.0,
             self.max_fps,
             self.last_second_frame_count,
-            1000.0/total_time as f64,
+            1000.0/total_time,
             self.last_bitrate
         );
     }

@@ -7,12 +7,14 @@ use std::io::Write;
 
 pub struct FileOutput {
     file: File,
+    file_audio: File,
 }
 
 impl FileOutput {
     pub fn new(path: &str) -> Self {
         Self {
             file: File::create(path).unwrap(),
+            file_audio: File::create(path.to_string() + ".opus").unwrap(),
         }
     }
 }
@@ -21,6 +23,10 @@ impl FileOutput {
 impl OutputSink for FileOutput {
     async fn write(&mut self, input: Bytes) -> Result<()> {
         self.file.write_all(&input)?;
+        Ok(())
+    }
+    async fn write_audio(&mut self, input: Bytes) -> Result<()> {
+        self.file_audio.write_all(&input)?;
         Ok(())
     }
 }

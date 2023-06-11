@@ -87,7 +87,7 @@ impl FfmpegEncoder {
             FrameData::NV12(nv12) => {
                 assert_eq!(self.pixel_format, "nv12");
                 let encoder_buffer_len = frame.planes_mut()[0].data_mut().len();
-                let encoder_line_size = encoder_buffer_len / self.h as usize;
+                let encoder_line_size = encoder_buffer_len / self.h;
 
                 self.copy_nv12(
                     &nv12.luminance_bytes,
@@ -126,9 +126,15 @@ impl FfmpegEncoder {
         encoder_line_size: usize,
         destination: &mut [u8],
     ) {
+        // fast path
+        if stride == encoder_line_size {
+            destination.copy_from_slice(source);
+            return;
+        }
+
         for (r, row) in enumerate(source.chunks(stride)) {
-            destination[r * encoder_line_size..r * encoder_line_size + self.w as usize]
-                .copy_from_slice(&row[..self.w as usize])
+            destination[r * encoder_line_size..r * encoder_line_size + self.w]
+                .copy_from_slice(&row[..self.w])
         }
     }
 }

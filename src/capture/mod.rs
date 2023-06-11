@@ -1,12 +1,14 @@
 use crate::{OutputSink, Result};
 use async_trait::async_trait;
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
 #[async_trait]
 pub trait ScreenCapture {
     async fn capture(
         &mut self,
         mut encoder: FfmpegEncoder,
-        mut output: Box<impl OutputSink + Send + ?Sized>,
+        output: Arc<Mutex<impl OutputSink + Send + ?Sized>>,
         mut profiler: PerformanceProfiler,
     ) -> Result<()>;
 }
@@ -40,3 +42,5 @@ pub use macos::MacOSScreenCapture as ScreenCaptureImpl;
 
 mod yuv_convert;
 pub use yuv_convert::YuvConverter;
+mod audio;
+pub use audio::AudioCapture;
