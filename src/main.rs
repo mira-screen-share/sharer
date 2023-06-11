@@ -80,7 +80,7 @@ async fn main() -> Result<()> {
         .await?
     };
 
-    let stream = AudioCapture::capture(output.clone())?;
+    let _stream = AudioCapture::capture(output.clone())?;
     capture.capture(encoder, output, profiler).await?;
 
     Ok(())

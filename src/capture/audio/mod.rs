@@ -6,7 +6,7 @@ use ac_ffmpeg::codec::Encoder;
 use bytes::Bytes;
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::{SampleFormat, Stream};
-use howlong::HighResolutionTimer;
+
 use std::sync::mpsc::Sender;
 use std::sync::Arc;
 use tokio::sync::Mutex;

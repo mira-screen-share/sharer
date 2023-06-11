@@ -34,17 +34,15 @@ pub struct EncoderConfig {
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Default)]
 pub enum IceCredentialType {
     Unspecified,
+    #[default]
     Password,
     Oauth,
 }
 
-impl Default for IceCredentialType {
-    fn default() -> Self {
-        IceCredentialType::Password
-    }
-}
+
 
 #[derive(Default, Clone, Debug, Serialize, Deserialize)]
 pub struct IceServer {

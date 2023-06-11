@@ -38,8 +38,8 @@ impl<'a> WGCScreenCapture<'a> {
             item_size,
         )?;
         let duplicator = YuvConverter::new(
-            device.clone(),
-            d3d_context.clone(),
+            device,
+            d3d_context,
             (item_size.Width as u32, item_size.Height as u32),
         )?;
         Ok(Self {
