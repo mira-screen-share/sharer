@@ -26,7 +26,7 @@ async fn main() {
     );
     App::run(Settings {
         window: iced::window::Settings {
-            size: (300, 200),
+            size: (640, 373),
             resizable: false,
             ..Default::default()
         },
