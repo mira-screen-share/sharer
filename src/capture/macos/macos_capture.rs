@@ -1,5 +1,6 @@
 use std::time::Duration;
 use std::{ptr, slice};
+use std::sync::Arc;
 
 use async_trait::async_trait;
 use block::{Block, ConcreteBlock};
@@ -7,6 +8,7 @@ use failure::format_err;
 use libc::c_void;
 use tokio::sync::mpsc::Receiver;
 use tokio::sync::mpsc::Sender;
+use tokio::sync::Mutex;
 
 use crate::capture::frame::YUVFrame;
 use crate::capture::macos::config::Config as CaptureConfig;
@@ -99,7 +101,7 @@ impl ScreenCapture for MacOSScreenCapture<'_> {
     async fn capture(
         &mut self,
         mut encoder: FfmpegEncoder,
-        mut output: Arc<Mutex<impl OutputSink + Send + ?Sized>>,
+        output: Arc<Mutex<impl OutputSink + Send + ?Sized>>,
         mut profiler: PerformanceProfiler,
     ) -> Result<()> {
         let mut ticker =
@@ -114,7 +116,7 @@ impl ScreenCapture for MacOSScreenCapture<'_> {
                 .unwrap();
             let encoded_len = encoded.len();
             profiler.done_encoding();
-            output.write(encoded).await.unwrap();
+            output.lock().await.write(encoded).await.unwrap();
             profiler.done_processing(encoded_len);
             ticker.tick().await;
         }
