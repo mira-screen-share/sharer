@@ -34,14 +34,13 @@ impl Display {
     }
 
     pub fn width(self) -> usize {
-        unsafe { CGDisplayPixelsWide(self.id()) }
-        // unsafe { CGDisplayModeGetPixelWidth(CGDisplayCopyDisplayMode(self.id())) }
+        // unsafe { CGDisplayPixelsWide(self.id()) }
+        unsafe { CGDisplayModeGetPixelWidth(CGDisplayCopyDisplayMode(self.id())) }
     }
 
     pub fn height(self) -> usize {
-        unsafe { CGDisplayPixelsHigh(self.id()) }
-
-        //unsafe { CGDisplayModeGetPixelHeight(CGDisplayCopyDisplayMode(self.id())) }
+        // unsafe { CGDisplayPixelsHigh(self.id()) }
+        unsafe { CGDisplayModeGetPixelHeight(CGDisplayCopyDisplayMode(self.id())) }
     }
 }
 

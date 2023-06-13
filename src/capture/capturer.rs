@@ -1,9 +1,10 @@
 use std::sync::Arc;
 
 use clap::Parser;
+use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
 
-use crate::capture::{Display, DisplayInfo, ScreenCapture, ScreenCaptureImpl};
+use crate::capture::{AudioCapture, Display, DisplayInfo, ScreenCapture, ScreenCaptureImpl};
 use crate::config::Config;
 use crate::encoder;
 use crate::inputs::InputHandler;
@@ -98,26 +99,28 @@ async fn start_capture(
     let resolution = display.resolution();
     let mut capture = ScreenCaptureImpl::new(display, &config)?;
     let mut encoder = encoder::FfmpegEncoder::new(resolution.0, resolution.1, &config.encoder);
-    let input_handler = Arc::new(InputHandler::new(args.disable_control, dpi_conversion_factor));
+    let input_handler = Arc::new(InputHandler::new(
+        args.disable_control,
+        dpi_conversion_factor,
+    ));
 
     info!("Resolution: {:?}", resolution);
     info!(
         "Invite link: {}?room={}&signaller={}",
         config.viewer_url, sharer_uuid, config.signaller_url
     );
-
-    let output: Box<dyn OutputSink + Send> = if let Some(path) = &args.file {
-        Box::new(FileOutput::new(&path))
+    let output: Arc<Mutex<dyn OutputSink + Send>> = if let Some(path) = args.file {
+        Arc::new(Mutex::new(FileOutput::new(&path)))
     } else {
         WebRTCOutput::new(
             Box::new(WebSocketSignaller::new(&config.signaller_url, sharer_uuid).await?),
             &mut encoder.force_idr,
             input_handler.clone(),
             &config,
-        )
-            .await?
+        ).await?
     };
 
+    let _ = AudioCapture::capture(output.clone())?;
     capture.capture(encoder, output, profiler).await?;
     Ok(())
 }
