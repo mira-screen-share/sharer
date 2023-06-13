@@ -37,11 +37,12 @@ pub struct Capturer {
     pub config: Config,
     shutdown_token_opt: Option<CancellationToken>,
     invite_link_opt: Option<String>,
+    room_id_opt: Option<String>,
 }
 
 impl Capturer {
     pub fn new(args: Args, config: Config) -> Self {
-        Self { args, config, shutdown_token_opt: None, invite_link_opt: None }
+        Self { args, config, shutdown_token_opt: None, invite_link_opt: None, room_id_opt: None }
     }
 
     pub fn run(&mut self) -> () {
@@ -56,6 +57,7 @@ impl Capturer {
             "{}?room={}&signaller={}",
             config.viewer_url, sharer_uuid, config.signaller_url
         ));
+        self.room_id_opt = Some(sharer_uuid.clone());
 
         tokio::spawn(async move {
             tokio::select! {
@@ -78,6 +80,10 @@ impl Capturer {
 
     pub fn get_invite_link(&self) -> Option<String> {
         self.invite_link_opt.clone()
+    }
+
+    pub fn get_room_id(&self) -> Option<String> {
+        self.room_id_opt.clone()
     }
 }
 
