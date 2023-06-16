@@ -10,16 +10,17 @@ use crate::gui::theme::widget::{Button};
 
 /// Material Design 3 Icon Button
 /// https://m3.material.io/components/icon-button/specs
-pub struct IconButton<'a> {
-    icon: &'a str,
+pub struct IconButton {
+    icon: String,
     filled: bool,
     style: Style,
 }
 
-impl<'a> IconButton<'a> {
-    pub fn new(icon: &'a str) -> Self {
+#[allow(dead_code)]
+impl IconButton {
+    pub fn new(icon: &str) -> Self {
         Self {
-            icon,
+            icon: icon.into(),
             filled: false,
             style: Style::default(),
         }
@@ -36,7 +37,7 @@ impl<'a> IconButton<'a> {
     }
 }
 
-impl<'a> Buildable<'a> for IconButton<'static> {
+impl<'a> Buildable<'a> for IconButton {
     fn build<Message: 'a>(self) -> Button<'a, Message> {
         button(
             Svg::new(format!("resources/{}", self.icon))
@@ -50,9 +51,9 @@ impl<'a> Buildable<'a> for IconButton<'static> {
     }
 }
 
-impl Themed for IconButton<'_> {}
+impl Themed for IconButton {}
 
-impl StyleSheet for IconButton<'_> {
+impl StyleSheet for IconButton {
     type Style = Theme;
 
     fn active(&self, style: &Self::Style) -> Appearance {

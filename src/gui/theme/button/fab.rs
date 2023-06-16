@@ -1,5 +1,5 @@
 use iced::{Background, Color};
-use iced::widget::{button, horizontal_space, image, row, text};
+use iced::widget::{button, horizontal_space, row, text};
 use iced::widget::button::{Appearance, StyleSheet};
 
 use crate::gui::theme::button::{Buildable, Style, Themed};
@@ -12,17 +12,18 @@ use crate::gui::theme::widget::Button;
 
 /// Material Design 3 Extended FAB
 /// https://m3.material.io/components/extended-fab/specs
-pub struct FAB<'a> {
-    text: &'a str,
-    icon: &'a str,
+pub struct FAB {
+    text: String,
+    icon: String,
     style: Style,
 }
 
-impl<'a> FAB<'a> {
-    pub fn new(text: &'a str, icon: &'a str) -> Self {
+#[allow(dead_code)]
+impl FAB {
+    pub fn new(text: &str, icon: &str) -> Self {
         Self {
-            text,
-            icon,
+            text: text.into(),
+            icon: icon.into(),
             style: Style::default(),
         }
     }
@@ -33,11 +34,11 @@ impl<'a> FAB<'a> {
     }
 }
 
-impl<'a> Buildable<'a> for FAB<'static> {
+impl<'a> Buildable<'a> for FAB {
     fn build<Message: 'a>(self) -> Button<'a, Message> {
         button(
             row![
-                Svg::new(format!("resources/{}", self.icon))
+                Svg::new(format!("resources/{}", self.icon.clone()))
                     .color(
                         match self.style {
                             Primary => svg::Color::OnPrimary,
@@ -49,7 +50,7 @@ impl<'a> Buildable<'a> for FAB<'static> {
                     .width(iced::Length::Fixed(21.))
                     .height(iced::Length::Fixed(21.)),
                 horizontal_space(12),
-                text(self.text).size(16)
+                text(self.text.clone()).size(16)
             ].align_items(iced::Alignment::Center)
         ).style(Box::new(self) as _)
             .padding([0, 16, 0, 16])
@@ -57,9 +58,9 @@ impl<'a> Buildable<'a> for FAB<'static> {
     }
 }
 
-impl Themed for FAB<'_> {}
+impl Themed for FAB {}
 
-impl StyleSheet for FAB<'_> {
+impl StyleSheet for FAB {
     type Style = Theme;
 
     fn active(&self, style: &Self::Style) -> Appearance {

@@ -12,16 +12,17 @@ use crate::gui::theme::widget::Button;
 
 /// Material Design 3 Filled Button
 /// https://m3.material.io/components/buttons/specs#0b1b7bd2-3de8-431a-afa1-d692e2e18b0d
-pub struct FilledButton<'a> {
-    text: &'a str,
-    icon: Option<&'a str>,
+pub struct FilledButton {
+    text: String,
+    icon: Option<String>,
     style: Style,
 }
 
-impl<'a> FilledButton<'a> {
-    pub fn new(text: &'a str) -> Self {
+#[allow(dead_code)]
+impl FilledButton {
+    pub fn new(text: &str) -> Self {
         Self {
-            text,
+            text: text.into(),
             icon: None,
             style: Style::default(),
         }
@@ -32,15 +33,15 @@ impl<'a> FilledButton<'a> {
         self
     }
 
-    pub fn icon(mut self, icon: &'a str) -> Self {
-        self.icon = Some(icon);
+    pub fn icon(mut self, icon: &str) -> Self {
+        self.icon = Some(icon.into());
         self
     }
 }
 
-impl<'a> Buildable<'a> for FilledButton<'static> {
+impl<'a> Buildable<'a> for FilledButton {
     fn build<Message: 'a>(self) -> Button<'a, Message> {
-        if let Some(icon) = self.icon {
+        if let Some(icon) = self.icon.clone() {
             button(
                 row![
                     Svg::new(format!("resources/{}", icon))
@@ -55,13 +56,13 @@ impl<'a> Buildable<'a> for FilledButton<'static> {
                         .width(iced::Length::Fixed(18.))
                         .height(iced::Length::Fixed(18.)),
                     horizontal_space(8),
-                    text(self.text).size(16)
+                    text(self.text.clone()).size(16)
                 ].align_items(iced::Alignment::Center)
             ).padding([0, 24, 0, 19])
         } else {
             button(
                 row![
-                    text(self.text).size(16)
+                    text(self.text.clone()).size(16)
                 ].align_items(iced::Alignment::Center)
             ).padding([0, 24, 0, 24])
         }.style(Box::new(self) as _)
@@ -69,9 +70,9 @@ impl<'a> Buildable<'a> for FilledButton<'static> {
     }
 }
 
-impl Themed for FilledButton<'_> {}
+impl Themed for FilledButton {}
 
-impl StyleSheet for FilledButton<'_> {
+impl StyleSheet for FilledButton {
     type Style = Theme;
 
     fn active(&self, style: &Self::Style) -> Appearance {
