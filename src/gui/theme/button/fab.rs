@@ -1,7 +1,6 @@
 use iced::{Background, Color};
 use iced::widget::{button, horizontal_space, row, text};
 use iced::widget::button::{Appearance, StyleSheet};
-use crate::gui::resource;
 
 use crate::gui::theme::button::{Buildable, Style, Themed};
 use crate::gui::theme::button::Style::{Danger, Primary, Secondary};
