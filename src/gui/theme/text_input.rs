@@ -17,7 +17,7 @@ impl StyleSheet for Theme {
     fn active(&self, style: &Self::Style) -> Appearance {
         match style {
             Style::Selectable => Appearance {
-                background: Color::from_rgba(0.0, 0.0, 0.0, 0.0).into(),
+                background: Color::TRANSPARENT.into(),
                 border_radius: 0.0,
                 border_width: 0.0,
                 border_color: Color::BLACK,
@@ -34,7 +34,7 @@ impl StyleSheet for Theme {
 
     fn placeholder_color(&self, style: &Self::Style) -> Color {
         match style {
-            Style::Selectable => Color::from_rgba(0.0, 0.0, 0.0, 0.0).into(),
+            Style::Selectable => Color::TRANSPARENT,
         }
     }
 
@@ -46,7 +46,7 @@ impl StyleSheet for Theme {
 
     fn disabled_color(&self, style: &Self::Style) -> Color {
         match style {
-            Style::Selectable => Color::from_rgba(0.0, 0.0, 0.0, 0.0).into(),
+            Style::Selectable => Color::TRANSPARENT,
         }
     }
 
