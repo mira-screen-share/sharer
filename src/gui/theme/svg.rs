@@ -26,7 +26,7 @@ pub enum Color {
 impl Svg {
     pub fn new(resource: String) -> Self {
         Self {
-            resource: resource.to_owned(),
+            resource: resource.into(),
             color: Default::default(),
         }
     }

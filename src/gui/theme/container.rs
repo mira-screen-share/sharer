@@ -5,8 +5,9 @@ use crate::gui::theme::Theme;
 #[allow(dead_code)]
 #[derive(Default)]
 pub enum Style {
-    #[default]
+    /// Material Design 3 Outlined Card
     /// https://m3.material.io/components/cards/specs#9ad208b3-3d37-475c-a0eb-68cf845718f8
+    #[default]
     OutlinedCard,
 }
 
