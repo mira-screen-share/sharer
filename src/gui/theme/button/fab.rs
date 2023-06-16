@@ -8,19 +8,19 @@ use crate::gui::theme::color::ColorExt;
 use crate::gui::theme::Theme;
 use crate::gui::widget::Button;
 
-/// Material Design 3 Filled Button
-/// https://m3.material.io/components/buttons/specs#0b1b7bd2-3de8-431a-afa1-d692e2e18b0d
-pub struct FilledButton<'a> {
+/// Material Design 3 Extended FAB
+/// https://m3.material.io/components/extended-fab/specs
+pub struct FAB<'a> {
     text: &'a str,
-    icon: Option<&'a str>,
+    icon: &'a str,
     style: Style,
 }
 
-impl<'a> FilledButton<'a> {
-    pub fn new(text: &'a str) -> Self {
+impl<'a> FAB<'a> {
+    pub fn new(text: &'a str, icon: &'a str) -> Self {
         Self {
             text,
-            icon: None,
+            icon,
             style: Style::default(),
         }
     }
@@ -29,45 +29,33 @@ impl<'a> FilledButton<'a> {
         self.style = style;
         self
     }
-
-    pub fn icon(mut self, icon: &'a str) -> Self {
-        self.icon = Some(icon);
-        self
-    }
 }
 
-impl<'a> Buildable<'a> for FilledButton<'static> {
+impl<'a> Buildable<'a> for FAB<'static> {
     fn build<Message: 'a>(self) -> Button<'a, Message> {
-        if let Some(icon) = self.icon {
-            button(
-                row![
-                    image(format!("resources/{}", icon))
-                        .width(iced::Length::Fixed(18.))
-                        .height(iced::Length::Fixed(18.)),
-                    horizontal_space(8),
-                    text(self.text).size(16)
-                ].align_items(iced::Alignment::Center)
-            ).padding([0, 24, 0, 19])
-        } else {
-            button(
-                row![
-                    text(self.text).size(16)
-                ].align_items(iced::Alignment::Center)
-            ).padding([0, 24, 0, 24])
-        }.style(Box::new(self) as _)
-            .height(40)
+        button(
+            row![
+                image(format!("resources/{}", self.icon))
+                    .width(iced::Length::Fixed(21.))
+                    .height(iced::Length::Fixed(21.)),
+                horizontal_space(12),
+                text(self.text).size(16)
+            ].align_items(iced::Alignment::Center)
+        ).style(Box::new(self) as _)
+            .padding([0, 16, 0, 16])
+            .height(56)
     }
 }
 
-impl Themed for FilledButton<'_> {}
+impl Themed for FAB<'_> {}
 
-impl StyleSheet for FilledButton<'_> {
+impl StyleSheet for FAB<'_> {
     type Style = Theme;
 
     fn active(&self, style: &Self::Style) -> Appearance {
         let palette = style.palette();
         let partial = Appearance {
-            border_radius: 32.0,
+            border_radius: 16.0,
             ..Appearance::default()
         };
         let from = |background: Color, on_background: Color| Appearance {

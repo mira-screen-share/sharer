@@ -21,6 +21,8 @@ pub struct Palette {
     pub on_primary: Color,
     pub on_secondary: Color,
     pub on_danger: Color,
+    pub on_surface: Color,
+    pub on_surface_variant: Color,
     pub success: Color,
     pub danger: Color,
 }
@@ -32,6 +34,8 @@ impl Palette {
         on_primary: Color::WHITE,
         on_secondary: Color::BLACK,
         on_danger: Color::WHITE,
+        on_surface: Color::BLACK,
+        on_surface_variant: Color::WHITE,
         primary: Color::from_rgb(79. / 255., 55. / 255., 139. / 255.),
         secondary: Color::from_rgb(
             0x5E as f32 / 255.0,
@@ -60,6 +64,8 @@ impl Palette {
         on_primary: Color::from_rgb(0.90, 0.90, 0.90),
         on_secondary: Color::from_rgb(0.90, 0.90, 0.90),
         on_danger: Color::WHITE,
+        on_surface: Color::WHITE,
+        on_surface_variant: Color::from_rgb(202. / 255., 196. / 255., 208. / 255.),
         primary: Color::from_rgb(79. / 255., 55. / 255., 139. / 255.),
         secondary: Color::from_rgb(
             0x5E as f32 / 255.0,

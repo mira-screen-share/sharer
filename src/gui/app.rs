@@ -10,6 +10,7 @@ use crate::capture::capturer::Capturer;
 use crate::gui::message::Message;
 use crate::gui::message::Message::Ignore;
 use crate::gui::theme::button;
+use crate::gui::theme::button::{Buildable, FAB, FilledButton, IconButton};
 use crate::gui::theme::Theme;
 use crate::gui::widget::Element;
 
@@ -123,18 +124,27 @@ impl Application for App {
         //     .padding(10)
         //     .into();
 
-        // let element = filled_button::primary(text("123")).on_press(Ignore).into();
-
         let element: Element<Message> =
             column_iced![
-                button::Filled::new("Filled Button")
+                FilledButton::new("Filled Button")
                     .style(button::Style::Primary)
-                    .into()
+                    .build()
                     .on_press(Ignore),
-                button::Filled::new("Filled Button")
+                FilledButton::new("Filled Button")
                     .style(button::Style::Primary)
                     .icon("play.png")
-                    .into()
+                    .build()
+                    .on_press(Ignore),
+                FAB::new("Compose", "stop.png")
+                    .style(button::Style::Danger)
+                    .build()
+                    .on_press(Ignore),
+                IconButton::new("copy.png")
+                    .build()
+                    .on_press(Ignore),
+                IconButton::new("copy.png")
+                    .filled(true)
+                    .build()
                     .on_press(Ignore),
             ].spacing(16).align_items(Center).into();
 

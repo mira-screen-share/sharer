@@ -1,9 +1,16 @@
-use iced::widget::button;
-use iced::widget::button::Appearance;
+use iced::widget::button::{Appearance, StyleSheet};
+
+pub use fab::FAB;
+pub use filled::FilledButton;
+pub use icon::IconButton;
 
 use crate::gui::theme::Theme;
+use crate::gui::widget::Button;
 
 mod filled;
+mod fab;
+mod icon;
+
 
 #[allow(dead_code)]
 #[derive(Default)]
@@ -14,44 +21,58 @@ pub enum Style {
     Danger,
 }
 
-/// Material Design 3 Filled Button
-/// https://m3.material.io/components/buttons/specs#0b1b7bd2-3de8-431a-afa1-d692e2e18b0d
-pub type Filled<'a> = filled::FilledButton<'a>;
-
-pub enum Variant {
-    Filled(filled::Style),
+pub trait Buildable<'a> {
+    fn build<Message: 'a>(self) -> Button<'a, Message>;
 }
 
-impl Default for Variant {
-    fn default() -> Self {
-        Self::Filled(Default::default())
-    }
-}
+pub trait Themed: StyleSheet<Style=Theme> {}
 
-impl button::StyleSheet for Theme {
-    type Style = Variant;
+impl StyleSheet for Theme {
+    type Style = Box<dyn Themed<Style=Theme>>;
 
     fn active(&self, style: &Self::Style) -> Appearance {
-        match style {
-            Variant::Filled(style) => style.active(self),
-        }
+        style.active(self)
     }
 
     fn hovered(&self, style: &Self::Style) -> Appearance {
-        match style {
-            Variant::Filled(style) => style.hovered(self),
-        }
+        style.hovered(self)
     }
 
     fn pressed(&self, style: &Self::Style) -> Appearance {
-        match style {
-            Variant::Filled(style) => style.pressed(self),
-        }
+        style.pressed(self)
     }
 
     fn disabled(&self, style: &Self::Style) -> Appearance {
-        match style {
-            Variant::Filled(style) => style.disabled(self),
-        }
+        style.disabled(self)
+    }
+}
+
+struct DefaultButton;
+
+impl Themed for DefaultButton {}
+
+impl StyleSheet for DefaultButton {
+    type Style = Theme;
+
+    fn active(&self, _: &Self::Style) -> Appearance {
+        Appearance::default()
+    }
+
+    fn hovered(&self, _: &Self::Style) -> Appearance {
+        Appearance::default()
+    }
+
+    fn pressed(&self, _: &Self::Style) -> Appearance {
+        Appearance::default()
+    }
+
+    fn disabled(&self, _: &Self::Style) -> Appearance {
+        Appearance::default()
+    }
+}
+
+impl Default for Box<dyn Themed<Style=Theme>> {
+    fn default() -> Self {
+        Box::new(DefaultButton)
     }
 }
