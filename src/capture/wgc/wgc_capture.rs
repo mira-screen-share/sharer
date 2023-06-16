@@ -70,7 +70,7 @@ impl ScreenCapture for WGCScreenCapture<'_> {
             move |frame_pool, _| {
                 let frame_pool = frame_pool.as_ref().unwrap();
                 let frame = frame_pool.TryGetNextFrame()?;
-                sender.try_send(frame).unwrap();
+                sender.try_send(frame).unwrap_or(());
                 Ok(())
             }
         }))?;
