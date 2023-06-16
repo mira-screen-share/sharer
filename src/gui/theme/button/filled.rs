@@ -79,7 +79,7 @@ impl StyleSheet for FilledButton<'_> {
         match self.style {
             Primary => from(palette.primary, palette.on_primary),
             Secondary => from(palette.secondary, palette.on_secondary),
-            Danger => from(palette.danger, palette.on_danger),
+            Danger => from(palette.error, palette.on_error),
         }
     }
 
@@ -89,7 +89,7 @@ impl StyleSheet for FilledButton<'_> {
         let state = match self.style {
             Primary => palette.on_primary,
             Secondary => palette.on_secondary,
-            Danger => palette.on_danger,
+            Danger => palette.on_error,
         };
 
         Appearance {

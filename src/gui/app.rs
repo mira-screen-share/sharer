@@ -135,5 +135,5 @@ impl Application for App {
         element
     }
 
-    fn theme(&self) -> Self::Theme { Theme::Dark }
+    fn theme(&self) -> Self::Theme { Theme::Light }
 }

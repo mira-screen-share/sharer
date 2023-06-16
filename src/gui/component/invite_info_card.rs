@@ -31,7 +31,7 @@ pub fn invite_info_card<'a>(
         ].align_items(iced::Alignment::Center)
             .spacing(8)
             .padding(16)
-    ).style(gui::theme::container::Style::Card)
+    ).style(gui::theme::container::Style::OutlinedCard)
         .width(width)
         .into()
 }

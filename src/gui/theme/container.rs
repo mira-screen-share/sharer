@@ -6,7 +6,8 @@ use crate::gui::theme::Theme;
 #[derive(Default)]
 pub enum Style {
     #[default]
-    Card,
+    /// https://m3.material.io/components/cards/specs#9ad208b3-3d37-475c-a0eb-68cf845718f8
+    OutlinedCard,
 }
 
 impl StyleSheet for Theme {
@@ -16,7 +17,7 @@ impl StyleSheet for Theme {
         let palette = self.palette();
 
         match style {
-            Style::Card => Appearance {
+            Style::OutlinedCard => Appearance {
                 background: palette.surface.into(),
                 border_radius: 12.,
                 border_width: 1.,

@@ -2,6 +2,7 @@ use iced::Color;
 use iced::widget::text_input::{Appearance, StyleSheet};
 
 use crate::gui::theme::Theme;
+use crate::gui::theme::color::ColorExt;
 
 #[allow(dead_code)]
 #[derive(Default)]
@@ -39,7 +40,7 @@ impl StyleSheet for Theme {
 
     fn value_color(&self, style: &Self::Style) -> Color {
         match style {
-            Style::Selectable => self.palette().text,
+            Style::Selectable => self.palette().on_background,
         }
     }
 
@@ -51,7 +52,7 @@ impl StyleSheet for Theme {
 
     fn selection_color(&self, style: &Self::Style) -> Color {
         match style {
-            Style::Selectable => self.palette().primary,
+            Style::Selectable => self.palette().primary.with_alpha(0.2),
         }
     }
 
