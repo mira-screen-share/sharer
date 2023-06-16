@@ -3,6 +3,9 @@ use iced::widget::text;
 
 pub mod button;
 pub mod color;
+pub mod widget;
+pub mod container;
+pub mod text_input;
 
 #[allow(dead_code)]
 #[derive(Debug, Clone, PartialEq, Default)]
@@ -18,6 +21,8 @@ pub struct Palette {
     pub text: Color,
     pub primary: Color,
     pub secondary: Color,
+    pub surface: Color,
+    pub outline: Color,
     pub on_primary: Color,
     pub on_secondary: Color,
     pub on_danger: Color,
@@ -42,6 +47,8 @@ impl Palette {
             0x7C as f32 / 255.0,
             0xE2 as f32 / 255.0,
         ),
+        surface: Color::WHITE,
+        outline: Color::BLACK,
         success: Color::from_rgb(
             0x12 as f32 / 255.0,
             0x66 as f32 / 255.0,
@@ -72,6 +79,8 @@ impl Palette {
             0x7C as f32 / 255.0,
             0xE2 as f32 / 255.0,
         ),
+        surface: Color::from_rgb(29. / 255., 27. / 255., 32. / 255.),
+        outline: Color::from_rgb(73. / 255., 69. / 255., 79. / 255.),
         success: Color::from_rgb(
             0x12 as f32 / 255.0,
             0x66 as f32 / 255.0,

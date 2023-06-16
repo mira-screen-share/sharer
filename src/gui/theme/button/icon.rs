@@ -5,7 +5,7 @@ use iced::widget::button::{Appearance, StyleSheet};
 use crate::gui::theme::button::{Buildable, Style, Style::*, Themed};
 use crate::gui::theme::color::ColorExt;
 use crate::gui::theme::Theme;
-use crate::gui::widget::Button;
+use crate::gui::theme::widget::Button;
 
 /// Material Design 3 Icon Button
 /// https://m3.material.io/components/icon-button/specs

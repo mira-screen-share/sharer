@@ -1,18 +1,19 @@
 use std::path::Path;
 
 use clap::Parser;
-use iced::{Application, clipboard, Command, executor};
+use iced::{Application, clipboard, Command, executor, Length};
 use iced::Alignment::Center;
+use iced::widget::{row, vertical_space};
 
 use crate::{column_iced, config};
 use crate::capture::capturer;
 use crate::capture::capturer::Capturer;
+use crate::gui::component::invite_info_card;
 use crate::gui::message::Message;
-use crate::gui::message::Message::Ignore;
 use crate::gui::theme::button;
-use crate::gui::theme::button::{Buildable, FAB, FilledButton, IconButton};
+use crate::gui::theme::button::{Buildable, FAB, FilledButton};
 use crate::gui::theme::Theme;
-use crate::gui::widget::Element;
+use crate::gui::theme::widget::Element;
 
 pub struct App {
     capturer: Capturer,
@@ -78,75 +79,57 @@ impl Application for App {
     }
 
     fn view(&self) -> Element<Message> {
-        // let is_sharing = self.capturer.is_running();
-        //
-        // let element: Element<Message> = row![
-        //     if is_sharing {
-        //         column_iced![
-        //             column_iced![
-        //                 row![
-        //                     material_card(
-        //                         "Room",
-        //                         self.capturer.get_room_id().unwrap_or_default().as_str(),
-        //                         Fixed(156.),
-        //                         Some(material_icon_button("copy.png", Message::CopyRoomID))
-        //                     ),
-        //                     material_card(
-        //                         "Passcode",
-        //                         "TODO",
-        //                         Fixed(156.),
-        //                         Some(material_icon_button("copy.png", Message::CopyPasscode))
-        //                     ),
-        //                 ].spacing(12),
-        //                 material_card(
-        //                     "Invite Link",
-        //                     self.capturer.get_invite_link().unwrap_or_default().as_str(),
-        //                     iced::Length::Fixed(324.),
-        //                     Some(material_icon_button("copy.png", Message::CopyInviteLink))
-        //                 )
-        //             ].width(Shrink)
-        //                 .height(Shrink)
-        //                 .spacing(12),
-        //             vertical_space(Fill),
-        //             fab("End", Message::Stop, Button::Destructive, Some("stop.png"), [12, 20, 12, 20]),
-        //         ]
-        //         .height(Fill)
-        //     } else {
-        //         column_iced![
-        //             fab("Start Sharing", Message::Start, Button::Primary, Some("play.png"), [18, 20, 18, 20])
-        //         ]
-        //     }.align_items(Center)
-        //         .width(Fill)
-        //         .padding(10)
-        //         .spacing(12),
-        // ].align_items(Center)
-        //     .height(Fill)
-        //     .padding(10)
-        //     .into();
-
-        let element: Element<Message> =
-            column_iced![
-                FilledButton::new("Filled Button")
-                    .style(button::Style::Primary)
-                    .build()
-                    .on_press(Ignore),
-                FilledButton::new("Filled Button")
-                    .style(button::Style::Primary)
-                    .icon("play.png")
-                    .build()
-                    .on_press(Ignore),
-                FAB::new("Compose", "stop.png")
-                    .style(button::Style::Danger)
-                    .build()
-                    .on_press(Ignore),
-                IconButton::new("copy.png")
-                    .build()
-                    .on_press(Ignore),
-                IconButton::new("copy.png")
-                    .filled(true)
-                    .build()
-                    .on_press(Ignore),
-            ].spacing(16).align_items(Center).into();
+        let is_sharing = self.capturer.is_running();
+        let element: Element<Message> = row![
+            if is_sharing {
+                column_iced![
+                    column_iced![
+                        row![
+                            invite_info_card(
+                                "Room",
+                                self.capturer.get_room_id().unwrap_or_default().as_str(),
+                                Message::CopyRoomID,
+                                156.,
+                            ),
+                            invite_info_card(
+                                "Passcode",
+                                "TODO",
+                                Message::CopyPasscode,
+                                156.,
+                            ),
+                        ].spacing(12),
+                        invite_info_card(
+                            "Invite Link",
+                            self.capturer.get_invite_link().unwrap_or_default().as_str(),
+                            Message::CopyInviteLink,
+                            324.,
+                        )
+                    ].width(Length::Shrink)
+                        .height(Length::Shrink)
+                        .spacing(12),
+                    vertical_space(Length::Fill),
+                    FilledButton::new("End")
+                        .icon("stop.png")
+                        .style(button::Style::Danger)
+                        .build()
+                        .on_press(Message::Stop),
+                ]
+                .height(Length::Fill)
+            } else {
+                column_iced![
+                    FAB::new("Start Sharing", "play.png")
+                        .style(button::Style::Primary)
+                        .build()
+                        .on_press(Message::Start),
+                ]
+            }.align_items(Center)
+                .width(Length::Fill)
+                .padding(10)
+                .spacing(12),
+        ].align_items(Center)
+            .height(Length::Fill)
+            .padding(10)
+            .into();
 
         // element.explain(Color::WHITE)
         element

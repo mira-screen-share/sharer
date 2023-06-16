@@ -6,7 +6,7 @@ use crate::gui::theme::button::{Buildable, Style, Themed};
 use crate::gui::theme::button::Style::{Danger, Primary, Secondary};
 use crate::gui::theme::color::ColorExt;
 use crate::gui::theme::Theme;
-use crate::gui::widget::Button;
+use crate::gui::theme::widget::Button;
 
 /// Material Design 3 Extended FAB
 /// https://m3.material.io/components/extended-fab/specs
