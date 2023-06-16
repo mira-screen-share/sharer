@@ -5,6 +5,8 @@ use iced::widget::button::{Appearance, StyleSheet};
 use crate::gui::theme::button::{Buildable, Style, Themed};
 use crate::gui::theme::button::Style::{Danger, Primary, Secondary};
 use crate::gui::theme::color::ColorExt;
+use crate::gui::theme::svg;
+use crate::gui::theme::svg::Svg;
 use crate::gui::theme::Theme;
 use crate::gui::theme::widget::Button;
 
@@ -35,7 +37,15 @@ impl<'a> Buildable<'a> for FAB<'static> {
     fn build<Message: 'a>(self) -> Button<'a, Message> {
         button(
             row![
-                image(format!("resources/{}", self.icon))
+                Svg::new(format!("resources/{}", self.icon))
+                    .color(
+                        match self.style {
+                            Primary => svg::Color::OnPrimary,
+                            Secondary => svg::Color::OnSecondary,
+                            Danger => svg::Color::OnError,
+                        }
+                    )
+                    .build()
                     .width(iced::Length::Fixed(21.))
                     .height(iced::Length::Fixed(21.)),
                 horizontal_space(12),

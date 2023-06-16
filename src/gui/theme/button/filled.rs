@@ -1,10 +1,12 @@
 use iced::{Background, Color};
-use iced::widget::{button, horizontal_space, image, row, text};
+use iced::widget::{button, horizontal_space, row, text};
 use iced::widget::button::{Appearance, StyleSheet};
 
 use crate::gui::theme::button::{Buildable, Style, Themed};
 use crate::gui::theme::button::Style::{Danger, Primary, Secondary};
 use crate::gui::theme::color::ColorExt;
+use crate::gui::theme::svg;
+use crate::gui::theme::svg::Svg;
 use crate::gui::theme::Theme;
 use crate::gui::theme::widget::Button;
 
@@ -41,7 +43,15 @@ impl<'a> Buildable<'a> for FilledButton<'static> {
         if let Some(icon) = self.icon {
             button(
                 row![
-                    image(format!("resources/{}", icon))
+                    Svg::new(format!("resources/{}", icon))
+                        .color(
+                            match self.style {
+                                Primary => svg::Color::OnPrimary,
+                                Secondary => svg::Color::OnSecondary,
+                                Danger => svg::Color::OnError,
+                            }
+                        )
+                        .build()
                         .width(iced::Length::Fixed(18.))
                         .height(iced::Length::Fixed(18.)),
                     horizontal_space(8),

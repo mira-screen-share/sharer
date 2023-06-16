@@ -8,6 +8,7 @@ pub mod color;
 pub mod widget;
 pub mod container;
 pub mod text_input;
+pub mod svg;
 
 #[allow(dead_code)]
 #[derive(Debug, Clone, PartialEq, Default)]

@@ -25,7 +25,7 @@ pub fn invite_info_card<'a>(
                     .width(iced::Length::Fill)
                     .padding(0)
             ].width(iced::Length::Fixed(width - 80.)),
-            IconButton::new("copy.png")
+            IconButton::new("copy.svg")
                 .build()
                 .on_press(on_copy)
         ].align_items(iced::Alignment::Center)

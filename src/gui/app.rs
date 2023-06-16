@@ -109,7 +109,7 @@ impl Application for App {
                         .spacing(12),
                     vertical_space(Length::Fill),
                     FilledButton::new("End")
-                        .icon("stop.png")
+                        .icon("stop.svg")
                         .style(button::Style::Danger)
                         .build()
                         .on_press(Message::Stop),
@@ -117,7 +117,7 @@ impl Application for App {
                 .height(Length::Fill)
             } else {
                 column_iced![
-                    FAB::new("Start Sharing", "play.png")
+                    FAB::new("Start Sharing", "play.svg")
                         .style(button::Style::Primary)
                         .build()
                         .on_press(Message::Start),
@@ -135,5 +135,5 @@ impl Application for App {
         element
     }
 
-    fn theme(&self) -> Self::Theme { Theme::Light }
+    fn theme(&self) -> Self::Theme { Theme::Dark }
 }
