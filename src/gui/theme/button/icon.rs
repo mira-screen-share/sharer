@@ -1,12 +1,12 @@
 use iced::{Background, Color};
-use iced::widget::{button};
+use iced::widget::button;
 use iced::widget::button::{Appearance, StyleSheet};
 
 use crate::gui::theme::button::{Buildable, Style, Style::*, Themed};
 use crate::gui::theme::color::ColorExt;
 use crate::gui::theme::svg::Svg;
 use crate::gui::theme::Theme;
-use crate::gui::theme::widget::{Button};
+use crate::gui::theme::widget::Button;
 
 /// Material Design 3 Icon Button
 /// https://m3.material.io/components/icon-button/specs
@@ -40,7 +40,7 @@ impl IconButton {
 impl<'a> Buildable<'a> for IconButton {
     fn build<Message: 'a>(self) -> Button<'a, Message> {
         button(
-            Svg::new(format!("resources/{}", self.icon))
+            Svg::new(self.icon.clone())
                 .build()
                 .width(iced::Length::Fixed(18.))
                 .height(iced::Length::Fixed(18.)),

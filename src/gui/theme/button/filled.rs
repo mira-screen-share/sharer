@@ -44,7 +44,7 @@ impl<'a> Buildable<'a> for FilledButton {
         if let Some(icon) = self.icon.clone() {
             button(
                 row![
-                    Svg::new(format!("resources/{}", icon))
+                    Svg::new(icon)
                         .color(
                             match self.style {
                                 Primary => svg::Color::OnPrimary,

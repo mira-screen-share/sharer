@@ -3,13 +3,13 @@ use std::path::PathBuf;
 use iced::widget::svg;
 use iced::widget::svg::{Appearance, Handle, StyleSheet};
 
-use crate::gui::theme;
+use crate::gui::{resource, theme};
 use crate::gui::theme::Theme;
 
 #[allow(dead_code)]
 #[derive(Default)]
 pub struct Svg {
-    resource: String,
+    svg: String,
     color: Color,
 }
 
@@ -24,9 +24,9 @@ pub enum Color {
 }
 
 impl Svg {
-    pub fn new(resource: String) -> Self {
+    pub fn new(svg: String) -> Self {
         Self {
-            resource: resource.into(),
+            svg,
             color: Default::default(),
         }
     }
@@ -37,7 +37,7 @@ impl Svg {
     }
 
     pub fn build(&self) -> theme::widget::Svg {
-        svg(Handle::from_path(PathBuf::from(&self.resource)))
+        svg(Handle::from_path(PathBuf::from(resource::get(self.svg.clone()))))
             .style(self.color.clone())
     }
 }
