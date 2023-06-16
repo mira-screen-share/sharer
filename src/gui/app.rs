@@ -1,19 +1,19 @@
 use std::path::Path;
 
 use clap::Parser;
-use iced::{Application, clipboard, Color, Command, Element, executor, Theme};
+use iced::{Application, clipboard, Command, executor, Length};
 use iced::Alignment::Center;
-use iced::Length::{Fill, Fixed, Shrink};
-use iced::theme::{Button, Palette};
 use iced::widget::{row, vertical_space};
 
+use crate::{column_iced, config};
 use crate::capture::capturer;
 use crate::capture::capturer::Capturer;
-use crate::config;
-use crate::gui::macros::column_iced;
-use crate::gui::material_button::{material_fab, material_icon_button};
-use crate::gui::material_card::material_card;
+use crate::gui::component::invite_info_card;
 use crate::gui::message::Message;
+use crate::gui::theme::button;
+use crate::gui::theme::button::{Buildable, FAB, FilledButton};
+use crate::gui::theme::Theme;
+use crate::gui::theme::widget::Element;
 
 pub struct App {
     capturer: Capturer,
@@ -80,48 +80,54 @@ impl Application for App {
 
     fn view(&self) -> Element<Message> {
         let is_sharing = self.capturer.is_running();
-
         let element: Element<Message> = row![
             if is_sharing {
                 column_iced![
                     column_iced![
                         row![
-                            material_card(
+                            invite_info_card(
                                 "Room",
                                 self.capturer.get_room_id().unwrap_or_default().as_str(),
-                                Fixed(156.),
-                                Some(material_icon_button("copy.png", Message::CopyRoomID))
+                                Message::CopyRoomID,
+                                156.,
                             ),
-                            material_card(
+                            invite_info_card(
                                 "Passcode",
                                 "TODO",
-                                Fixed(156.),
-                                Some(material_icon_button("copy.png", Message::CopyPasscode))
+                                Message::CopyPasscode,
+                                156.,
                             ),
                         ].spacing(12),
-                        material_card(
+                        invite_info_card(
                             "Invite Link",
                             self.capturer.get_invite_link().unwrap_or_default().as_str(),
-                            iced::Length::Fixed(324.),
-                            Some(material_icon_button("copy.png", Message::CopyInviteLink))
+                            Message::CopyInviteLink,
+                            324.,
                         )
-                    ].width(Shrink)
-                        .height(Shrink)
+                    ].width(Length::Shrink)
+                        .height(Length::Shrink)
                         .spacing(12),
-                    vertical_space(Fill),
-                    material_fab("End", Message::Stop, Button::Destructive, Some("stop.png"), [12, 20, 12, 20]),
+                    vertical_space(Length::Fill),
+                    FilledButton::new("End")
+                        .icon("stop.svg")
+                        .style(button::Style::Danger)
+                        .build()
+                        .on_press(Message::Stop),
                 ]
-                .height(Fill)
+                .height(Length::Fill)
             } else {
                 column_iced![
-                    material_fab("Start Sharing", Message::Start, Button::Primary, Some("play.png"), [18, 20, 18, 20])
+                    FAB::new("Start Sharing", "play.svg")
+                        .style(button::Style::Primary)
+                        .build()
+                        .on_press(Message::Start),
                 ]
             }.align_items(Center)
-                .width(Fill)
+                .width(Length::Fill)
                 .padding(10)
                 .spacing(12),
         ].align_items(Center)
-            .height(Fill)
+            .height(Length::Fill)
             .padding(10)
             .into();
 
@@ -129,15 +135,5 @@ impl Application for App {
         element
     }
 
-    // TODO reinvent theme
-    fn theme(&self) -> Self::Theme {
-        Theme::custom(
-            Palette {
-                background: Color::from_rgb8(40, 40, 40),
-                primary: Color::from_rgb8(79, 55, 139),
-                text: Color::from_rgb8(0, 0, 0),
-                ..Palette::DARK
-            }
-        )
-    }
+    fn theme(&self) -> Self::Theme { Theme::Dark }
 }

@@ -29,7 +29,7 @@ itertools = "0.10.5"
 howlong = "0.1.7"
 rtcp = "0.7.1"
 cpal = "0.15.2"
-iced = { version = "0.9.0", features = ["tokio", "image"] }
+iced = { version = "0.9.0", features = ["tokio", "image", "svg"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 libc = "0.2.108"
