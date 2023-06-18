@@ -1,11 +1,11 @@
 use iced::{Background, Color};
-use iced::widget::{button, text};
+use iced::widget::button;
 use iced::widget::button::{Appearance, StyleSheet};
 
-use crate::gui::resource;
 use crate::gui::theme::button::{Style, Style::*, Themed};
 use crate::gui::theme::color::ColorExt;
 use crate::gui::theme::icon::Icon;
+use crate::gui::theme::text::icon;
 use crate::gui::theme::Theme;
 use crate::gui::theme::widget::Button;
 
@@ -38,7 +38,7 @@ impl IconButton {
     }
 
     pub fn build<'a, Message: 'a>(self) -> Button<'a, Message> {
-        button(text(self.icon.clone()).font(resource::ICON_FONT).size(18))
+        button(icon(self.icon.clone()).size(18))
             .style(Box::new(self) as _)
             .padding(11)
             .width(40)

@@ -1,7 +1,7 @@
 use iced::{clipboard, Command};
 use iced::Alignment::Center;
 use iced::Length::{Fill, Shrink};
-use iced::widget::{container, row, text, text_input, vertical_space};
+use iced::widget::{container, row, text_input, vertical_space};
 use iced_aw::TabLabel;
 
 use crate::capture::capturer::Capturer;
@@ -12,6 +12,7 @@ use crate::gui::theme::button;
 use crate::gui::theme::button::{FilledButton, IconButton};
 use crate::gui::theme::icon::Icon;
 use crate::gui::theme::tab::Tab;
+use crate::gui::theme::text::text;
 use crate::gui::theme::widget::{Element, Tabs};
 
 pub struct SharingPage {
@@ -96,7 +97,8 @@ impl<'a> Component<'a> for SharingPage {
                 .push(self.invite_tab.tab_label(), self.invite_tab.view(props.clone()))
                 .push(self.viewers_tab.tab_label(), self.viewers_tab.view(props))
                 .tab_bar_style(Default::default())
-                .icon_font(resource::ICON_FONT)
+                .icon_font(resource::font::ICON)
+                .text_font(resource::font::BARLOW)
                 .tab_bar_position(iced_aw::TabBarPosition::Top)
                 .height(Shrink),
             vertical_space(Fill),
@@ -134,6 +136,7 @@ impl InviteTab {
                 text_input("", body)
                     .style(crate::gui::theme::text_input::Style::Selectable)
                     .size(18)
+                    .font(resource::font::BARLOW)
                     .on_input(move |_| { app::Message::Ignore })
                     .width(iced::Length::Fill)
                     .padding(0)
