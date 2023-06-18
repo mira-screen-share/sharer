@@ -13,6 +13,8 @@ pub trait Signaller: Send + 'static {
     async fn start(&self);
     /// get a new peer
     async fn accept_peer(&self) -> Option<Box<dyn SignallerPeer>>;
+    /// get room id
+    fn get_room_id(&self) -> Option<String>;
 }
 
 #[async_trait]

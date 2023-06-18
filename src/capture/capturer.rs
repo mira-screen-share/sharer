@@ -38,8 +38,6 @@ pub struct Capturer {
     pub args: Args,
     pub config: Config,
     shutdown_token_opt: Option<CancellationToken>,
-    invite_link_opt: Option<String>,
-    room_id_opt: Option<String>,
     signaller: Arc<dyn Signaller + Send + Sync>,
 }
 
@@ -50,8 +48,6 @@ impl Capturer {
             args,
             config,
             shutdown_token_opt: None,
-            invite_link_opt: None,
-            room_id_opt: None,
             signaller: Arc::new(WebSocketSignaller::new(&signaller_url).await.unwrap()),
         }
     }
@@ -63,17 +59,10 @@ impl Capturer {
         let shutdown_token = CancellationToken::new();
         self.shutdown_token_opt = Some(shutdown_token.clone());
 
-        let sharer_uuid = uuid::Uuid::new_v4().to_string();
-        self.invite_link_opt = Some(format!(
-            "{}?room={}&signaller={}",
-            config.viewer_url, sharer_uuid, config.signaller_url
-        ));
-        self.room_id_opt = Some(sharer_uuid.clone());
-
         let signaller_clone = self.signaller.clone();
         tokio::spawn(async move {
             tokio::select! {
-                _ = start_capture(args, config, sharer_uuid, signaller_clone) => {}
+                _ = start_capture(args, config, signaller_clone) => {}
                 _ = shutdown_token.cancelled() => {}
             }
         });
@@ -82,7 +71,6 @@ impl Capturer {
     pub fn shutdown(&mut self) {
         if let Some(shutdown_token) = self.shutdown_token_opt.take() {
             shutdown_token.cancel();
-            self.invite_link_opt = None;
         }
     }
 
@@ -91,18 +79,22 @@ impl Capturer {
     }
 
     pub fn get_invite_link(&self) -> Option<String> {
-        self.invite_link_opt.clone()
+        Some(format!(
+            "{}?room={}&signaller={}",
+            self.config.viewer_url,
+            self.get_room_id().unwrap_or_default(),
+            self.config.signaller_url
+        ))
     }
 
     pub fn get_room_id(&self) -> Option<String> {
-        self.room_id_opt.clone()
+        self.signaller.get_room_id()
     }
 }
 
 async fn start_capture(
     args: Args,
     config: Config,
-    sharer_uuid: String,
     signaller: Arc<dyn Signaller + Send + Sync>,
 ) -> Result<()> {
     let display = Display::online().unwrap()[args.display].select()?;
@@ -117,10 +109,6 @@ async fn start_capture(
     ));
 
     info!("Resolution: {:?}", resolution);
-    info!(
-        "Invite link: {}?room={}&signaller={}",
-        config.viewer_url, sharer_uuid, config.signaller_url
-    );
     let output: Arc<Mutex<dyn OutputSink + Send>> = if let Some(path) = args.file {
         Arc::new(Mutex::new(FileOutput::new(&path)))
     } else {

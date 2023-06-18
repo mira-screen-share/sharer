@@ -30,7 +30,7 @@ pub struct WebSocketSignaller {
 
     topics_tx: Arc<RwLock<HashMap<&'static str, broadcast::Sender<SignallerMessage>>>>,
     topics_rx: RwLock<HashMap<&'static str, Mutex<broadcast::Receiver<SignallerMessage>>>>,
-    room_id: String,
+    room_id: std::sync::Mutex<Option<String>>,
 }
 
 impl WebSocketSignaller {
@@ -48,9 +48,9 @@ impl WebSocketSignaller {
             let text = msg.unwrap().into_text().unwrap();
             let msg = serde_json::from_str::<SignallerMessage>(&text).unwrap();
             debug!("Deserialized websocket message: {:#?}", msg);
-            topics_tx.read().await.get(msg.clone().into()).map(|tx| {
+            if let Some(tx) = topics_tx.read().await.get(msg.clone().into()) {
                 tx.send(msg).unwrap();
-            });
+            }
         }
     }
 
@@ -81,7 +81,7 @@ impl WebSocketSignaller {
     ) -> RwLock<HashMap<&'static str, Mutex<broadcast::Receiver<SignallerMessage>>>> {
         let topics_rx = RwLock::new(HashMap::new());
         for topic in SignallerMessageDiscriminants::iter() {
-            let name: &'static str = topic.clone().into();
+            let name: &'static str = topic.into();
             let rx = txs.read().await.get(name).unwrap().subscribe();
             topics_rx.write().await.insert(name, Mutex::new(rx));
         }
@@ -118,13 +118,11 @@ impl WebSocketSignaller {
         // send a keepalive packet every 30 secs
         tokio::spawn(Self::keepalive(send_queue_sender.clone()));
 
-        let uuid = uuid::Uuid::new_v4().to_string();
-        info!("tru uuid: {}", uuid);
         Ok(Self {
             send_queue: send_queue_sender,
             topics_tx,
             topics_rx,
-            room_id: uuid, // TODO:FIXME
+            room_id: std::sync::Mutex::new(None),
         })
     }
 }
@@ -132,26 +130,37 @@ impl WebSocketSignaller {
 macro_rules! blocking_recv {
     ($self:ident, $topic:pat, $discriminant:path) => {
         let $topic = $self.topics_rx
-                                                            .read()
-                                                            .await
-                                                            .get($discriminant.into())
-                                                            .unwrap()
-                                                            .lock()
-                                                            .await
-                                                            .recv()
-                                                            .await
-                                                            .unwrap() else { unreachable!() };
+                                                                  .read()
+                                                                  .await
+                                                                  .get($discriminant.into())
+                                                                  .unwrap()
+                                                                  .lock()
+                                                                  .await
+                                                                  .recv()
+                                                                  .await
+                                                                  .unwrap() else { unreachable!() };
     };
 }
 
 #[async_trait]
 impl Signaller for WebSocketSignaller {
+    fn get_room_id(&self) -> Option<String> {
+        let room = self.room_id.lock().unwrap();
+        room.clone()
+    }
     async fn start(&self) {
         trace!("Starting session");
+        // TODO: get it from signaller
+        self.room_id
+            .lock()
+            .unwrap()
+            .replace(uuid::Uuid::new_v4().to_string());
+        let room = {
+            let room = self.room_id.lock().unwrap();
+            room.as_ref().unwrap().clone()
+        };
         self.send_queue
-            .send(SignallerMessage::Start {
-                uuid: self.room_id.clone(),
-            })
+            .send(SignallerMessage::Start { uuid: room })
             .await
             .unwrap();
     }
@@ -161,11 +170,11 @@ impl Signaller for WebSocketSignaller {
             SignallerMessage::Join { uuid },
             SignallerMessageDiscriminants::Join
         );
-        return Some(Box::new(WebSocketSignallerPeer {
+        Some(Box::new(WebSocketSignallerPeer {
             send_queue: self.send_queue.clone(),
             topics_rx: Arc::new(WebSocketSignaller::gen_rx(self.topics_tx.as_ref()).await),
             peer_uuid: uuid,
-        }));
+        }))
     }
 }
 
@@ -190,7 +199,7 @@ impl SignallerPeer for WebSocketSignallerPeer {
                 SignallerMessage::Answer { sdp, .. },
                 SignallerMessageDiscriminants::Answer
             );
-            return Some(sdp);
+            Some(sdp)
         })
         .await
         .ok()
@@ -203,7 +212,7 @@ impl SignallerPeer for WebSocketSignallerPeer {
             SignallerMessage::Ice { ice, .. },
             SignallerMessageDiscriminants::Ice
         );
-        return Some(ice);
+        Some(ice)
     }
 
     async fn send_ice_message(&self, ice: RTCIceCandidateInit) {
