@@ -30,6 +30,10 @@ impl SharingPage {
     }
 }
 
+pub struct InviteTab {}
+
+pub struct ViewersTab {}
+
 pub struct UpdateProps<'a> {
     pub capturer: &'a mut Capturer,
 }
@@ -115,50 +119,15 @@ fn action_bar<'a>() -> Element<'a, app::Message> {
         .into()
 }
 
-fn viewers_page<'a>() -> Element<'a, app::Message> {
-    column_iced![].into()
-}
-
-fn invite_page<'a>(
-    room_id: String,
-    invite_link: String,
-) -> Element<'a, app::Message> {
-    column_iced![
-        row![
-            invite_info_card(
-                "Room",
-                room_id.as_str(),
-                Message::CopyRoomID.into(),
-                156.,
-            ),
-            invite_info_card(
-                "Passcode",
-                "TODO",
-                Message::CopyPasscode.into(),
-                156.,
-            ),
-        ].spacing(12),
-        invite_info_card(
-            "Invite Link",
-            invite_link.as_str(),
-            Message::CopyInviteLink.into(),
-            324.,
-        )
-    ].width(Shrink)
-        .height(Fill)
-        .align_items(Center)
-        .spacing(12)
-        .into()
-}
-
-fn invite_info_card<'a>(
-    head: &str,
-    body: &str,
-    on_copy: app::Message,
-    width: f32,
-) -> Element<'a, app::Message> {
-    container(
-        row![
+impl InviteTab {
+    fn invite_info_card<'a>(
+        head: &str,
+        body: &str,
+        on_copy: app::Message,
+        width: f32,
+    ) -> Element<'a, app::Message> {
+        container(
+            row![
             column_iced![
                 text(head).size(14).width(iced::Length::Shrink),
                 vertical_space(6),
@@ -173,14 +142,13 @@ fn invite_info_card<'a>(
                 .build()
                 .on_press(on_copy)
         ].align_items(Center)
-            .spacing(8)
-            .padding([16, 8, 16, 16])
-    ).style(crate::gui::theme::container::Style::OutlinedCard)
-        .width(width)
-        .into()
+                .spacing(8)
+                .padding([16, 8, 16, 16])
+        ).style(crate::gui::theme::container::Style::OutlinedCard)
+            .width(width)
+            .into()
+    }
 }
-
-pub struct InviteTab {}
 
 impl Tab for InviteTab {
     type Message = app::Message;
@@ -195,11 +163,35 @@ impl Tab for InviteTab {
     }
 
     fn content(&self, props: Self::Props) -> Element<'_, app::Message> {
-        invite_page(props.room_id, props.invite_link)
+        column_iced![
+            row![
+                Self::invite_info_card(
+                    "Room",
+                    props.room_id.as_str(),
+                    Message::CopyRoomID.into(),
+                    156.,
+                ),
+                Self::invite_info_card(
+                    "Passcode",
+                    "TODO",
+                    Message::CopyPasscode.into(),
+                    156.,
+                ),
+            ].spacing(12),
+            Self::invite_info_card(
+                "Invite Link",
+                props.invite_link.as_str(),
+                Message::CopyInviteLink.into(),
+                324.,
+            )
+        ].width(Shrink)
+            .height(Fill)
+            .align_items(Center)
+            .spacing(12)
+            .into()
     }
 }
 
-pub struct ViewersTab {}
 
 impl Tab for ViewersTab {
     type Message = app::Message;
@@ -214,6 +206,6 @@ impl Tab for ViewersTab {
     }
 
     fn content(&self, _props: Self::Props) -> Element<'_, app::Message> {
-        viewers_page()
+        column_iced![].into()
     }
 }
