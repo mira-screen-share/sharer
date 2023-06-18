@@ -64,7 +64,7 @@ impl AudioCapture {
         self.sender.send(Bytes::from(ret)).unwrap();
     }
 
-    pub fn capture(output: Arc<Mutex<dyn OutputSink + Send>>) -> Result<Stream> {
+    pub fn capture(output: Arc<Mutex<dyn OutputSink + Send>>) -> Result<Arc<Mutex<AudioCapture>>> {
         let host = cpal::default_host();
 
         let device = host
@@ -89,12 +89,17 @@ impl AudioCapture {
         info!("Begin recording audio");
 
         let (sender, receiver) = std::sync::mpsc::channel();
-        let mut capturer = AudioCapture { encoder, sender };
+        let mut capturer = Arc::new(Mutex::new(AudioCapture { encoder, sender }));
+        let capturer_clone = capturer.clone();
 
         let err_fn = |err| error!("an error occurred on audio stream: {}", err);
 
         tokio::spawn(async move {
             loop {
+                if let Err(e) = receiver.recv() {
+                    error!("Failed to receive audio data: {}", e);
+                    break;
+                }
                 let data = receiver.recv().unwrap();
                 let mut output = output.lock().await;
                 output.write_audio(data).await.unwrap();
@@ -104,25 +109,25 @@ impl AudioCapture {
         let stream = match config.sample_format() {
             SampleFormat::I8 => device.build_input_stream(
                 &config.into(),
-                move |data, _: &_| capturer.write_input_data::<i8>(data),
+                move |data, _: &_| capturer.blocking_lock().write_input_data::<i8>(data),
                 err_fn,
                 None,
             )?,
             SampleFormat::I16 => device.build_input_stream(
                 &config.into(),
-                move |data, _: &_| capturer.write_input_data::<i16>(data),
+                move |data, _: &_| capturer.blocking_lock().write_input_data::<i16>(data),
                 err_fn,
                 None,
             )?,
             SampleFormat::I32 => device.build_input_stream(
                 &config.into(),
-                move |data, _: &_| capturer.write_input_data::<i32>(data),
+                move |data, _: &_| capturer.blocking_lock().write_input_data::<i32>(data),
                 err_fn,
                 None,
             )?,
             SampleFormat::F32 => device.build_input_stream(
                 &config.into(),
-                move |data, _: &_| capturer.write_input_data::<f32>(data),
+                move |data, _: &_| capturer.blocking_lock().write_input_data::<f32>(data),
                 err_fn,
                 None,
             )?,
@@ -132,6 +137,6 @@ impl AudioCapture {
         };
 
         stream.play()?;
-        Ok(stream)
+        Ok(capturer_clone)
     }
 }

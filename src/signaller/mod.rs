@@ -11,7 +11,7 @@ pub trait Signaller: Send + 'static {
     /// indicating the start of a session, and starts to accept viewers
     async fn start(&self);
     /// get a new peer
-    async fn accept_peer(&mut self) -> Option<Box<dyn SignallerPeer>>;
+    async fn accept_peer(&self) -> Option<Box<dyn SignallerPeer>>;
 }
 
 #[async_trait]

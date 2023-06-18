@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use clap::Parser;
+use cpal::traits::StreamTrait;
 use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
 
@@ -11,7 +12,7 @@ use crate::inputs::InputHandler;
 use crate::output::{FileOutput, OutputSink, WebRTCOutput};
 use crate::performance_profiler::PerformanceProfiler;
 use crate::result::Result;
-use crate::signaller::WebSocketSignaller;
+use crate::signaller::{Signaller, WebSocketSignaller};
 
 #[derive(Parser, Debug, Clone)]
 #[command(author, version, about, long_about = None)]
@@ -39,11 +40,20 @@ pub struct Capturer {
     shutdown_token_opt: Option<CancellationToken>,
     invite_link_opt: Option<String>,
     room_id_opt: Option<String>,
+    signaller: Arc<dyn Signaller + Send + Sync>,
 }
 
 impl Capturer {
-    pub fn new(args: Args, config: Config) -> Self {
-        Self { args, config, shutdown_token_opt: None, invite_link_opt: None, room_id_opt: None }
+    pub async fn new(args: Args, config: Config) -> Self {
+        let signaller_url = config.signaller_url.clone();
+        Self {
+            args,
+            config,
+            shutdown_token_opt: None,
+            invite_link_opt: None,
+            room_id_opt: None,
+            signaller: Arc::new(WebSocketSignaller::new(&signaller_url).await.unwrap()),
+        }
     }
 
     pub fn run(&mut self) -> () {
@@ -60,9 +70,10 @@ impl Capturer {
         ));
         self.room_id_opt = Some(sharer_uuid.clone());
 
+        let signaller_clone = self.signaller.clone();
         tokio::spawn(async move {
             tokio::select! {
-                _ = start_capture(args, config, sharer_uuid) => {}
+                _ = start_capture(args, config, sharer_uuid, signaller_clone) => {}
                 _ = shutdown_token.cancelled() => {}
             }
         });
@@ -92,6 +103,7 @@ async fn start_capture(
     args: Args,
     config: Config,
     sharer_uuid: String,
+    signaller: Arc<dyn Signaller + Send + Sync>,
 ) -> Result<()> {
     let display = Display::online().unwrap()[args.display].select()?;
     let dpi_conversion_factor = display.dpi_conversion_factor();
@@ -113,16 +125,16 @@ async fn start_capture(
         Arc::new(Mutex::new(FileOutput::new(&path)))
     } else {
         WebRTCOutput::new(
-            Box::new(WebSocketSignaller::new(&config.signaller_url, sharer_uuid).await?),
+            signaller,
             &mut encoder.force_idr,
             input_handler.clone(),
             &config,
-        ).await?
+        )
+        .await?
     };
 
-    let _ = AudioCapture::capture(output.clone())?;
+    // need to outlive capture.capture, i.e. end of this function
+    let _capturer = AudioCapture::capture(output.clone())?;
     capture.capture(encoder, output, profiler).await?;
     Ok(())
 }
-
-

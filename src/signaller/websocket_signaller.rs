@@ -31,12 +31,12 @@ struct WebSocketSignallerSender {
 #[derive(Debug)]
 pub struct WebSocketSignaller {
     send_queue: Sender<SignallerMessage>,
-    peers_receiver: Receiver<WebSocketSignallerPeer>,
+    peers_receiver: Mutex<Receiver<WebSocketSignallerPeer>>,
     uuid: String,
 }
 
 impl WebSocketSignaller {
-    pub async fn new(url: &str, my_uuid: String) -> Result<Self> {
+    pub async fn new(url: &str) -> Result<Self> {
         let (peers_sender, peers_receiver) = mpsc::channel::<WebSocketSignallerPeer>(1);
         let (send_queue_sender, mut send_queue_receiver) = mpsc::channel::<SignallerMessage>(8);
         let peers = Arc::new(RwLock::new(
@@ -139,8 +139,8 @@ impl WebSocketSignaller {
 
         Ok(Self {
             send_queue: send_queue_sender,
-            peers_receiver,
-            uuid: my_uuid,
+            peers_receiver: Mutex::new(peers_receiver),
+            uuid: "my_uuid".into(), // TODO:FIXME
         })
     }
 }
@@ -156,8 +156,8 @@ impl Signaller for WebSocketSignaller {
             .await
             .unwrap();
     }
-    async fn accept_peer(&mut self) -> Option<Box<dyn SignallerPeer>> {
-        Some(Box::new(self.peers_receiver.recv().await?))
+    async fn accept_peer(&self) -> Option<Box<dyn SignallerPeer>> {
+        Some(Box::new(self.peers_receiver.lock().await.recv().await?))
     }
 }
 
