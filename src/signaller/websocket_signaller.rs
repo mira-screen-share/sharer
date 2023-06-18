@@ -129,6 +129,21 @@ impl WebSocketSignaller {
     }
 }
 
+macro_rules! blocking_recv {
+    ($self:ident, $topic:pat, $discriminant:path) => {
+        let $topic = $self.topics_rx
+                                                            .read()
+                                                            .await
+                                                            .get($discriminant.into())
+                                                            .unwrap()
+                                                            .lock()
+                                                            .await
+                                                            .recv()
+                                                            .await
+                                                            .unwrap() else { unreachable!() };
+    };
+}
+
 #[async_trait]
 impl Signaller for WebSocketSignaller {
     async fn start(&self) {
@@ -141,17 +156,11 @@ impl Signaller for WebSocketSignaller {
             .unwrap();
     }
     async fn accept_peer(&self) -> Option<Box<dyn SignallerPeer>> {
-        let SignallerMessage::Join { uuid } = self
-            .topics_rx
-            .read()
-            .await
-            .get(SignallerMessageDiscriminants::Join.into())
-            .unwrap()
-            .lock()
-            .await
-            .recv()
-            .await
-            .unwrap() else { panic!() };
+        blocking_recv!(
+            self,
+            SignallerMessage::Join { uuid },
+            SignallerMessageDiscriminants::Join
+        );
         return Some(Box::new(WebSocketSignallerPeer {
             send_queue: self.send_queue.clone(),
             topics_rx: Arc::new(WebSocketSignaller::gen_rx(self.topics_tx.as_ref()).await),
@@ -176,17 +185,11 @@ impl SignallerPeer for WebSocketSignallerPeer {
 
     async fn recv_answer(&self) -> Option<RTCSessionDescription> {
         timeout(tokio::time::Duration::from_secs(3), async {
-            let SignallerMessage::Answer { sdp, .. } = self
-                .topics_rx
-                .read()
-                .await
-                .get(SignallerMessageDiscriminants::Answer.into())
-                .unwrap()
-                .lock()
-                .await
-                .recv()
-                .await
-                .unwrap() else { panic!() };
+            blocking_recv!(
+                self,
+                SignallerMessage::Answer { sdp, .. },
+                SignallerMessageDiscriminants::Answer
+            );
             return Some(sdp);
         })
         .await
@@ -195,17 +198,11 @@ impl SignallerPeer for WebSocketSignallerPeer {
     }
 
     async fn recv_ice_message(&self) -> Option<RTCIceCandidateInit> {
-        let SignallerMessage::Ice { ice, .. } = self
-            .topics_rx
-            .read()
-            .await
-            .get(SignallerMessageDiscriminants::Ice.into())
-            .unwrap()
-            .lock()
-            .await
-            .recv()
-            .await
-            .unwrap() else { panic!() };
+        blocking_recv!(
+            self,
+            SignallerMessage::Ice { ice, .. },
+            SignallerMessageDiscriminants::Ice
+        );
         return Some(ice);
     }
 
