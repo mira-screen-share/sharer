@@ -170,11 +170,3 @@ impl application::StyleSheet for Theme {
         }
     }
 }
-
-// impl text::StyleSheet for Theme {
-//     type Style = ();
-//
-//     fn appearance(&self, _: Self::Style) -> text::Appearance {
-//         Default::default()
-//     }
-// }
