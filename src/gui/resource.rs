@@ -1,5 +1,6 @@
 use iced::Font;
 
+#[allow(dead_code)]
 pub fn get(file: String) -> String {
     format!("resources/{}", file)
 }

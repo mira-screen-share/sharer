@@ -6,6 +6,7 @@ use crate::gui::resource;
 use crate::gui::theme::button::{Style, Themed};
 use crate::gui::theme::button::Style::{Danger, Primary, Secondary};
 use crate::gui::theme::color::ColorExt;
+use crate::gui::theme::icon::Icon;
 use crate::gui::theme::Theme;
 use crate::gui::theme::widget::Button;
 
@@ -13,13 +14,13 @@ use crate::gui::theme::widget::Button;
 /// https://m3.material.io/components/extended-fab/specs
 pub struct FAB {
     text: String,
-    icon: char,
+    icon: Icon,
     style: Style,
 }
 
 #[allow(dead_code)]
 impl FAB {
-    pub fn new(text: &str, icon: char) -> Self {
+    pub fn new(text: &str, icon: Icon) -> Self {
         Self {
             text: text.into(),
             icon,
@@ -35,7 +36,7 @@ impl FAB {
     pub fn build<'a, Message: 'a>(self) -> Button<'a, Message> {
         button(
             row![
-                text(self.icon).font(resource::ICON_FONT).size(24),
+                text(self.icon.clone()).font(resource::ICON_FONT).size(24),
                 horizontal_space(12),
                 text(self.text.clone()).size(16)
             ].align_items(iced::Alignment::Center)

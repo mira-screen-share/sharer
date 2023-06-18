@@ -5,20 +5,21 @@ use iced::widget::button::{Appearance, StyleSheet};
 use crate::gui::resource;
 use crate::gui::theme::button::{Style, Style::*, Themed};
 use crate::gui::theme::color::ColorExt;
+use crate::gui::theme::icon::Icon;
 use crate::gui::theme::Theme;
 use crate::gui::theme::widget::Button;
 
 /// Material Design 3 Icon Button
 /// https://m3.material.io/components/icon-button/specs
 pub struct IconButton {
-    icon: char,
+    icon: Icon,
     filled: bool,
     style: Style,
 }
 
 #[allow(dead_code)]
 impl IconButton {
-    pub fn new(icon: char) -> Self {
+    pub fn new(icon: Icon) -> Self {
         Self {
             icon,
             filled: false,
@@ -37,7 +38,7 @@ impl IconButton {
     }
 
     pub fn build<'a, Message: 'a>(self) -> Button<'a, Message> {
-        button(text(self.icon).font(resource::ICON_FONT).size(18))
+        button(text(self.icon.clone()).font(resource::ICON_FONT).size(18))
             .style(Box::new(self) as _)
             .padding(11)
             .width(40)

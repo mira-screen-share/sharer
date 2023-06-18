@@ -10,6 +10,7 @@ use crate::gui::{app, resource};
 use crate::gui::component::Component;
 use crate::gui::theme::button;
 use crate::gui::theme::button::{FilledButton, IconButton};
+use crate::gui::theme::icon::Icon;
 use crate::gui::theme::tab::Tab;
 use crate::gui::theme::widget::{Element, Tabs};
 
@@ -106,7 +107,7 @@ impl<'a> Component<'a> for SharingPage {
 fn action_bar<'a>() -> Element<'a, app::Message> {
     row![
         FilledButton::new("End")
-            .icon('\u{ef71}')
+            .icon(Icon::StopCircle)
             .style(button::Style::Danger)
             .build()
             .on_press(Message::Stop.into()),
@@ -168,7 +169,7 @@ fn invite_info_card<'a>(
                     .width(iced::Length::Fill)
                     .padding(0)
             ].width(iced::Length::Fixed(width - 72.)),
-            IconButton::new('\u{e14d}')
+            IconButton::new(Icon::ContentCopy)
                 .build()
                 .on_press(on_copy)
         ].align_items(Center)
@@ -190,7 +191,7 @@ impl Tab for InviteTab {
     }
 
     fn tab_label(&self) -> TabLabel {
-        TabLabel::IconText('\u{e157}', self.title())
+        TabLabel::IconText(Icon::Link.into(), self.title())
     }
 
     fn content(&self, props: Self::Props) -> Element<'_, app::Message> {
@@ -209,7 +210,7 @@ impl Tab for ViewersTab {
     }
 
     fn tab_label(&self) -> TabLabel {
-        TabLabel::IconText('\u{e7ef}', self.title())
+        TabLabel::IconText(Icon::Group.into(), self.title())
     }
 
     fn content(&self, _props: Self::Props) -> Element<'_, app::Message> {

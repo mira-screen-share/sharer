@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 #[repr(C)]
 #[derive(Clone)]
 pub struct XMFLOAT2 {

@@ -1,7 +1,5 @@
 use iced::{application, Color};
 use iced::widget::text;
-use iced_aw::style::tab_bar;
-use iced_aw::tabs;
 
 use crate::gui::theme::color::ColorExt;
 
@@ -12,6 +10,7 @@ pub mod container;
 pub mod text_input;
 pub mod svg;
 pub mod tab;
+pub mod icon;
 
 #[allow(dead_code)]
 #[derive(Debug, Clone, PartialEq, Default)]

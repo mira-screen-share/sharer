@@ -5,7 +5,6 @@ pub use filled::FilledButton;
 pub use icon::IconButton;
 
 use crate::gui::theme::Theme;
-use crate::gui::theme::widget::Button;
 
 mod filled;
 mod fab;

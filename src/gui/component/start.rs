@@ -7,6 +7,7 @@ use crate::gui::app;
 use crate::gui::component::Component;
 use crate::gui::theme::button;
 use crate::gui::theme::button::FAB;
+use crate::gui::theme::icon::Icon;
 use crate::gui::theme::widget::Element;
 
 pub struct StartPage {}
@@ -42,7 +43,7 @@ impl<'a> Component<'a> for StartPage {
 
     fn view(&self, _params: Self::ViewProps) -> Element<'_, app::Message> {
         column_iced![
-            FAB::new("Start Sharing", '\u{e1c4}')
+            FAB::new("Start Sharing", Icon::PlayCircle)
                 .style(button::Style::Primary)
                 .build()
                 .on_press(Message::Start.into()),
