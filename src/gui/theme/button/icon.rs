@@ -2,7 +2,7 @@ use iced::{Background, Color};
 use iced::widget::button;
 use iced::widget::button::{Appearance, StyleSheet};
 
-use crate::gui::theme::button::{Buildable, Style, Style::*, Themed};
+use crate::gui::theme::button::{Style, Style::*, Themed};
 use crate::gui::theme::color::ColorExt;
 use crate::gui::theme::svg::Svg;
 use crate::gui::theme::Theme;
@@ -35,10 +35,8 @@ impl IconButton {
         self.style = style;
         self
     }
-}
 
-impl<'a> Buildable<'a> for IconButton {
-    fn build<Message: 'a>(self) -> Button<'a, Message> {
+    pub fn build<'a, Message: 'a>(self) -> Button<'a, Message> {
         button(
             Svg::new(self.icon.clone())
                 .build()

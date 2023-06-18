@@ -21,10 +21,6 @@ pub enum Style {
     Danger,
 }
 
-pub trait Buildable<'a> {
-    fn build<Message: 'a>(self) -> Button<'a, Message>;
-}
-
 pub trait Themed: StyleSheet<Style=Theme> {}
 
 impl StyleSheet for Theme {

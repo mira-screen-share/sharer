@@ -2,9 +2,9 @@ use iced::widget::{container, row, text, text_input, vertical_space};
 
 use crate::column_iced;
 use crate::gui;
-use crate::gui::message::Message;
-use crate::gui::message::Message::Ignore;
-use crate::gui::theme::button::{Buildable, IconButton};
+use crate::gui::app::Message;
+use crate::gui::app::Message::Ignore;
+use crate::gui::theme::button::{IconButton};
 use crate::gui::theme::widget::Element;
 
 pub fn invite_info_card<'a>(
