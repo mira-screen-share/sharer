@@ -3,4 +3,3 @@ mod macros;
 mod theme;
 mod component;
 mod resource;
-mod page;
