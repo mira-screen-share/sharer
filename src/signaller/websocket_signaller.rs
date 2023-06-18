@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::net::TcpStream;
 use tokio::sync::mpsc::{Receiver, Sender};
-use tokio::sync::{mpsc, Mutex, RwLock};
+use tokio::sync::{broadcast, mpsc, Mutex, RwLock};
 use tokio::time::timeout;
 use tokio_tungstenite::{
     connect_async, tungstenite::protocol::Message, MaybeTlsStream, WebSocketStream,
@@ -13,38 +13,30 @@ use tokio_tungstenite::{
 use webrtc::ice_transport::ice_candidate::RTCIceCandidateInit;
 use webrtc::peer_connection::sdp::session_description::RTCSessionDescription;
 
-use crate::signaller::{Signaller, SignallerMessage, SignallerPeer};
+use crate::signaller::{Signaller, SignallerMessage, SignallerMessageDiscriminants, SignallerPeer};
 use crate::Result;
-
+use strum::IntoEnumIterator;
 /// ownership yielded to the user
 #[derive(Debug, Clone)]
 struct WebSocketSignallerPeer {
-    answer_receiver: Arc<Mutex<Receiver<RTCSessionDescription>>>,
-    ice_receiver: Arc<Mutex<Receiver<RTCIceCandidateInit>>>,
     send_queue: Sender<SignallerMessage>,
-    uuid: String,
-}
-
-/// ownership kept by WebSocketSignaller
-#[derive(Debug)]
-struct WebSocketSignallerSender {
-    answer_sender: Sender<RTCSessionDescription>,
-    ice_sender: Sender<RTCIceCandidateInit>,
+    topics_rx: Arc<RwLock<HashMap<&'static str, Mutex<broadcast::Receiver<SignallerMessage>>>>>,
+    peer_uuid: String,
 }
 
 #[derive(Debug)]
 pub struct WebSocketSignaller {
     send_queue: Sender<SignallerMessage>,
-    peers_receiver: Mutex<Receiver<WebSocketSignallerPeer>>,
-    uuid: String,
+
+    topics_tx: Arc<RwLock<HashMap<&'static str, broadcast::Sender<SignallerMessage>>>>,
+    topics_rx: RwLock<HashMap<&'static str, Mutex<broadcast::Receiver<SignallerMessage>>>>,
+    room_id: String,
 }
 
 impl WebSocketSignaller {
     async fn process_incoming_message(
         mut read: SplitStream<WebSocketStream<MaybeTlsStream<TcpStream>>>,
-        send_queue_sender: Sender<SignallerMessage>, // send queue for new peers
-        peers_sender: Sender<WebSocketSignallerPeer>, // for new peers
-        peers: Arc<RwLock<HashMap<String, WebSocketSignallerSender>>>, // existing peers
+        topics_tx: Arc<RwLock<HashMap<&'static str, broadcast::Sender<SignallerMessage>>>>,
     ) {
         while let Some(msg) = read.next().await {
             if let Err(e) = msg {
@@ -56,55 +48,9 @@ impl WebSocketSignaller {
             let text = msg.unwrap().into_text().unwrap();
             let msg = serde_json::from_str::<SignallerMessage>(&text).unwrap();
             debug!("Deserialized websocket message: {:#?}", msg);
-            match msg {
-                SignallerMessage::Join { uuid } => {
-                    // create a new peer
-                    let (answer_sender, answer_receiver) =
-                        mpsc::channel::<RTCSessionDescription>(1);
-                    let (ice_sender, ice_receiver) = mpsc::channel::<RTCIceCandidateInit>(4);
-
-                    peers.write().await.insert(
-                        uuid.clone(),
-                        WebSocketSignallerSender {
-                            answer_sender,
-                            ice_sender,
-                        },
-                    );
-                    debug!("Created new peer {}", uuid);
-                    peers_sender
-                        .send(WebSocketSignallerPeer {
-                            uuid: uuid.clone(),
-                            answer_receiver: Arc::new(Mutex::new(answer_receiver)),
-                            ice_receiver: Arc::new(Mutex::new(ice_receiver)),
-                            send_queue: send_queue_sender.clone(),
-                        })
-                        .await
-                        .unwrap();
-                    debug!("Created new peer2 {}", uuid);
-                }
-                SignallerMessage::Answer { sdp, uuid } => {
-                    let sender = {
-                        let peer = &peers.read().await[&uuid];
-                        let sender = &peer.answer_sender;
-                        sender.clone()
-                    };
-                    sender.send(sdp).await.unwrap();
-                }
-                SignallerMessage::Ice { ice, uuid, to: _ } => {
-                    let sender = {
-                        let peer = &peers.read().await[&uuid];
-                        let sender = &peer.ice_sender;
-                        sender.clone()
-                    };
-                    sender.send(ice).await.unwrap();
-                }
-                SignallerMessage::Leave { uuid } => {
-                    info!("Peer {} left", uuid);
-                }
-                _ => {
-                    panic!("Unexpected message type");
-                }
-            };
+            topics_tx.read().await.get(msg.clone().into()).map(|tx| {
+                tx.send(msg).unwrap();
+            });
         }
     }
 
@@ -130,12 +76,31 @@ impl WebSocketSignaller {
         warn!("Send queue closed");
     }
 
+    async fn gen_rx(
+        txs: &RwLock<HashMap<&'static str, broadcast::Sender<SignallerMessage>>>,
+    ) -> RwLock<HashMap<&'static str, Mutex<broadcast::Receiver<SignallerMessage>>>> {
+        let topics_rx = RwLock::new(HashMap::new());
+        for topic in SignallerMessageDiscriminants::iter() {
+            let name: &'static str = topic.clone().into();
+            let rx = txs.read().await.get(name).unwrap().subscribe();
+            topics_rx.write().await.insert(name, Mutex::new(rx));
+        }
+        topics_rx
+    }
+
     pub async fn new(url: &str) -> Result<Self> {
-        let (peers_sender, peers_receiver) = mpsc::channel::<WebSocketSignallerPeer>(1);
         let (send_queue_sender, send_queue_receiver) = mpsc::channel::<SignallerMessage>(8);
-        let peers = Arc::new(RwLock::new(
-            HashMap::<String, WebSocketSignallerSender>::new(),
-        ));
+
+        let topics_tx = Arc::new(RwLock::new(HashMap::new()));
+        for topic in SignallerMessageDiscriminants::iter() {
+            let (tx, _) = broadcast::channel::<SignallerMessage>(32);
+            topics_tx
+                .write()
+                .await
+                .insert(Into::<&'static str>::into(topic), tx);
+        }
+
+        let topics_rx = Self::gen_rx(topics_tx.as_ref()).await;
 
         let url = url::Url::parse(url).unwrap();
         info!("Establishing websocket connection to {}", url);
@@ -144,24 +109,22 @@ impl WebSocketSignaller {
         debug!("Websocket connection established");
         let (write, read) = ws_stream.split();
 
-        // create a task to read all incoming websocket messages
-        tokio::spawn(Self::process_incoming_message(
-            read,
-            send_queue_sender.clone(),
-            peers_sender,
-            peers.clone(),
-        ));
+        // handle all incoming websocket messages
+        tokio::spawn(Self::process_incoming_message(read, topics_tx.clone()));
 
-        // create a task to handle all outgoing websocket messages
+        // handle all outgoing websocket messages
         tokio::spawn(Self::process_outgoing(write, send_queue_receiver));
 
         // send a keepalive packet every 30 secs
         tokio::spawn(Self::keepalive(send_queue_sender.clone()));
 
+        let uuid = uuid::Uuid::new_v4().to_string();
+        info!("tru uuid: {}", uuid);
         Ok(Self {
             send_queue: send_queue_sender,
-            peers_receiver: Mutex::new(peers_receiver),
-            uuid: "my_uuid".into(), // TODO:FIXME
+            topics_tx,
+            topics_rx,
+            room_id: uuid, // TODO:FIXME
         })
     }
 }
@@ -172,13 +135,28 @@ impl Signaller for WebSocketSignaller {
         trace!("Starting session");
         self.send_queue
             .send(SignallerMessage::Start {
-                uuid: self.uuid.clone(),
+                uuid: self.room_id.clone(),
             })
             .await
             .unwrap();
     }
     async fn accept_peer(&self) -> Option<Box<dyn SignallerPeer>> {
-        Some(Box::new(self.peers_receiver.lock().await.recv().await?))
+        let SignallerMessage::Join { uuid } = self
+            .topics_rx
+            .read()
+            .await
+            .get(SignallerMessageDiscriminants::Join.into())
+            .unwrap()
+            .lock()
+            .await
+            .recv()
+            .await
+            .unwrap() else { panic!() };
+        return Some(Box::new(WebSocketSignallerPeer {
+            send_queue: self.send_queue.clone(),
+            topics_rx: Arc::new(WebSocketSignaller::gen_rx(self.topics_tx.as_ref()).await),
+            peer_uuid: uuid,
+        }));
     }
 }
 
@@ -189,24 +167,46 @@ impl SignallerPeer for WebSocketSignallerPeer {
         self.send_queue
             .send(SignallerMessage::Offer {
                 sdp: offer.clone(),
-                to: self.uuid.clone(),
+                to: self.peer_uuid.clone(),
                 uuid: "0".to_string(),
             })
             .await
             .unwrap();
     }
+
     async fn recv_answer(&self) -> Option<RTCSessionDescription> {
-        timeout(
-            tokio::time::Duration::from_secs(3),
-            self.answer_receiver.lock().await.recv(),
-        )
+        timeout(tokio::time::Duration::from_secs(3), async {
+            let SignallerMessage::Answer { sdp, .. } = self
+                .topics_rx
+                .read()
+                .await
+                .get(SignallerMessageDiscriminants::Answer.into())
+                .unwrap()
+                .lock()
+                .await
+                .recv()
+                .await
+                .unwrap() else { panic!() };
+            return Some(sdp);
+        })
         .await
         .ok()
         .flatten()
     }
 
     async fn recv_ice_message(&self) -> Option<RTCIceCandidateInit> {
-        self.ice_receiver.lock().await.recv().await
+        let SignallerMessage::Ice { ice, .. } = self
+            .topics_rx
+            .read()
+            .await
+            .get(SignallerMessageDiscriminants::Ice.into())
+            .unwrap()
+            .lock()
+            .await
+            .recv()
+            .await
+            .unwrap() else { panic!() };
+        return Some(ice);
     }
 
     async fn send_ice_message(&self, ice: RTCIceCandidateInit) {
@@ -214,7 +214,7 @@ impl SignallerPeer for WebSocketSignallerPeer {
             .send(SignallerMessage::Ice {
                 ice,
                 uuid: "0".to_string(),
-                to: self.uuid.clone(),
+                to: self.peer_uuid.clone(),
             })
             .await
             .unwrap();

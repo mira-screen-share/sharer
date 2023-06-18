@@ -30,6 +30,8 @@ howlong = "0.1.7"
 rtcp = "0.7.1"
 cpal = "0.15.2"
 iced = { version = "0.9.0", features = ["tokio", "image", "svg"] }
+strum_macros = "0.24.3"
+strum = "0.24.1"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 libc = "0.2.108"
