@@ -12,3 +12,5 @@ pub type ProgressBar = iced::widget::ProgressBar<Renderer>;
 pub type PickList<'a, Message> = iced::widget::PickList<'a, Message, Renderer>;
 pub type Scrollable<'a, Message> = iced::widget::Scrollable<'a, Message, Renderer>;
 pub type Svg = iced::widget::Svg<Renderer>;
+
+pub type Tabs<'a, Message> = iced_aw::native::Tabs<'a, Message, Renderer>;

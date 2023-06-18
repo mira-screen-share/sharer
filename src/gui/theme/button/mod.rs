@@ -5,7 +5,6 @@ pub use filled::FilledButton;
 pub use icon::IconButton;
 
 use crate::gui::theme::Theme;
-use crate::gui::theme::widget::Button;
 
 mod filled;
 mod fab;
@@ -19,10 +18,6 @@ pub enum Style {
     Primary,
     Secondary,
     Danger,
-}
-
-pub trait Buildable<'a> {
-    fn build<Message: 'a>(self) -> Button<'a, Message>;
 }
 
 pub trait Themed: StyleSheet<Style=Theme> {}
