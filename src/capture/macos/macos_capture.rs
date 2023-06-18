@@ -1,6 +1,6 @@
+use std::sync::Arc;
 use std::time::Duration;
 use std::{ptr, slice};
-use std::sync::Arc;
 
 use async_trait::async_trait;
 use block::{Block, ConcreteBlock};

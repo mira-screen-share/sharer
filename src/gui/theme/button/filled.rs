@@ -1,14 +1,14 @@
-use iced::{Background, Color};
-use iced::widget::{button, horizontal_space, row, text};
 use iced::widget::button::{Appearance, StyleSheet};
+use iced::widget::{button, horizontal_space, row, text};
+use iced::{Background, Color};
 
-use crate::gui::theme::button::{Buildable, Style, Themed};
 use crate::gui::theme::button::Style::{Danger, Primary, Secondary};
+use crate::gui::theme::button::{Buildable, Style, Themed};
 use crate::gui::theme::color::ColorExt;
 use crate::gui::theme::svg;
 use crate::gui::theme::svg::Svg;
-use crate::gui::theme::Theme;
 use crate::gui::theme::widget::Button;
+use crate::gui::theme::Theme;
 
 /// Material Design 3 Filled Button
 /// https://m3.material.io/components/buttons/specs#0b1b7bd2-3de8-431a-afa1-d692e2e18b0d
@@ -45,28 +45,26 @@ impl<'a> Buildable<'a> for FilledButton {
             button(
                 row![
                     Svg::new(icon)
-                        .color(
-                            match self.style {
-                                Primary => svg::Color::OnPrimary,
-                                Secondary => svg::Color::OnSecondary,
-                                Danger => svg::Color::OnError,
-                            }
-                        )
+                        .color(match self.style {
+                            Primary => svg::Color::OnPrimary,
+                            Secondary => svg::Color::OnSecondary,
+                            Danger => svg::Color::OnError,
+                        })
                         .build()
                         .width(iced::Length::Fixed(18.))
                         .height(iced::Length::Fixed(18.)),
                     horizontal_space(8),
                     text(self.text.clone()).size(16)
-                ].align_items(iced::Alignment::Center)
-            ).padding([0, 24, 0, 19])
+                ]
+                .align_items(iced::Alignment::Center),
+            )
+            .padding([0, 24, 0, 19])
         } else {
-            button(
-                row![
-                    text(self.text.clone()).size(16)
-                ].align_items(iced::Alignment::Center)
-            ).padding([0, 24, 0, 24])
-        }.style(Box::new(self) as _)
-            .height(40)
+            button(row![text(self.text.clone()).size(16)].align_items(iced::Alignment::Center))
+                .padding([0, 24, 0, 24])
+        }
+        .style(Box::new(self) as _)
+        .height(40)
     }
 }
 
@@ -83,7 +81,7 @@ impl StyleSheet for FilledButton {
         };
         let from = |background: Color, on_background: Color| Appearance {
             background: background.into(),
-            text_color: on_background.into(),
+            text_color: on_background,
             ..partial
         };
 
@@ -105,8 +103,7 @@ impl StyleSheet for FilledButton {
 
         Appearance {
             background: base.background.map(|background| match background {
-                Background::Color(color) =>
-                    Background::Color(color.mix(state.with_alpha(0.12))),
+                Background::Color(color) => Background::Color(color.mix(state.with_alpha(0.12))),
             }),
             ..base
         }

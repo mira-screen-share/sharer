@@ -1,14 +1,14 @@
-use iced::{application, Color};
 use iced::widget::text;
+use iced::{application, Color};
 
 use crate::gui::theme::color::ColorExt;
 
 pub mod button;
 pub mod color;
-pub mod widget;
 pub mod container;
-pub mod text_input;
 pub mod svg;
+pub mod text_input;
+pub mod widget;
 
 #[allow(dead_code)]
 #[derive(Debug, Clone, PartialEq, Default)]

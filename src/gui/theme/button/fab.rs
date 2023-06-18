@@ -1,14 +1,14 @@
-use iced::{Background, Color};
-use iced::widget::{button, horizontal_space, row, text};
 use iced::widget::button::{Appearance, StyleSheet};
+use iced::widget::{button, horizontal_space, row, text};
+use iced::{Background, Color};
 
-use crate::gui::theme::button::{Buildable, Style, Themed};
 use crate::gui::theme::button::Style::{Danger, Primary, Secondary};
+use crate::gui::theme::button::{Buildable, Style, Themed};
 use crate::gui::theme::color::ColorExt;
 use crate::gui::theme::svg;
 use crate::gui::theme::svg::Svg;
-use crate::gui::theme::Theme;
 use crate::gui::theme::widget::Button;
+use crate::gui::theme::Theme;
 
 /// Material Design 3 Extended FAB
 /// https://m3.material.io/components/extended-fab/specs
@@ -39,22 +39,22 @@ impl<'a> Buildable<'a> for FAB {
         button(
             row![
                 Svg::new(self.icon.clone())
-                    .color(
-                        match self.style {
-                            Primary => svg::Color::OnPrimary,
-                            Secondary => svg::Color::OnSecondary,
-                            Danger => svg::Color::OnError,
-                        }
-                    )
+                    .color(match self.style {
+                        Primary => svg::Color::OnPrimary,
+                        Secondary => svg::Color::OnSecondary,
+                        Danger => svg::Color::OnError,
+                    })
                     .build()
                     .width(iced::Length::Fixed(21.))
                     .height(iced::Length::Fixed(21.)),
                 horizontal_space(12),
                 text(self.text.clone()).size(16)
-            ].align_items(iced::Alignment::Center)
-        ).style(Box::new(self) as _)
-            .padding([0, 16, 0, 16])
-            .height(56)
+            ]
+            .align_items(iced::Alignment::Center),
+        )
+        .style(Box::new(self) as _)
+        .padding([0, 16, 0, 16])
+        .height(56)
     }
 }
 
@@ -71,7 +71,7 @@ impl StyleSheet for FAB {
         };
         let from = |background: Color, on_background: Color| Appearance {
             background: background.into(),
-            text_color: on_background.into(),
+            text_color: on_background,
             ..partial
         };
 
@@ -93,8 +93,7 @@ impl StyleSheet for FAB {
 
         Appearance {
             background: base.background.map(|background| match background {
-                Background::Color(color) =>
-                    Background::Color(color.mix(state.with_alpha(0.12))),
+                Background::Color(color) => Background::Color(color.mix(state.with_alpha(0.12))),
             }),
             ..base
         }

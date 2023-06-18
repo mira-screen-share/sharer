@@ -1,12 +1,12 @@
-use iced::{Background, Color};
 use iced::widget::button;
 use iced::widget::button::{Appearance, StyleSheet};
+use iced::{Background, Color};
 
 use crate::gui::theme::button::{Buildable, Style, Style::*, Themed};
 use crate::gui::theme::color::ColorExt;
 use crate::gui::theme::svg::Svg;
-use crate::gui::theme::Theme;
 use crate::gui::theme::widget::Button;
+use crate::gui::theme::Theme;
 
 /// Material Design 3 Icon Button
 /// https://m3.material.io/components/icon-button/specs
@@ -44,10 +44,11 @@ impl<'a> Buildable<'a> for IconButton {
                 .build()
                 .width(iced::Length::Fixed(18.))
                 .height(iced::Length::Fixed(18.)),
-        ).style(Box::new(self) as _)
-            .padding(11)
-            .width(40)
-            .height(40)
+        )
+        .style(Box::new(self) as _)
+        .padding(11)
+        .width(40)
+        .height(40)
     }
 }
 
@@ -66,7 +67,7 @@ impl StyleSheet for IconButton {
         if self.filled {
             let from = |background: Color, on_background: Color| Appearance {
                 background: background.into(),
-                text_color: on_background.into(),
+                text_color: on_background,
                 ..partial
             };
 
@@ -77,7 +78,7 @@ impl StyleSheet for IconButton {
             }
         } else {
             Appearance {
-                text_color: palette.on_surface_variant.into(),
+                text_color: palette.on_surface_variant,
                 ..partial
             }
         }
@@ -96,8 +97,9 @@ impl StyleSheet for IconButton {
 
             Appearance {
                 background: base.background.map(|background| match background {
-                    Background::Color(color) =>
-                        Background::Color(color.mix(state.with_alpha(0.12))),
+                    Background::Color(color) => {
+                        Background::Color(color.mix(state.with_alpha(0.12)))
+                    }
                 }),
                 ..base
             }

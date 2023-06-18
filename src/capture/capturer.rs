@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use clap::Parser;
-use cpal::traits::StreamTrait;
+
 use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
 
@@ -56,7 +56,7 @@ impl Capturer {
         }
     }
 
-    pub fn run(&mut self) -> () {
+    pub fn run(&mut self) {
         let args = self.args.clone();
         let config = self.config.clone();
 

@@ -33,16 +33,13 @@ pub struct EncoderConfig {
     pub options: HashMap<String, String>,
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[derive(Default)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum IceCredentialType {
     Unspecified,
     #[default]
     Password,
     Oauth,
 }
-
-
 
 #[derive(Default, Clone, Debug, Serialize, Deserialize)]
 pub struct IceServer {

@@ -24,14 +24,15 @@ pub fn invite_info_card<'a>(
                     .on_input(move |_| { Ignore })
                     .width(iced::Length::Fill)
                     .padding(0)
-            ].width(iced::Length::Fixed(width - 80.)),
-            IconButton::new("copy.svg")
-                .build()
-                .on_press(on_copy)
-        ].align_items(iced::Alignment::Center)
-            .spacing(8)
-            .padding(16)
-    ).style(gui::theme::container::Style::OutlinedCard)
-        .width(width)
-        .into()
+            ]
+            .width(iced::Length::Fixed(width - 80.)),
+            IconButton::new("copy.svg").build().on_press(on_copy)
+        ]
+        .align_items(iced::Alignment::Center)
+        .spacing(8)
+        .padding(16),
+    )
+    .style(gui::theme::container::Style::OutlinedCard)
+    .width(width)
+    .into()
 }

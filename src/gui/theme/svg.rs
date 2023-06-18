@@ -3,8 +3,8 @@ use std::path::PathBuf;
 use iced::widget::svg;
 use iced::widget::svg::{Appearance, Handle, StyleSheet};
 
-use crate::gui::{resource, theme};
 use crate::gui::theme::Theme;
+use crate::gui::{resource, theme};
 
 #[allow(dead_code)]
 #[derive(Default)]
@@ -32,13 +32,15 @@ impl Svg {
     }
 
     pub fn color(mut self, color: Color) -> Self {
-        self.color = color.into();
+        self.color = color;
         self
     }
 
     pub fn build(&self) -> theme::widget::Svg {
-        svg(Handle::from_path(PathBuf::from(resource::get(self.svg.clone()))))
-            .style(self.color.clone())
+        svg(Handle::from_path(PathBuf::from(resource::get(
+            self.svg.clone(),
+        ))))
+        .style(self.color.clone())
     }
 }
 
@@ -54,7 +56,8 @@ impl StyleSheet for Theme {
                 Color::OnPrimary => palette.on_primary,
                 Color::OnSecondary => palette.on_secondary,
                 Color::OnError => palette.on_error,
-            }.into(),
+            }
+            .into(),
         }
     }
 }

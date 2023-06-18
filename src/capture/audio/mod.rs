@@ -5,7 +5,7 @@ use ac_ffmpeg::codec::audio::{AudioEncoder, AudioFrameMut, ChannelLayout};
 use ac_ffmpeg::codec::Encoder;
 use bytes::Bytes;
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
-use cpal::{SampleFormat, Stream};
+use cpal::SampleFormat;
 
 use std::sync::mpsc::Sender;
 use std::sync::Arc;
@@ -89,7 +89,7 @@ impl AudioCapture {
         info!("Begin recording audio");
 
         let (sender, receiver) = std::sync::mpsc::channel();
-        let mut capturer = Arc::new(Mutex::new(AudioCapture { encoder, sender }));
+        let capturer = Arc::new(Mutex::new(AudioCapture { encoder, sender }));
         let capturer_clone = capturer.clone();
 
         let err_fn = |err| error!("an error occurred on audio stream: {}", err);

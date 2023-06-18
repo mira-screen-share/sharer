@@ -12,12 +12,12 @@ use crate::result::Result;
 mod capture;
 mod config;
 mod encoder;
+mod gui;
+mod inputs;
 mod output;
 mod performance_profiler;
 mod result;
 mod signaller;
-mod inputs;
-mod gui;
 
 #[tokio::main]
 async fn main() {
@@ -31,6 +31,6 @@ async fn main() {
             ..Default::default()
         },
         ..Default::default()
-    }).unwrap();
+    })
+    .unwrap();
 }
-
