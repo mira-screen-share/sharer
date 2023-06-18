@@ -2,30 +2,29 @@ use iced::{clipboard, Command};
 use iced::Alignment::Center;
 use iced::Length::{Fill, Shrink};
 use iced::widget::{container, row, text, text_input, vertical_space};
+use iced_aw::TabLabel;
 
 use crate::capture::capturer::Capturer;
 use crate::column_iced;
-use crate::gui::app;
+use crate::gui::{app, resource};
 use crate::gui::component::Component;
 use crate::gui::theme::button;
 use crate::gui::theme::button::{FilledButton, IconButton};
-use crate::gui::theme::widget::Element;
-
-#[derive(Default, Clone, Debug)]
-pub enum Tab {
-    #[default]
-    Invite,
-    Viewers,
-}
+use crate::gui::theme::tab::Tab;
+use crate::gui::theme::widget::{Element, Tabs};
 
 pub struct SharingPage {
-    current_tab: Tab,
+    current_tab: usize,
+    invite_tab: InviteTab,
+    viewers_tab: ViewersTab,
 }
 
 impl SharingPage {
     pub fn new() -> Self {
         Self {
             current_tab: Default::default(),
+            invite_tab: InviteTab {},
+            viewers_tab: ViewersTab {},
         }
     }
 }
@@ -34,6 +33,7 @@ pub struct UpdateProps<'a> {
     pub capturer: &'a mut Capturer,
 }
 
+#[derive(Clone, Debug)]
 pub struct ViewProps {
     pub room_id: String,
     pub invite_link: String,
@@ -45,7 +45,7 @@ pub enum Message {
     CopyRoomID,
     CopyPasscode,
     CopyInviteLink,
-    ChangeTab(Tab),
+    ChangeTab(usize),
 }
 
 impl From<Message> for app::Message {
@@ -84,12 +84,17 @@ impl<'a> Component<'a> for SharingPage {
         Command::none()
     }
 
-    fn view(&self, props: Self::ViewProps) -> Element<'a, app::Message> {
+    fn view(&self, props: Self::ViewProps) -> Element<'_, app::Message> {
         column_iced![
-            match self.current_tab {
-                Tab::Invite => invite_page(props.room_id, props.invite_link),
-                Tab::Viewers => viewers_page(),
-            },
+            Tabs::new(self.current_tab, move |message|
+                app::Message::Sharing(Message::ChangeTab(message)))
+                .push(self.invite_tab.tab_label(), self.invite_tab.view(props.clone()))
+                .push(self.viewers_tab.tab_label(), self.viewers_tab.view(props))
+                .tab_bar_style(Default::default())
+                .icon_font(resource::ICON_FONT)
+                .tab_bar_position(iced_aw::TabBarPosition::Top)
+                .height(Shrink),
+            vertical_space(Fill),
             action_bar(),
         ].align_items(Center)
             .width(Fill)
@@ -101,11 +106,12 @@ impl<'a> Component<'a> for SharingPage {
 fn action_bar<'a>() -> Element<'a, app::Message> {
     row![
         FilledButton::new("End")
-            .icon("stop.svg")
+            .icon('\u{ef71}')
             .style(button::Style::Danger)
             .build()
             .on_press(Message::Stop.into()),
-    ].into()
+    ].padding(16)
+        .into()
 }
 
 fn viewers_page<'a>() -> Element<'a, app::Message> {
@@ -144,8 +150,7 @@ fn invite_page<'a>(
         .into()
 }
 
-
-pub fn invite_info_card<'a>(
+fn invite_info_card<'a>(
     head: &str,
     body: &str,
     on_copy: app::Message,
@@ -162,14 +167,52 @@ pub fn invite_info_card<'a>(
                     .on_input(move |_| { app::Message::Ignore })
                     .width(iced::Length::Fill)
                     .padding(0)
-            ].width(iced::Length::Fixed(width - 80.)),
-            IconButton::new("copy.svg")
+            ].width(iced::Length::Fixed(width - 72.)),
+            IconButton::new('\u{e14d}')
                 .build()
                 .on_press(on_copy)
         ].align_items(Center)
             .spacing(8)
-            .padding(16)
+            .padding([16, 8, 16, 16])
     ).style(crate::gui::theme::container::Style::OutlinedCard)
         .width(width)
         .into()
+}
+
+pub struct InviteTab {}
+
+impl Tab for InviteTab {
+    type Message = app::Message;
+    type Props = ViewProps;
+
+    fn title(&self) -> String {
+        String::from("Invite")
+    }
+
+    fn tab_label(&self) -> TabLabel {
+        TabLabel::IconText('\u{e157}', self.title())
+    }
+
+    fn content(&self, props: Self::Props) -> Element<'_, app::Message> {
+        invite_page(props.room_id, props.invite_link)
+    }
+}
+
+pub struct ViewersTab {}
+
+impl Tab for ViewersTab {
+    type Message = app::Message;
+    type Props = ViewProps;
+
+    fn title(&self) -> String {
+        String::from("Viewers")
+    }
+
+    fn tab_label(&self) -> TabLabel {
+        TabLabel::IconText('\u{e7ef}', self.title())
+    }
+
+    fn content(&self, _props: Self::Props) -> Element<'_, app::Message> {
+        viewers_page()
+    }
 }

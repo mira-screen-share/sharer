@@ -78,15 +78,13 @@ impl Application for App {
                 } else {
                     self.start_page.view(())
                 }
-            ].padding(10)
-                .spacing(12),
+            ].spacing(12),
         ].align_items(Center)
             .height(Length::Fill)
-            .padding(10)
             .into();
 
-        element.explain(iced::Color::WHITE)
-        // element
+        // element.explain(iced::Color::WHITE)
+        element
     }
 
     fn theme(&self) -> Self::Theme { Theme::Dark }

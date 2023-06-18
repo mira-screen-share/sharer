@@ -14,5 +14,5 @@ pub trait Component<'a> {
     type ViewProps;
 
     fn update(&mut self, message: Self::Message, props: Self::UpdateProps) -> Command<app::Message>;
-    fn view(&self, props: Self::ViewProps) -> Element<'a, app::Message>;
+    fn view(&self, props: Self::ViewProps) -> Element<'_, app::Message>;
 }

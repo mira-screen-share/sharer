@@ -2,11 +2,10 @@ use iced::{Background, Color};
 use iced::widget::{button, horizontal_space, row, text};
 use iced::widget::button::{Appearance, StyleSheet};
 
+use crate::gui::resource;
 use crate::gui::theme::button::{Style, Themed};
 use crate::gui::theme::button::Style::{Danger, Primary, Secondary};
 use crate::gui::theme::color::ColorExt;
-use crate::gui::theme::svg;
-use crate::gui::theme::svg::Svg;
 use crate::gui::theme::Theme;
 use crate::gui::theme::widget::Button;
 
@@ -14,16 +13,16 @@ use crate::gui::theme::widget::Button;
 /// https://m3.material.io/components/extended-fab/specs
 pub struct FAB {
     text: String,
-    icon: String,
+    icon: char,
     style: Style,
 }
 
 #[allow(dead_code)]
 impl FAB {
-    pub fn new(text: &str, icon: &str) -> Self {
+    pub fn new(text: &str, icon: char) -> Self {
         Self {
             text: text.into(),
-            icon: icon.into(),
+            icon,
             style: Style::default(),
         }
     }
@@ -36,17 +35,7 @@ impl FAB {
     pub fn build<'a, Message: 'a>(self) -> Button<'a, Message> {
         button(
             row![
-                Svg::new(self.icon.clone())
-                    .color(
-                        match self.style {
-                            Primary => svg::Color::OnPrimary,
-                            Secondary => svg::Color::OnSecondary,
-                            Danger => svg::Color::OnError,
-                        }
-                    )
-                    .build()
-                    .width(iced::Length::Fixed(21.))
-                    .height(iced::Length::Fixed(21.)),
+                text(self.icon).font(resource::ICON_FONT).size(24),
                 horizontal_space(12),
                 text(self.text.clone()).size(16)
             ].align_items(iced::Alignment::Center)

@@ -40,13 +40,14 @@ impl<'a> Component<'a> for StartPage {
         iced::Command::none()
     }
 
-    fn view(&self, _params: Self::ViewProps) -> Element<'a, app::Message> {
+    fn view(&self, _params: Self::ViewProps) -> Element<'_, app::Message> {
         column_iced![
-            FAB::new("Start Sharing", "play.svg")
+            FAB::new("Start Sharing", '\u{e1c4}')
                 .style(button::Style::Primary)
                 .build()
                 .on_press(Message::Start.into()),
         ].align_items(Center)
+            .padding(16)
             .width(Fill)
             .into()
     }

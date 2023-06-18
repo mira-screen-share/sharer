@@ -1,5 +1,7 @@
 use iced::{application, Color};
 use iced::widget::text;
+use iced_aw::style::tab_bar;
+use iced_aw::tabs;
 
 use crate::gui::theme::color::ColorExt;
 
@@ -9,6 +11,7 @@ pub mod widget;
 pub mod container;
 pub mod text_input;
 pub mod svg;
+pub mod tab;
 
 #[allow(dead_code)]
 #[derive(Debug, Clone, PartialEq, Default)]
@@ -173,6 +176,6 @@ impl text::StyleSheet for Theme {
     type Style = ();
 
     fn appearance(&self, _: Self::Style) -> text::Appearance {
-        text::Appearance::default()
+        Default::default()
     }
 }
