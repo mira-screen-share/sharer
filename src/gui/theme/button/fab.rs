@@ -1,5 +1,5 @@
 use iced::widget::button::{Appearance, StyleSheet};
-use iced::widget::{button, horizontal_space, row, text};
+use iced::widget::{button, horizontal_space, row};
 use iced::{Background, Color};
 
 use crate::gui::theme::button::Style::{Danger, Primary, Secondary};
@@ -39,10 +39,12 @@ impl FAB {
                 icon(self.icon.clone()).size(24),
                 horizontal_space(12),
                 bold(self.text.clone()).size(16)
-            ].align_items(iced::Alignment::Center)
-        ).style(Box::new(self) as _)
-            .padding([0, 16, 0, 16])
-            .height(56)
+            ]
+            .align_items(iced::Alignment::Center),
+        )
+        .style(Box::new(self) as _)
+        .padding([0, 16, 0, 16])
+        .height(56)
     }
 }
 

@@ -1,5 +1,4 @@
 use std::path::Path;
-use std::sync::{Arc, Mutex};
 
 use clap::Parser;
 use iced::widget::row;
@@ -73,7 +72,6 @@ impl Application for App {
 
     fn view(&self) -> Element<Message> {
         let is_sharing = self.capturer.is_running();
-        println!("view");
         let element: Element<Message> = row![column_iced![if is_sharing {
             self.sharing_page.view(sharing::ViewProps {
                 room_id: self.capturer.get_room_id().unwrap_or_default(),

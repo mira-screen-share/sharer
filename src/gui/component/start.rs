@@ -32,7 +32,11 @@ impl<'a> Component<'a> for StartPage {
     type UpdateProps = UpdateProps<'a>;
     type ViewProps = ();
 
-    fn update(&mut self, message: Self::Message, props: Self::UpdateProps) -> iced::Command<app::Message> {
+    fn update(
+        &mut self,
+        message: Self::Message,
+        props: Self::UpdateProps,
+    ) -> iced::Command<app::Message> {
         match message {
             Message::Start => {
                 props.capturer.run();
@@ -42,14 +46,13 @@ impl<'a> Component<'a> for StartPage {
     }
 
     fn view(&self, _params: Self::ViewProps) -> Element<'_, app::Message> {
-        column_iced![
-            FAB::new("Start Sharing", Icon::PlayCircle)
-                .style(button::Style::Primary)
-                .build()
-                .on_press(Message::Start.into()),
-        ].align_items(Center)
-            .padding(16)
-            .width(Fill)
-            .into()
+        column_iced![FAB::new("Start Sharing", Icon::PlayCircle)
+            .style(button::Style::Primary)
+            .build()
+            .on_press(Message::Start.into()),]
+        .align_items(Center)
+        .padding(16)
+        .width(Fill)
+        .into()
     }
 }

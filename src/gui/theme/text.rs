@@ -1,11 +1,11 @@
 use iced::widget::text::{Appearance, StyleSheet};
 
 use crate::gui::resource;
-use crate::gui::theme::Theme;
 use crate::gui::theme::icon::Icon;
 use crate::gui::theme::widget::Text;
+use crate::gui::theme::Theme;
 
-pub trait Themed: StyleSheet<Style=Theme> {}
+pub trait Themed: StyleSheet<Style = Theme> {}
 
 impl StyleSheet for Theme {
     type Style = ();

@@ -22,6 +22,7 @@ use crate::signaller::Signaller;
 use crate::OutputSink;
 use crate::Result;
 
+#[allow(dead_code)]
 pub struct WebRTCOutput {
     api: Arc<webrtc::api::API>,
     peers: Arc<Mutex<Vec<WebRTCPeer>>>,

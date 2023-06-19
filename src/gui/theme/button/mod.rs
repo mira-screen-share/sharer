@@ -19,8 +19,7 @@ pub enum Style {
     Danger,
 }
 
-pub trait Themed: StyleSheet<Style=Theme> {}
-
+pub trait Themed: StyleSheet<Style = Theme> {}
 
 impl StyleSheet for Theme {
     type Style = Box<dyn Themed<Style = Theme>>;

@@ -5,7 +5,6 @@ use iced::{Background, Color};
 use crate::gui::theme::button::{Style, Style::*, Themed};
 use crate::gui::theme::color::ColorExt;
 use crate::gui::theme::icon::Icon;
-use crate::gui::theme::svg::Svg;
 use crate::gui::theme::text::icon;
 
 use crate::gui::theme::widget::Button;
