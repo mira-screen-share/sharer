@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 // adapted from
 // https://github.com/MirrorX-Desktop/MirrorX/tree/master/mirrorx_core/src/component/desktop/windows
 use super::{

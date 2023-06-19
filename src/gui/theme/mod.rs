@@ -1,4 +1,3 @@
-use iced::widget::text;
 use iced::{application, Color};
 
 use crate::gui::theme::color::ColorExt;
@@ -7,11 +6,12 @@ pub mod button;
 pub mod color;
 pub mod container;
 pub mod svg;
-pub mod text_input;
-pub mod widget;
+pub mod tab;
+pub mod icon;
+pub mod text;
 
 #[allow(dead_code)]
-#[derive(Debug, Clone, PartialEq, Default)]
+#[derive(Debug, Clone, PartialEq, Default, Copy)]
 pub enum Theme {
     #[default]
     Light,
@@ -166,13 +166,5 @@ impl application::StyleSheet for Theme {
             background_color: palette.background,
             text_color: palette.on_background,
         }
-    }
-}
-
-impl text::StyleSheet for Theme {
-    type Style = ();
-
-    fn appearance(&self, _: Self::Style) -> text::Appearance {
-        text::Appearance::default()
     }
 }

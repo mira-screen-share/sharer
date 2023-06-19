@@ -4,7 +4,6 @@ pub use fab::FAB;
 pub use filled::FilledButton;
 pub use icon::IconButton;
 
-use crate::gui::theme::widget::Button;
 use crate::gui::theme::Theme;
 
 mod fab;
@@ -20,11 +19,8 @@ pub enum Style {
     Danger,
 }
 
-pub trait Buildable<'a> {
-    fn build<Message: 'a>(self) -> Button<'a, Message>;
-}
+pub trait Themed: StyleSheet<Style=Theme> {}
 
-pub trait Themed: StyleSheet<Style = Theme> {}
 
 impl StyleSheet for Theme {
     type Style = Box<dyn Themed<Style = Theme>>;

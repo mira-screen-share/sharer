@@ -122,7 +122,7 @@ async fn start_capture(
     };
 
     // need to outlive capture.capture, i.e. end of this function
-    let _capturer = AudioCapture::capture(output.clone())?;
+    let _audio_capturer = AudioCapture::capture(output.clone())?;
     capture.capture(encoder, output, profiler).await?;
     Ok(())
 }

@@ -23,6 +23,7 @@ pub enum Color {
     OnError,
 }
 
+#[allow(dead_code)]
 impl Svg {
     pub fn new(svg: String) -> Self {
         Self {

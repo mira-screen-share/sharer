@@ -8,6 +8,7 @@ pub enum Style {
     /// Material Design 3 Outlined Card
     /// https://m3.material.io/components/cards/specs#9ad208b3-3d37-475c-a0eb-68cf845718f8
     #[default]
+    Default,
     OutlinedCard,
 }
 
@@ -18,6 +19,7 @@ impl StyleSheet for Theme {
         let palette = self.palette();
 
         match style {
+            Style::Default => Default::default(),
             Style::OutlinedCard => Appearance {
                 background: palette.surface.into(),
                 border_radius: 12.,

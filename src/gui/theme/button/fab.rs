@@ -1,12 +1,16 @@
+use iced::{Background, Color};
+use iced::widget::{button, horizontal_space, row};
 use iced::widget::button::{Appearance, StyleSheet};
 use iced::widget::{button, horizontal_space, row, text};
 use iced::{Background, Color};
 
+use crate::gui::theme::button::{Style, Themed};
 use crate::gui::theme::button::Style::{Danger, Primary, Secondary};
 use crate::gui::theme::button::{Buildable, Style, Themed};
 use crate::gui::theme::color::ColorExt;
-use crate::gui::theme::svg;
-use crate::gui::theme::svg::Svg;
+use crate::gui::theme::icon::Icon;
+use crate::gui::theme::text::{bold, icon};
+use crate::gui::theme::Theme;
 use crate::gui::theme::widget::Button;
 use crate::gui::theme::Theme;
 
@@ -14,16 +18,16 @@ use crate::gui::theme::Theme;
 /// https://m3.material.io/components/extended-fab/specs
 pub struct FAB {
     text: String,
-    icon: String,
+    icon: Icon,
     style: Style,
 }
 
 #[allow(dead_code)]
 impl FAB {
-    pub fn new(text: &str, icon: &str) -> Self {
+    pub fn new(text: &str, icon: Icon) -> Self {
         Self {
             text: text.into(),
-            icon: icon.into(),
+            icon,
             style: Style::default(),
         }
     }
@@ -32,29 +36,17 @@ impl FAB {
         self.style = style;
         self
     }
-}
 
-impl<'a> Buildable<'a> for FAB {
-    fn build<Message: 'a>(self) -> Button<'a, Message> {
+    pub fn build<'a, Message: 'a>(self) -> Button<'a, Message> {
         button(
             row![
-                Svg::new(self.icon.clone())
-                    .color(match self.style {
-                        Primary => svg::Color::OnPrimary,
-                        Secondary => svg::Color::OnSecondary,
-                        Danger => svg::Color::OnError,
-                    })
-                    .build()
-                    .width(iced::Length::Fixed(21.))
-                    .height(iced::Length::Fixed(21.)),
+                icon(self.icon.clone()).size(24),
                 horizontal_space(12),
-                text(self.text.clone()).size(16)
-            ]
-            .align_items(iced::Alignment::Center),
-        )
-        .style(Box::new(self) as _)
-        .padding([0, 16, 0, 16])
-        .height(56)
+                bold(self.text.clone()).size(16)
+            ].align_items(iced::Alignment::Center)
+        ).style(Box::new(self) as _)
+            .padding([0, 16, 0, 16])
+            .height(56)
     }
 }
 
