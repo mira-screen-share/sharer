@@ -7,6 +7,7 @@ use bytes::Bytes;
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::{SampleFormat, Stream};
 
+use anyhow::anyhow;
 use std::sync::mpsc::Sender;
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -127,7 +128,7 @@ impl AudioCapture {
                 None,
             )?,
             _ => {
-                return Err(failure::err_msg("unsupported sample format"));
+                return Err(anyhow!("unsupported sample format"));
             }
         };
 
