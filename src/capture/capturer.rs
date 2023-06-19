@@ -38,7 +38,7 @@ pub struct Capturer {
     pub args: Args,
     pub config: Config,
     shutdown_token_opt: Option<CancellationToken>,
-    signaller: Option<Arc<dyn Signaller + Send + Sync>>,
+    signaller: Arc<Mutex<Option<Arc<dyn Signaller + Send + Sync>>>>,
 }
 
 impl Capturer {
@@ -47,22 +47,22 @@ impl Capturer {
             args,
             config,
             shutdown_token_opt: None,
-            signaller: None,
+            signaller: Arc::new(Mutex::new(None)),
         }
     }
 
-    pub fn run(&'static mut self) {
+    pub fn run(&mut self) {
         let args = self.args.clone();
         let config = self.config.clone();
 
         let shutdown_token = CancellationToken::new();
         self.shutdown_token_opt = Some(shutdown_token.clone());
 
+        let signaller_opt = self.signaller.clone();
         tokio::spawn(async move {
             let signaller_url = config.signaller_url.clone();
-            let signaller =
-                Arc::new(WebSocketSignaller::new(&signaller_url).await.unwrap());
-            self.signaller.replace(signaller.clone());
+            let signaller = Arc::new(WebSocketSignaller::new(&signaller_url).await.unwrap());
+            signaller_opt.lock().await.replace(signaller.clone());
 
             tokio::select! {
                 _ = start_capture(args, config, signaller) => {}
@@ -91,7 +91,12 @@ impl Capturer {
     }
 
     pub fn get_room_id(&self) -> Option<String> {
-        self.signaller.as_ref().map_or(None, |s| { s.get_room_id() })
+        self.signaller
+            .clone()
+            .try_lock()
+            .unwrap() // TODO:Fix
+            .as_ref()
+            .map_or(None, |s| s.get_room_id())
     }
 }
 
