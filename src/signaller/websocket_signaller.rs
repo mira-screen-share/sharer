@@ -150,15 +150,9 @@ impl Signaller for WebSocketSignaller {
     }
     async fn start(&self) {
         trace!("Starting session");
+        let room = uuid::Uuid::new_v4().to_string();
         // TODO: get it from signaller
-        self.room_id
-            .lock()
-            .unwrap()
-            .replace(uuid::Uuid::new_v4().to_string());
-        let room = {
-            let room = self.room_id.lock().unwrap();
-            room.as_ref().unwrap().clone()
-        };
+        self.room_id.lock().unwrap().replace(room);
         self.send_queue
             .send(SignallerMessage::Start { uuid: room })
             .await

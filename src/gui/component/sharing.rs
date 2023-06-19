@@ -11,9 +11,10 @@ use crate::gui::component::Component;
 use crate::gui::theme::button;
 use crate::gui::theme::button::{FilledButton, IconButton};
 use crate::gui::theme::icon::Icon;
-use crate::gui::theme::tab::Tab;
+use crate::gui::theme::widget::Tabs;
 use crate::gui::theme::text::text;
-use crate::gui::theme::widget::{Element, Tabs};
+use crate::gui::theme::widget::Element;
+use crate::gui::theme::tab::Tab;
 
 pub struct SharingPage {
     current_tab: usize,

@@ -12,9 +12,8 @@ use crate::gui::component::{Component, sharing, start};
 use crate::gui::component::sharing::SharingPage;
 use crate::gui::component::start::StartPage;
 use crate::gui::theme::Theme;
-use crate::gui::theme::widget::Element;
-use crate::gui::theme::Theme;
 use crate::{column_iced, config};
+use crate::gui::theme::widget::Element;
 
 pub struct App {
     capturer: Arc<Mutex<Option<Capturer>>>, // late inited
@@ -60,10 +59,10 @@ impl Application for App {
     fn update(&mut self, message: Message) -> Command<Message> {
         return match message {
             Message::Start(message) => self.start_page.update(message, start::UpdateProps {
-                capturer: &mut self.capturer,
+                capturer: self.capturer.as_ref(),
             }),
             Message::Sharing(message) => self.sharing_page.update(message, sharing::UpdateProps {
-                capturer: &mut self.capturer,
+                capturer: self.capturer.as_ref(),
             }),
             Message::Ignore => Command::none(),
         };
