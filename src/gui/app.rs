@@ -1,9 +1,12 @@
 use std::path::Path;
+use std::sync::Arc;
 
 use clap::Parser;
+use futures_util::SinkExt;
 use iced::widget::row;
 use iced::Alignment::Center;
-use iced::{executor, Application, Command, Length};
+use iced::{executor, Application, Command, Length, Subscription};
+use tokio::sync::mpsc::{channel, Receiver, Sender};
 
 use crate::capture::capturer;
 use crate::capture::capturer::Capturer;
@@ -18,6 +21,7 @@ pub struct App {
     capturer: Capturer,
     pub start_page: StartPage,
     pub sharing_page: SharingPage,
+    intermediate_update_receiver: Option<Receiver<()>>,
 }
 
 #[derive(Clone, Debug)]
@@ -26,6 +30,7 @@ pub enum Message {
     Start(start::Message),
     Sharing(sharing::Message),
     Ignore,
+    UpdateChannel(Sender<()>),
 }
 
 impl Application for App {
@@ -38,11 +43,20 @@ impl Application for App {
     fn new(_flags: ()) -> (Self, Command<Message>) {
         let args = capturer::Args::parse();
         let config = config::load(Path::new(&args.config)).unwrap();
+        let (intermediate_update_sender, intermediate_update_receiver) = channel(10);
+        let intermediate_update_sender = Box::leak(Box::new(intermediate_update_sender));
         (
             App {
-                capturer: Capturer::new(args, config),
+                capturer: Capturer::new(
+                    args,
+                    config,
+                    Arc::new(|| unsafe {
+                        intermediate_update_sender.try_send(()).unwrap();
+                    }),
+                ),
                 start_page: StartPage {},
                 sharing_page: SharingPage::new(),
+                intermediate_update_receiver: Some(intermediate_update_receiver),
             },
             Command::none(),
         )
@@ -67,6 +81,15 @@ impl Application for App {
                 },
             ),
             Message::Ignore => Command::none(),
+            Message::UpdateChannel(channel) => {
+                let mut receiver = self.intermediate_update_receiver.take().unwrap();
+                tokio::spawn(async move {
+                    while let Some(_) = receiver.recv().await {
+                        channel.send(()).await.unwrap();
+                    }
+                });
+                Command::none()
+            }
         };
     }
 
@@ -89,5 +112,16 @@ impl Application for App {
 
     fn theme(&self) -> Self::Theme {
         Theme::Dark
+    }
+
+    fn subscription(&self) -> Subscription<Self::Message> {
+        iced::subscription::channel("updates", 10, |mut s| async move {
+            let (sender, mut receiver) = channel(10);
+            s.send(Message::UpdateChannel(sender)).await.unwrap();
+            loop {
+                let _ = receiver.recv().await;
+                s.send(Message::Ignore).await.unwrap();
+            }
+        })
     }
 }
