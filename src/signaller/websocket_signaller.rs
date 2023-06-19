@@ -152,7 +152,7 @@ impl Signaller for WebSocketSignaller {
         trace!("Starting session");
         let room = uuid::Uuid::new_v4().to_string();
         // TODO: get it from signaller
-        self.room_id.lock().unwrap().replace(room);
+        self.room_id.lock().unwrap().replace(room.clone());
         self.send_queue
             .send(SignallerMessage::Start { uuid: room })
             .await

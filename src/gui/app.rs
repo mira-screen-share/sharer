@@ -16,7 +16,7 @@ use crate::{column_iced, config};
 use crate::gui::theme::widget::Element;
 
 pub struct App {
-    capturer: Arc<Mutex<Option<Capturer>>>, // late inited
+    capturer: Capturer,
     pub start_page: StartPage,
     pub sharing_page: SharingPage,
 }
@@ -39,17 +39,11 @@ impl Application for App {
     fn new(_flags: ()) -> (Self, Command<Message>) {
         let args = capturer::Args::parse();
         let config = config::load(Path::new(&args.config)).unwrap();
-        let app = App {
-            capturer: Arc::new(Mutex::new(None)),
+        (App {
+            capturer: Capturer::new(args, config),
             start_page: StartPage {},
             sharing_page: SharingPage::new(),
-        };
-        let capturer_clone = app.capturer.clone();
-        tokio::spawn(async move {
-            let capturer = Capturer::new(args, config).await;
-            capturer_clone.lock().unwrap().replace(capturer);
-        });
-        (app, Command::none())
+        }, Command::none())
     }
 
     fn title(&self) -> String {
@@ -59,10 +53,10 @@ impl Application for App {
     fn update(&mut self, message: Message) -> Command<Message> {
         return match message {
             Message::Start(message) => self.start_page.update(message, start::UpdateProps {
-                capturer: self.capturer.as_ref(),
+                capturer: &mut self.capturer,
             }),
             Message::Sharing(message) => self.sharing_page.update(message, sharing::UpdateProps {
-                capturer: self.capturer.as_ref(),
+                capturer: &mut self.capturer,
             }),
             Message::Ignore => Command::none(),
         };
