@@ -1,6 +1,6 @@
-use std::time::Duration;
 use std::{ptr, slice};
 use std::sync::Arc;
+use std::time::Duration;
 
 use async_trait::async_trait;
 use block::{Block, ConcreteBlock};
@@ -10,25 +10,26 @@ use tokio::sync::mpsc::Receiver;
 use tokio::sync::mpsc::Sender;
 use tokio::sync::Mutex;
 
+use crate::{OutputSink, ScreenCapture};
 use crate::capture::frame::YUVFrame;
 use crate::capture::macos::config::Config as CaptureConfig;
 use crate::capture::macos::display::Display;
-use crate::capture::macos::ffi::CGDisplayStreamFrameStatus::{FrameComplete, Stopped};
-use crate::capture::macos::ffi::PixelFormat::YCbCr420Full;
 use crate::capture::macos::ffi::{
-    dispatch_queue_create, dispatch_release, CFRelease, CGDisplayStreamCreateWithDispatchQueue,
-    CGDisplayStreamFrameStatus, CGDisplayStreamRef, CGDisplayStreamStart, CGDisplayStreamStop,
-    CGDisplayStreamUpdateGetDropCount, CGDisplayStreamUpdateRef, CGError,
-    CVPixelBufferCreateWithIOSurface, CVPixelBufferGetBaseAddressOfPlane,
-    CVPixelBufferGetBytesPerRowOfPlane, CVPixelBufferGetHeight, CVPixelBufferGetWidth,
-    CVPixelBufferLockBaseAddress, CVPixelBufferRelease, CVPixelBufferUnlockBaseAddress,
+    CFRelease, CGDisplayStreamCreateWithDispatchQueue, CGDisplayStreamFrameStatus, CGDisplayStreamRef,
+    CGDisplayStreamStart, CGDisplayStreamStop, CGDisplayStreamUpdateGetDropCount, CGDisplayStreamUpdateRef,
+    CGError, CVPixelBufferCreateWithIOSurface, CVPixelBufferGetBaseAddressOfPlane,
+    CVPixelBufferGetBytesPerRowOfPlane, CVPixelBufferGetHeight,
+    CVPixelBufferGetWidth, CVPixelBufferLockBaseAddress, CVPixelBufferRelease,
+    CVPixelBufferUnlockBaseAddress, dispatch_queue_create, dispatch_release,
     DispatchQueue, FrameAvailableHandler, IOSurfaceRef,
 };
+use crate::capture::macos::ffi::CGDisplayStreamFrameStatus::{FrameComplete, Stopped};
+use crate::capture::macos::ffi::PixelFormat::YCbCr420Full;
+use crate::capture::macos::macos_sc_capture::ScreenRecorder;
 use crate::config::Config;
 use crate::encoder::{FfmpegEncoder, FrameData};
 use crate::performance_profiler::PerformanceProfiler;
 use crate::result::Result;
-use crate::{OutputSink, ScreenCapture};
 
 pub struct MacOSScreenCapture<'a> {
     stream: CGDisplayStreamRef,
@@ -57,7 +58,7 @@ impl<'a> MacOSScreenCapture<'a> {
                 }
             },
         )
-        .copy();
+            .copy();
 
         let queue = unsafe {
             dispatch_queue_create(b"app.mirashare\0".as_ptr() as *const i8, ptr::null_mut())
@@ -70,7 +71,7 @@ impl<'a> MacOSScreenCapture<'a> {
                 throttle: 1. / (config.max_fps as f64),
                 queue_length: 3,
             }
-            .build();
+                .build();
             let stream = CGDisplayStreamCreateWithDispatchQueue(
                 display.id(),
                 display.width(),
@@ -104,6 +105,10 @@ impl ScreenCapture for MacOSScreenCapture<'_> {
         output: Arc<Mutex<impl OutputSink + Send + ?Sized>>,
         mut profiler: PerformanceProfiler,
     ) -> Result<()> {
+        info!("{}", ScreenRecorder::can_record().await);
+        let mut recorder = ScreenRecorder::new();
+        recorder.monitor_available_content().await;
+
         let mut ticker =
             tokio::time::interval(Duration::from_millis((1000 / self.config.max_fps) as u64));
 
@@ -168,7 +173,7 @@ unsafe fn frame_available_handler(
         luminance_bytes_address as *mut u8,
         height * luminance_stride,
     )
-    .to_vec();
+        .to_vec();
 
     let chrominance_bytes_address = CVPixelBufferGetBaseAddressOfPlane(pixel_buffer, 1);
     let chrominance_stride = CVPixelBufferGetBytesPerRowOfPlane(pixel_buffer, 1);
@@ -176,7 +181,7 @@ unsafe fn frame_available_handler(
         chrominance_bytes_address as *mut u8,
         height * chrominance_stride / 2,
     )
-    .to_vec();
+        .to_vec();
 
     CVPixelBufferUnlockBaseAddress(pixel_buffer, 0);
 
