@@ -1,6 +1,6 @@
 use crate::capture::DisplayInfo;
 use crate::result::Result;
-use failure::format_err;
+use anyhow::format_err;
 
 use super::ffi::*;
 

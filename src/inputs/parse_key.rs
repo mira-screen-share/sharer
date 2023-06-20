@@ -1,5 +1,5 @@
 use crate::Result;
-use failure::format_err;
+use anyhow::format_err;
 
 pub trait FromJsKey {
     /// convert from KeyboardEvent.code

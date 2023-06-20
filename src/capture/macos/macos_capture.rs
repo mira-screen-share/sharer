@@ -1,10 +1,10 @@
+use std::sync::Arc;
 use std::time::Duration;
 use std::{ptr, slice};
-use std::sync::Arc;
 
+use anyhow::format_err;
 use async_trait::async_trait;
 use block::{Block, ConcreteBlock};
-use failure::format_err;
 use libc::c_void;
 use tokio::sync::mpsc::Receiver;
 use tokio::sync::mpsc::Sender;
