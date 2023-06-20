@@ -1,5 +1,5 @@
 pub mod app;
-mod macros;
-mod theme;
 mod component;
+mod macros;
 mod resource;
+mod theme;

@@ -6,10 +6,9 @@ pub use icon::IconButton;
 
 use crate::gui::theme::Theme;
 
-mod filled;
 mod fab;
+mod filled;
 mod icon;
-
 
 #[allow(dead_code)]
 #[derive(Default)]
@@ -20,10 +19,10 @@ pub enum Style {
     Danger,
 }
 
-pub trait Themed: StyleSheet<Style=Theme> {}
+pub trait Themed: StyleSheet<Style = Theme> {}
 
 impl StyleSheet for Theme {
-    type Style = Box<dyn Themed<Style=Theme>>;
+    type Style = Box<dyn Themed<Style = Theme>>;
 
     fn active(&self, style: &Self::Style) -> Appearance {
         style.active(self)
@@ -66,7 +65,7 @@ impl StyleSheet for DefaultButton {
     }
 }
 
-impl Default for Box<dyn Themed<Style=Theme>> {
+impl Default for Box<dyn Themed<Style = Theme>> {
     fn default() -> Self {
         Box::new(DefaultButton)
     }

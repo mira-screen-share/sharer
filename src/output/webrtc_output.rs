@@ -22,6 +22,7 @@ use crate::signaller::Signaller;
 use crate::OutputSink;
 use crate::Result;
 
+#[allow(dead_code)]
 pub struct WebRTCOutput {
     api: Arc<webrtc::api::API>,
     peers: Arc<Mutex<Vec<WebRTCPeer>>>,
@@ -44,7 +45,7 @@ impl WebRTCOutput {
     }
 
     pub async fn new(
-        mut signaller: Box<dyn Signaller + Send + Sync>,
+        signaller: Arc<dyn Signaller + Send + Sync>,
         encoder_force_idr: &mut Arc<AtomicBool>,
         input_handler: Arc<InputHandler>,
         config: &Config,

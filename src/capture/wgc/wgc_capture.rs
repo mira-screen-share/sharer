@@ -72,9 +72,7 @@ impl ScreenCapture for WGCScreenCapture<'_> {
                 let frame = frame_pool.TryGetNextFrame()?;
                 sender
                     .try_send(frame)
-                    .unwrap_or_else(move |err|
-                        warn!("Failed to send frame: {}", err.to_string())
-                    );
+                    .unwrap_or_else(move |err| warn!("Failed to send frame: {}", err.to_string()));
                 Ok(())
             }
         }))?;

@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use clap::Parser;
+
 use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
 
@@ -11,7 +12,7 @@ use crate::inputs::InputHandler;
 use crate::output::{FileOutput, OutputSink, WebRTCOutput};
 use crate::performance_profiler::PerformanceProfiler;
 use crate::result::Result;
-use crate::signaller::WebSocketSignaller;
+use crate::signaller::{Signaller, WebSocketSignaller};
 
 #[derive(Parser, Debug, Clone)]
 #[command(author, version, about, long_about = None)]
@@ -37,32 +38,41 @@ pub struct Capturer {
     pub args: Args,
     pub config: Config,
     shutdown_token_opt: Option<CancellationToken>,
-    invite_link_opt: Option<String>,
-    room_id_opt: Option<String>,
+    signaller: Arc<Mutex<Option<Arc<dyn Signaller + Send + Sync>>>>,
+    notify_update: Arc<dyn Fn() + Send + Sync>,
 }
 
 impl Capturer {
-    pub fn new(args: Args, config: Config) -> Self {
-        Self { args, config, shutdown_token_opt: None, invite_link_opt: None, room_id_opt: None }
+    pub fn new(args: Args, config: Config, notify_update: Arc<dyn Fn() + Send + Sync>) -> Self {
+        Self {
+            args,
+            config,
+            shutdown_token_opt: None,
+            signaller: Arc::new(Mutex::new(None)),
+            notify_update,
+        }
     }
 
-    pub fn run(&mut self) -> () {
+    pub fn run(&mut self) {
         let args = self.args.clone();
         let config = self.config.clone();
 
         let shutdown_token = CancellationToken::new();
         self.shutdown_token_opt = Some(shutdown_token.clone());
 
-        let sharer_uuid = uuid::Uuid::new_v4().to_string();
-        self.invite_link_opt = Some(format!(
-            "{}?room={}&signaller={}",
-            config.viewer_url, sharer_uuid, config.signaller_url
-        ));
-        self.room_id_opt = Some(sharer_uuid.clone());
-
+        let signaller_opt = self.signaller.clone();
+        let notify_update = self.notify_update.clone();
         tokio::spawn(async move {
+            let signaller_url = config.signaller_url.clone();
+            let signaller = Arc::new(
+                WebSocketSignaller::new(&signaller_url, notify_update)
+                    .await
+                    .unwrap(),
+            );
+            signaller_opt.lock().await.replace(signaller.clone());
+
             tokio::select! {
-                _ = start_capture(args, config, sharer_uuid) => {}
+                _ = start_capture(args, config, signaller) => {}
                 _ = shutdown_token.cancelled() => {}
             }
         });
@@ -71,7 +81,6 @@ impl Capturer {
     pub fn shutdown(&mut self) {
         if let Some(shutdown_token) = self.shutdown_token_opt.take() {
             shutdown_token.cancel();
-            self.invite_link_opt = None;
         }
     }
 
@@ -80,18 +89,28 @@ impl Capturer {
     }
 
     pub fn get_invite_link(&self) -> Option<String> {
-        self.invite_link_opt.clone()
+        Some(format!(
+            "{}?room={}&signaller={}",
+            self.config.viewer_url,
+            self.get_room_id().unwrap_or_default(),
+            self.config.signaller_url
+        ))
     }
 
     pub fn get_room_id(&self) -> Option<String> {
-        self.room_id_opt.clone()
+        self.signaller
+            .clone()
+            .try_lock()
+            .unwrap() // TODO:Fix
+            .as_ref()
+            .map_or(None, |s| s.get_room_id())
     }
 }
 
 async fn start_capture(
     args: Args,
     config: Config,
-    sharer_uuid: String,
+    signaller: Arc<dyn Signaller + Send + Sync>,
 ) -> Result<()> {
     let display = Display::online().unwrap()[args.display].select()?;
     let dpi_conversion_factor = display.dpi_conversion_factor();
@@ -105,24 +124,20 @@ async fn start_capture(
     ));
 
     info!("Resolution: {:?}", resolution);
-    info!(
-        "Invite link: {}?room={}&signaller={}",
-        config.viewer_url, sharer_uuid, config.signaller_url
-    );
     let output: Arc<Mutex<dyn OutputSink + Send>> = if let Some(path) = args.file {
         Arc::new(Mutex::new(FileOutput::new(&path)))
     } else {
         WebRTCOutput::new(
-            Box::new(WebSocketSignaller::new(&config.signaller_url, sharer_uuid).await?),
+            signaller,
             &mut encoder.force_idr,
             input_handler.clone(),
             &config,
-        ).await?
+        )
+        .await?
     };
 
-    let _ = AudioCapture::capture(output.clone())?;
+    // need to outlive capture.capture, i.e. end of this function
+    let _audio_capturer = AudioCapture::capture(output.clone())?;
     capture.capture(encoder, output, profiler).await?;
     Ok(())
 }
-
-
