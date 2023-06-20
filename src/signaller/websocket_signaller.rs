@@ -31,7 +31,7 @@ pub struct WebSocketSignaller {
     topics_rx: RwLock<HashMap<&'static str, Mutex<broadcast::Receiver<SignallerMessage>>>>,
     room_id: std::sync::Mutex<Option<String>>,
 
-    state_update_callback: Arc<dyn Fn() + Send + Sync>,
+    notify_update: Arc<dyn Fn() + Send + Sync>,
 }
 
 impl WebSocketSignaller {
@@ -89,10 +89,7 @@ impl WebSocketSignaller {
         topics_rx
     }
 
-    pub async fn new(
-        url: &str,
-        state_update_callback: Arc<dyn Fn() + Send + Sync>,
-    ) -> Result<Self> {
+    pub async fn new(url: &str, notify_update: Arc<dyn Fn() + Send + Sync>) -> Result<Self> {
         let (send_queue_sender, send_queue_receiver) = mpsc::channel::<SignallerMessage>(8);
 
         let topics_tx = Arc::new(RwLock::new(HashMap::new()));
@@ -127,7 +124,7 @@ impl WebSocketSignaller {
             topics_tx,
             topics_rx,
             room_id: std::sync::Mutex::new(None),
-            state_update_callback,
+            notify_update,
         })
     }
 }
@@ -158,7 +155,7 @@ impl Signaller for WebSocketSignaller {
         let room = uuid::Uuid::new_v4().to_string();
         // TODO: get it from signaller
         self.room_id.lock().unwrap().replace(room.clone());
-        (self.state_update_callback)();
+        (self.notify_update)();
         self.send_queue
             .send(SignallerMessage::Start { uuid: room })
             .await

@@ -50,9 +50,7 @@ impl Application for App {
                 capturer: Capturer::new(
                     args,
                     config,
-                    Arc::new(|| unsafe {
-                        intermediate_update_sender.try_send(()).unwrap();
-                    }),
+                    Arc::new(|| intermediate_update_sender.try_send(()).unwrap()),
                 ),
                 start_page: StartPage {},
                 sharing_page: SharingPage::new(),

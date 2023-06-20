@@ -39,21 +39,17 @@ pub struct Capturer {
     pub config: Config,
     shutdown_token_opt: Option<CancellationToken>,
     signaller: Arc<Mutex<Option<Arc<dyn Signaller + Send + Sync>>>>,
-    state_update_callback: Arc<dyn Fn() + Send + Sync>,
+    notify_update: Arc<dyn Fn() + Send + Sync>,
 }
 
 impl Capturer {
-    pub fn new(
-        args: Args,
-        config: Config,
-        state_update_callback: Arc<dyn Fn() + Send + Sync>,
-    ) -> Self {
+    pub fn new(args: Args, config: Config, notify_update: Arc<dyn Fn() + Send + Sync>) -> Self {
         Self {
             args,
             config,
             shutdown_token_opt: None,
             signaller: Arc::new(Mutex::new(None)),
-            state_update_callback,
+            notify_update,
         }
     }
 
@@ -65,11 +61,11 @@ impl Capturer {
         self.shutdown_token_opt = Some(shutdown_token.clone());
 
         let signaller_opt = self.signaller.clone();
-        let state_update_callback = self.state_update_callback.clone();
+        let notify_update = self.notify_update.clone();
         tokio::spawn(async move {
             let signaller_url = config.signaller_url.clone();
             let signaller = Arc::new(
-                WebSocketSignaller::new(&signaller_url, state_update_callback)
+                WebSocketSignaller::new(&signaller_url, notify_update)
                     .await
                     .unwrap(),
             );
