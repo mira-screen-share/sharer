@@ -1,12 +1,22 @@
 extern crate libc;
 
 use std::ffi::c_void;
-use std::ffi::CStr;
+use std::sync::{Arc, Mutex};
 
-use apple_sys::ScreenCaptureKit::{CGSize, CMTime, id, INSArray, INSBundle, INSError, INSObject, INSScreen, ISCContentFilter, ISCDisplay, ISCRunningApplication, ISCShareableContent, ISCStreamConfiguration, ISCWindow, NSArray, NSArray_NSExtendedArray, NSBundle, NSError, NSScreen, NSString_NSStringDeprecated, SCContentFilter, SCDisplay, SCRunningApplication, SCShareableContent, SCStreamConfiguration, SCWindow};
-use block::{Block, ConcreteBlock};
+use apple_sys::ScreenCaptureKit::{
+    CGSize, CMTime, id, INSError, INSObject, INSScreen,
+    ISCContentFilter, ISCDisplay, ISCRunningApplication, ISCShareableContent, ISCStream,
+    ISCStreamConfiguration, ISCWindow, NSError,
+    NSScreen, NSString_NSStringDeprecated, PNSObject, SCContentFilter, SCDisplay,
+    SCRunningApplication, SCShareableContent, SCStreamConfiguration,
+    SCWindow,
+};
+use block::Block;
 use itertools::Itertools;
 use tokio::sync::mpsc;
+use crate::capture::macos::capture_engine::CaptureEngine;
+
+use crate::capture::macos::ffi_sc::{from_nsarray, from_nsstring, FromNSArray, new_nsarray, objc_closure};
 
 enum CaptureType {
     Display,
@@ -21,94 +31,32 @@ pub struct ScreenRecorder {
     is_app_excluded: bool,
     content_size: CGSize,
     scale_factor: usize,
+    available_content: Option<SCShareableContent>,
     available_apps: Vec<SCRunningApplication>,
     available_displays: Vec<SCDisplay>,
     available_windows: Vec<SCWindow>,
     is_audio_capture_enabled: bool,
     is_app_audio_excluded: bool,
+    capture_engine: CaptureEngine,
     is_setup: bool,
 }
 
-macro_rules! objc_handler {
-    ($a:expr) => {
-        &*ConcreteBlock::new($a).copy() as *const Block<_, _> as *mut c_void
-    };
-}
+unsafe impl Send for ScreenRecorder {}
 
-trait FromNSArray<T> {
-    fn from_nsarray(array: NSArray) -> Vec<T>;
-}
-
-trait ToNSArray<T> {
-    fn to_nsarray(&self) -> NSArray;
-}
-
-fn new_nsarray<T: 'static>() -> NSArray {
-    unsafe {
-        NSArray(<NSArray as INSArray<T>>::init(&NSArray::alloc()))
+impl Drop for ScreenRecorder {
+    fn drop(&mut self) {
+        unsafe {
+            self.available_content.take().map(|content| content.release());
+        }
     }
 }
 
-macro_rules! impl_from_to_nsarray_for {
-    ($T:ident) => {
-        impl FromNSArray<$T> for Vec<$T> {
-            fn from_nsarray(array: NSArray) -> Vec<$T> {
-                let mut vec = Vec::new();
-                let count = unsafe {
-                    <NSArray as INSArray<$T>>::count(&array)
-                };
-                for i in 0..count {
-                    vec.push(unsafe {$T(<NSArray as INSArray<$T>>::objectAtIndex_(&array, i))});
-                }
-                vec
-            }
-        }
-
-        impl ToNSArray<$T> for Vec<$T> {
-            fn to_nsarray(&self) -> NSArray {
-                unsafe {
-                    let mut array = new_nsarray::<$T>();
-                    for x in self {
-                        array = <NSArray as NSArray_NSExtendedArray<$T>>::arrayByAddingObject_(&array, x.0);
-                    }
-                    array
-                }
-            }
-        }
-    };
-}
-
-macro_rules! from_nsarray {
-    ($T:ident, $e:expr) => {
-        <Vec<$T>>::from_nsarray($e)
-    };
-}
-
-macro_rules! from_nsstring {
-    ($s:expr) => {
-        CStr::from_ptr($s.cString()).to_str().unwrap()
-    };
-}
-
-macro_rules! aaa {
-    ($T:ident, $e:expr, $then:expr, $or:expr) => {
-        let res = unsafe { $e };
-        if res.0.is_null() {
-            $or
-        } else {
-            unsafe { $then }
-        }
-    };
-}
-
-impl_from_to_nsarray_for!(SCRunningApplication);
-impl_from_to_nsarray_for!(SCDisplay);
-impl_from_to_nsarray_for!(SCWindow);
 
 #[derive(Debug)]
-struct SendableContent(pub SCShareableContent);
+struct UnsafeSendable<T>(pub T);
 
-unsafe impl Send for SendableContent {}
+unsafe impl<T> Send for UnsafeSendable<T> {}
+
 
 impl ScreenRecorder {
     pub fn new() -> Self {
@@ -130,11 +78,13 @@ impl ScreenRecorder {
                     (unsafe { screen.backingScaleFactor() }) as usize
                 }
             },
+            available_content: None,
             available_apps: Vec::new(),
             available_displays: Vec::new(),
             available_windows: Vec::new(),
             is_audio_capture_enabled: true,
             is_app_audio_excluded: false,
+            capture_engine: CaptureEngine::new(),
             is_setup: false,
         }
     }
@@ -145,7 +95,7 @@ impl ScreenRecorder {
             SCShareableContent::getShareableContentExcludingDesktopWindows_onScreenWindowsOnly_completionHandler_(
                 false,
                 true,
-                objc_handler!(move |_content: id, error: id| {
+                objc_closure!(move |_content: id, error: id| {
                     let result = error.is_null();
                     tx.blocking_send(result).unwrap();
                 }),
@@ -155,14 +105,18 @@ impl ScreenRecorder {
     }
 
     pub async fn monitor_available_content(&mut self) {
-        if self.is_setup { return; }
+        if self.is_setup {
+            return;
+        }
         self.refresh_available_content().await;
     }
 
     /// Starts capturing screen content.
     pub async fn start(&mut self) {
         // Exit early if already running.
-        if self.is_running { return; }
+        if self.is_running {
+            return;
+        }
 
         if !self.is_setup {
             // Starting polling for available screen content.
@@ -180,51 +134,55 @@ impl ScreenRecorder {
 
         self.is_running = true;
 
-        // TODO
-        // // Start the stream and await new video frames.
-        //             for try await frame in captureEngine.startCapture(configuration: config, filter: filter) {
-        //                 capturePreview.updateFrame(frame)
-        //                 if contentSize != frame.size {
-        //                     // Update the content size if it changed.
-        //                     contentSize = frame.size
-        //                 }
-        //             }
+        unsafe {
+            self.capture_engine.start_capture(config, filter);
+        }
 
         unsafe {
-            config.finalize();
-            config.dealloc();
             filter.finalize();
             filter.dealloc();
+            config.finalize();
+            config.dealloc();
         }
     }
 
     fn content_filter(&self) -> SCContentFilter {
         unsafe {
             match self.capture_type {
-                CaptureType::Display => if let Some(display) = self.selected_display {
-                    // If a user chooses to exclude the app from the stream,
-                    // exclude it by matching its bundle identifier.
-                    let excluded_apps: NSArray = if self.is_app_excluded {
-                        self.available_apps.clone().into_iter().filter(|app| {
-                            let bundle = from_nsstring!(app.bundleIdentifier());
-                            let this_bundle = from_nsstring!(NSBundle::mainBundle().bundleIdentifier());
-                            bundle != this_bundle
-                        }).collect::<Vec<SCRunningApplication>>().to_nsarray()
+                CaptureType::Display => {
+                    if let Some(display) = self.selected_display {
+                        // TODO ignore self
+                        // If a user chooses to exclude the app from the stream,
+                        // exclude it by matching its bundle identifier.
+                        // let excluded_apps: NSArray = if self.is_app_excluded {
+                        //     self.available_apps.clone().into_iter().filter(|app| {
+                        //         let bundle = from_nsstring!(app.bundleIdentifier());
+                        //         let this_bundle = from_nsstring!(NSBundle::mainBundle().bundleIdentifier());
+                        //         bundle != this_bundle
+                        //     }).collect::<Vec<SCRunningApplication>>().to_nsarray()
+                        // } else {
+                        //     new_nsarray::<SCRunningApplication>()
+                        // };
+
+                        let excluded_apps = new_nsarray::<SCRunningApplication>();
+                        SCContentFilter(
+                            SCContentFilter::alloc()
+                                .initWithDisplay_excludingApplications_exceptingWindows_(
+                                    display,
+                                    excluded_apps,
+                                    new_nsarray::<SCWindow>(),
+                                ),
+                        )
                     } else {
-                        new_nsarray::<SCRunningApplication>()
-                    };
-                    SCContentFilter(SCContentFilter::alloc().initWithDisplay_excludingApplications_exceptingWindows_(
-                        display,
-                        excluded_apps,
-                        new_nsarray::<SCWindow>(),
-                    ))
-                } else {
-                    panic!("No display selected.")
+                        panic!("No display selected.")
+                    }
                 }
-                CaptureType::Window => if let Some(window) = self.selected_window {
-                    todo!()
-                } else {
-                    panic!("No window selected.")
+                CaptureType::Window => {
+                    if let Some(window) = self.selected_window {
+                        todo!()
+                    } else {
+                        panic!("No window selected.")
+                    }
                 }
             }
         }
@@ -232,22 +190,26 @@ impl ScreenRecorder {
 
     fn stream_configuration(&self) -> SCStreamConfiguration {
         unsafe {
-            let mut config = SCStreamConfiguration(SCStreamConfiguration::alloc().init());
+            let config = SCStreamConfiguration(SCStreamConfiguration::alloc().init());
 
             // Configure audio capture.
             config.setCapturesAudio_(self.is_audio_capture_enabled);
             config.setExcludesCurrentProcessAudio_(self.is_app_audio_excluded);
 
             match self.capture_type {
-                CaptureType::Display => if let Some(display) = self.selected_display {
-                    // Configure the display content width and height.
-                    config.setWidth_(display.width() as usize * self.scale_factor);
-                    config.setHeight_(display.height() as usize * self.scale_factor);
+                CaptureType::Display => {
+                    if let Some(display) = self.selected_display {
+                        // Configure the display content width and height.
+                        config.setWidth_(display.width() as usize * self.scale_factor);
+                        config.setHeight_(display.height() as usize * self.scale_factor);
+                    }
                 }
-                CaptureType::Window => if let Some(window) = self.selected_window {
-                    // Configure the display content width and height.
-                    config.setWidth_(window.frame().size.width as usize * 2);
-                    config.setHeight_(window.frame().size.height as usize * 2);
+                CaptureType::Window => {
+                    if let Some(window) = self.selected_window {
+                        // Configure the display content width and height.
+                        config.setWidth_(window.frame().size.width as usize * 2);
+                        config.setHeight_(window.frame().size.height as usize * 2);
+                    }
                 }
             }
 
@@ -269,34 +231,67 @@ impl ScreenRecorder {
     }
 
     async fn refresh_available_content(&mut self) {
-        let (tx, mut rx) = mpsc::channel::<Option<SendableContent>>(1);
+        let (tx, mut rx) = mpsc::channel(1);
+        let results = Arc::new(Mutex::new(None));
+        let results_clone = results.clone();
         unsafe {
             SCShareableContent::getShareableContentExcludingDesktopWindows_onScreenWindowsOnly_completionHandler_(
                 false,
                 true,
-                objc_handler!(move |content: id, error: id| {
+                objc_closure!(move |content: id, error: id| {
                     if !error.is_null() {
                         let error = from_nsstring!(NSError(error).localizedDescription());
                         error!("Error getting shareable content: {}", error);
                         tx.blocking_send(None).unwrap();
                     } else {
-                        tx.blocking_send(Some(SendableContent(SCShareableContent(content)))).unwrap();
+                        let available_content = SCShareableContent(content);
+                        available_content.retain();
+                        results_clone.lock().unwrap().replace(UnsafeSendable(available_content));
+                        tx.blocking_send(Some(())).unwrap();
                     }
                 }),
             );
-            if let Some(SendableContent(available_content)) = rx.recv().await.unwrap() {
-                let available_displays = from_nsarray!(SCDisplay, available_content.displays());
-                let available_windows = ScreenRecorder::filter_windows(
-                    from_nsarray!(SCWindow, available_content.windows())
-                );
-                self.available_apps = from_nsarray!(SCRunningApplication, available_content.applications());
-                if self.selected_display.is_none() {
-                    self.selected_display = available_displays.first().cloned();
-                }
-                if self.selected_window.is_none() {
-                    self.selected_window = available_windows.first().cloned();
-                }
-            }
+            rx.recv().await.unwrap();
+            let available_content = results
+                .lock()
+                .unwrap()
+                .take()
+                .unwrap_or_else(|| panic!("Failed to get shareable content."))
+                .0;
+            let available_displays = from_nsarray!(SCDisplay, available_content.displays());
+            let available_windows = ScreenRecorder::filter_windows(from_nsarray!(
+                SCWindow,
+                available_content.windows()
+            ));
+            let available_apps =
+                from_nsarray!(SCRunningApplication, available_content.applications());
+            let old_content = self.available_content.replace(available_content);
+
+            self.selected_display = self.selected_display.map(
+                // Make sure the selected display is still available.
+                |selected_display| {
+                    available_displays
+                        .iter()
+                        .find(|display| display.0 == selected_display.0)
+                        .cloned()
+                },
+            ).flatten().or(available_displays.first().cloned());
+
+            self.selected_window = self.selected_window.map(
+                // Make sure the selected window is still available.
+                |selected_window| {
+                    available_windows
+                        .iter()
+                        .find(|window| window.0 == selected_window.0)
+                        .cloned()
+                },
+            ).flatten().or(available_windows.first().cloned());
+
+            self.available_displays = available_displays;
+            self.available_windows = available_windows;
+            self.available_apps = available_apps;
+
+            old_content.map(|content| content.release());
         }
     }
 
@@ -328,15 +323,13 @@ impl ScreenRecorder {
                     app => !from_nsstring!(app.applicationName()).is_empty(),
                 }
             })
+            // TODO ignore self
             // Remove this app's window from the list.
-            .filter(|window| unsafe {
-                let window_bundle = from_nsstring!(window.owningApplication().bundleIdentifier());
-                let this_bundle = from_nsstring!(NSBundle::mainBundle().bundleIdentifier());
-                window_bundle != this_bundle
-            })
+            // .filter(|window| unsafe {
+            //     let window_bundle = from_nsstring!(window.owningApplication().bundleIdentifier());
+            //     let this_bundle = from_nsstring!(NSBundle::mainBundle().bundleIdentifier());
+            //     window_bundle != this_bundle
+            // })
             .collect()
     }
 }
-
-unsafe impl Send for ScreenRecorder {}
-
