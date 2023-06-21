@@ -4,13 +4,13 @@ use crate::gui::theme::color::ColorExt;
 
 pub mod button;
 pub mod color;
-pub mod widget;
 pub mod container;
-pub mod text_input;
+pub mod icon;
 pub mod svg;
 pub mod tab;
-pub mod icon;
 pub mod text;
+pub mod text_input;
+pub mod widget;
 
 #[allow(dead_code)]
 #[derive(Debug, Clone, PartialEq, Default, Copy)]

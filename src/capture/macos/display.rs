@@ -4,7 +4,7 @@ use apple_sys::CoreMedia::{
     CGDisplayCopyDisplayMode, CGDisplayModeGetPixelHeight, CGDisplayModeGetPixelWidth,
     CGDisplayPixelsHigh, CGError, CGError_kCGErrorSuccess, CGGetOnlineDisplayList,
 };
-use failure::format_err;
+use anyhow::format_err;
 
 #[derive(PartialEq, Eq, Debug, Clone, Copy)]
 #[repr(C)]

@@ -1,12 +1,12 @@
-use iced::{Background, Color, Length};
+use crate::gui::theme::color::ColorExt;
 use iced::alignment::{Horizontal, Vertical};
 use iced::widget::container;
-use iced_aw::{TabLabel, tabs};
+use iced::{Background, Color, Length};
 use iced_aw::style::tab_bar;
-use crate::gui::theme::color::ColorExt;
+use iced_aw::{tabs, TabLabel};
 
-use crate::gui::theme::Theme;
 use crate::gui::theme::widget::Element;
+use crate::gui::theme::Theme;
 
 pub trait Tab {
     type Message;
@@ -67,4 +67,3 @@ impl tabs::StyleSheet for Theme {
         }
     }
 }
-

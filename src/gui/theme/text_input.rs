@@ -1,8 +1,8 @@
-use iced::Color;
 use iced::widget::text_input::{Appearance, StyleSheet};
+use iced::Color;
 
-use crate::gui::theme::Theme;
 use crate::gui::theme::color::ColorExt;
+use crate::gui::theme::Theme;
 
 #[allow(dead_code)]
 #[derive(Default)]
@@ -28,7 +28,7 @@ impl StyleSheet for Theme {
 
     fn focused(&self, style: &Self::Style) -> Appearance {
         match style {
-            Style::Selectable => self.active(style)
+            Style::Selectable => self.active(style),
         }
     }
 

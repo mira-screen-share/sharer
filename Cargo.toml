@@ -5,7 +5,7 @@ edition = "2021"
 license = "GPL-3.0-or-later"
 
 [dependencies]
-failure = "0.1.8"
+anyhow = "1.0"
 clap = { version = "4.0.14", features = ["derive"] }
 tokio = { version = "1.15", features = ["full"] }
 tokio-util = { version = "0.7.4", features = ["codec"] }
@@ -30,9 +30,12 @@ howlong = "0.1.7"
 rtcp = "0.7.1"
 cpal = "0.15.2"
 iced = { version = "0.9.0", features = ["tokio", "image", "svg"] }
+strum_macros = "0.24.3"
+strum = "0.24.1"
 iced_aw = { version = "0.5.2", features = ["tabs"] }
 apple-sys = { version = "0.2.0", features = ["CoreMedia", "ScreenCaptureKit"] }
 objc = "0.2.3"
+
 
 [target.'cfg(target_os = "macos")'.dependencies]
 libc = "0.2.108"
