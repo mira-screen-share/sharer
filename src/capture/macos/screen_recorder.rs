@@ -4,19 +4,21 @@ use std::ffi::c_void;
 use std::sync::{Arc, Barrier};
 
 use apple_sys::ScreenCaptureKit::{
-    CGSize, CMTime, id, INSError, INSObject, INSScreen,
-    ISCContentFilter, ISCDisplay, ISCRunningApplication, ISCShareableContent, ISCStream,
-    ISCStreamConfiguration, ISCWindow, NSError,
-    NSScreen, NSString_NSStringDeprecated, PNSObject, SCContentFilter, SCDisplay,
-    SCRunningApplication, SCShareableContent, SCStreamConfiguration,
-    SCWindow,
+    id, CGSize, CMTime, INSError, INSObject, INSScreen, ISCContentFilter, ISCDisplay,
+    ISCRunningApplication, ISCShareableContent, ISCStream, ISCStreamConfiguration, ISCWindow,
+    NSError, NSScreen, NSString_NSStringDeprecated, PNSObject, SCContentFilter, SCDisplay,
+    SCRunningApplication, SCShareableContent, SCStreamConfiguration, SCWindow,
 };
 use block::Block;
 use itertools::Itertools;
+use tokio::sync::mpsc::Sender;
 use tokio::sync::{mpsc, Mutex};
 
 use crate::capture::macos::capture_engine::CaptureEngine;
-use crate::capture::macos::ffi_sc::{from_nsarray, from_nsstring, FromNSArray, new_nsarray, objc_closure, UnsafeSendable};
+use crate::capture::macos::ffi::{
+    from_nsarray, from_nsstring, new_nsarray, objc_closure, FromNSArray, UnsafeSendable,
+};
+use crate::capture::YUVFrame;
 
 enum CaptureType {
     Display,
@@ -46,7 +48,9 @@ unsafe impl Send for ScreenRecorder {}
 impl Drop for ScreenRecorder {
     fn drop(&mut self) {
         unsafe {
-            self.available_content.take().map(|content| content.release());
+            self.available_content
+                .take()
+                .map(|content| content.release());
         }
     }
 }
@@ -105,7 +109,7 @@ impl ScreenRecorder {
     }
 
     /// Starts capturing screen content.
-    pub async fn start(&mut self) {
+    pub async fn start(&mut self, video_tx: Sender<YUVFrame>) {
         // Exit early if already running.
         if self.is_running {
             return;
@@ -127,7 +131,8 @@ impl ScreenRecorder {
         unsafe {
             self.capture_engine.lock().await.start_capture(
                 self.stream_configuration(),
-                self.content_filter()
+                self.content_filter(),
+                video_tx,
             );
         }
     }
@@ -136,7 +141,9 @@ impl ScreenRecorder {
         if !self.is_running {
             return;
         }
-        unsafe { self.capture_engine.lock().await.stop_capture().await; }
+        unsafe {
+            self.capture_engine.lock().await.stop_capture().await;
+        }
         self.is_running = false;
     }
 
@@ -228,10 +235,7 @@ impl ScreenRecorder {
         if !self.is_running {
             return;
         }
-        let param = UnsafeSendable((
-            self.stream_configuration(),
-            self.content_filter(),
-        ));
+        let param = UnsafeSendable((self.stream_configuration(), self.content_filter()));
         let engine = self.capture_engine.clone();
         unsafe {
             tokio::task::spawn(async move {
@@ -278,25 +282,33 @@ impl ScreenRecorder {
                 from_nsarray!(SCRunningApplication, available_content.applications());
             let old_content = self.available_content.replace(available_content);
 
-            self.selected_display = self.selected_display.map(
-                // Make sure the selected display is still available.
-                |selected_display| {
-                    available_displays
-                        .iter()
-                        .find(|display| display.0 == selected_display.0)
-                        .cloned()
-                },
-            ).flatten().or(available_displays.first().cloned());
+            self.selected_display = self
+                .selected_display
+                .map(
+                    // Make sure the selected display is still available.
+                    |selected_display| {
+                        available_displays
+                            .iter()
+                            .find(|display| display.0 == selected_display.0)
+                            .cloned()
+                    },
+                )
+                .flatten()
+                .or(available_displays.first().cloned());
 
-            self.selected_window = self.selected_window.map(
-                // Make sure the selected window is still available.
-                |selected_window| {
-                    available_windows
-                        .iter()
-                        .find(|window| window.0 == selected_window.0)
-                        .cloned()
-                },
-            ).flatten().or(available_windows.first().cloned());
+            self.selected_window = self
+                .selected_window
+                .map(
+                    // Make sure the selected window is still available.
+                    |selected_window| {
+                        available_windows
+                            .iter()
+                            .find(|window| window.0 == selected_window.0)
+                            .cloned()
+                    },
+                )
+                .flatten()
+                .or(available_windows.first().cloned());
 
             self.available_displays = available_displays;
             self.available_windows = available_windows;

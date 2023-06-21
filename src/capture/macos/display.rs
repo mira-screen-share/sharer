@@ -1,21 +1,25 @@
 use crate::capture::DisplayInfo;
 use crate::result::Result;
+use apple_sys::CoreMedia::{
+    CGDisplayCopyDisplayMode, CGDisplayModeGetPixelHeight, CGDisplayModeGetPixelWidth,
+    CGDisplayPixelsHigh, CGError, CGError_kCGErrorSuccess, CGGetOnlineDisplayList,
+};
 use failure::format_err;
-
-use super::ffi::*;
 
 #[derive(PartialEq, Eq, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct Display(u32);
 
+// TODO
 impl Display {
     pub fn online() -> Result<Vec<Display>> {
         unsafe {
             let mut displays = Vec::with_capacity(16);
             let mut len: u32 = 0;
 
+            #[allow(non_upper_case_globals)]
             match CGGetOnlineDisplayList(16, displays.as_mut_ptr(), &mut len) {
-                CGError::Success => (),
+                CGError_kCGErrorSuccess => (),
                 x => return Err(format_err!("CGGetOnlineDisplayList failed: {:?}", x)),
             }
 
@@ -34,7 +38,6 @@ impl Display {
     }
 
     pub fn width(self) -> usize {
-        // unsafe { CGDisplayPixelsWide(self.id()) }
         unsafe { CGDisplayModeGetPixelWidth(CGDisplayCopyDisplayMode(self.id())) }
     }
 

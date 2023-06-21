@@ -1,18 +1,30 @@
 use std::ffi::c_void;
 use std::ops::Deref;
 use std::ptr::null_mut;
+use std::slice;
 use std::sync::{Arc, Barrier, Once};
 
-use apple_sys::ScreenCaptureKit::{dispatch_queue_create, id, INSError, INSObject, ISCStream, NSError, NSObject, NSString_NSStringDeprecated, PNSObject, SCContentFilter, SCStream, SCStreamConfiguration, SCStreamOutputType_SCStreamOutputTypeAudio, SCStreamOutputType_SCStreamOutputTypeScreen};
+use apple_sys::CoreMedia::{
+    CMSampleBufferGetImageBuffer, CMSampleBufferGetNumSamples,
+    CMSampleBufferGetPresentationTimeStamp, CMSampleBufferRef, CVPixelBufferGetBaseAddressOfPlane,
+    CVPixelBufferGetBytesPerRowOfPlane, CVPixelBufferGetHeight, CVPixelBufferGetWidth,
+    CVPixelBufferLockBaseAddress, CVPixelBufferUnlockBaseAddress,
+};
+use apple_sys::ScreenCaptureKit::{
+    dispatch_queue_create, id, INSError, INSObject, ISCStream, NSError, NSObject,
+    NSString_NSStringDeprecated, PNSObject, SCContentFilter, SCStream, SCStreamConfiguration,
+    SCStreamOutputType_SCStreamOutputTypeAudio, SCStreamOutputType_SCStreamOutputTypeScreen,
+};
 use block::Block;
-use objc::{class, msg_send, sel, sel_impl};
 use objc::declare::ClassDecl;
 use objc::runtime::{Object, Sel};
+use objc::{class, msg_send, sel, sel_impl};
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::Sender;
 
+use crate::capture::macos::ffi::UnsafeSendable;
+use crate::capture::YUVFrame;
 use crate::{from_nsstring, objc_closure};
-use crate::capture::macos::ffi_sc::UnsafeSendable;
 
 pub struct CaptureEngine {
     stream: Option<SCStream>,
@@ -42,9 +54,10 @@ impl CaptureEngine {
         &mut self,
         config: SCStreamConfiguration,
         filter: SCContentFilter,
+        video_tx: Sender<YUVFrame>,
     ) {
-        let (video_tx, mut video_rx) = mpsc::channel::<()>(1);
-        let (audio_tx, mut audio_rx) = mpsc::channel::<()>(1);
+        // TODO audio capture
+        let (audio_tx, mut audio_rx) = mpsc::channel::<i32>(1);
 
         let mut output = StreamOutput(StreamOutput::alloc().init());
         output.set_on_output_frame(OutputHandler {
@@ -53,13 +66,8 @@ impl CaptureEngine {
         });
 
         tokio::spawn(async move {
-            while let Some(()) = video_rx.recv().await {
-                info!("received video buffer");
-            }
-        });
-        tokio::spawn(async move {
-            while let Some(()) = audio_rx.recv().await {
-                info!("received audio buffer");
+            while let Some(_) = audio_rx.recv().await {
+                // TODO
             }
         });
 
@@ -91,14 +99,16 @@ impl CaptureEngine {
 
         self.output.replace(output).map(|output| output.release());
         self.stream.replace(stream).map(|stream| stream.release());
-        self.stream.unwrap().startCaptureWithCompletionHandler_(objc_closure!(move |error: id| {
-            if error.is_null() {
-                info!("Started capturing.");
-            } else {
-                let error = from_nsstring!(NSError(error).localizedDescription());
-                panic!("Error starting capturing: {:?}", error);
-            }
-        }));
+        self.stream
+            .unwrap()
+            .startCaptureWithCompletionHandler_(objc_closure!(move |error: id| {
+                if error.is_null() {
+                    info!("Started capturing.");
+                } else {
+                    let error = from_nsstring!(NSError(error).localizedDescription());
+                    panic!("Error starting capturing: {:?}", error);
+                }
+            }));
 
         filter.finalize();
         filter.release();
@@ -123,26 +133,35 @@ impl CaptureEngine {
         }
     }
 
-    pub async unsafe fn update(&mut self, param: UnsafeSendable<(SCStreamConfiguration, SCContentFilter)>) {
+    pub async unsafe fn update(
+        &mut self,
+        param: UnsafeSendable<(SCStreamConfiguration, SCContentFilter)>,
+    ) {
         if let Some(stream) = &self.stream {
             let barrier = Arc::new(Barrier::new(3));
             let barrier_conf = barrier.clone();
             let barrier_filter = barrier.clone();
             let (config, filter) = param.0;
-            stream.updateConfiguration_completionHandler_(config, objc_closure!(move |error: id| {
-                if !error.is_null() {
-                    let error = from_nsstring!(NSError(error).localizedDescription());
-                    error!("Failed to update the stream session: {}", error);
-                }
-                barrier_conf.wait();
-            }));
-            stream.updateContentFilter_completionHandler_(filter, objc_closure!(move |error: id| {
-                if !error.is_null() {
-                    let error = from_nsstring!(NSError(error).localizedDescription());
-                    error!("Failed to update the stream session: {}", error);
-                }
-                barrier_filter.wait();
-            }));
+            stream.updateConfiguration_completionHandler_(
+                config,
+                objc_closure!(move |error: id| {
+                    if !error.is_null() {
+                        let error = from_nsstring!(NSError(error).localizedDescription());
+                        error!("Failed to update the stream session: {}", error);
+                    }
+                    barrier_conf.wait();
+                }),
+            );
+            stream.updateContentFilter_completionHandler_(
+                filter,
+                objc_closure!(move |error: id| {
+                    if !error.is_null() {
+                        let error = from_nsstring!(NSError(error).localizedDescription());
+                        error!("Failed to update the stream session: {}", error);
+                    }
+                    barrier_filter.wait();
+                }),
+            );
             barrier.wait();
 
             filter.finalize();
@@ -158,8 +177,8 @@ impl CaptureEngine {
 pub struct StreamOutput(pub id);
 
 pub struct OutputHandler {
-    pub video_sender: Sender<()>,
-    pub audio_sender: Sender<()>,
+    pub video_sender: Sender<YUVFrame>,
+    pub audio_sender: Sender<i32>,
 }
 
 pub struct ErrorHandler {
@@ -222,7 +241,7 @@ impl Deref for StreamOutput {
     }
 }
 
-extern "C" fn stream_output(this: &mut Object, _cmd: Sel, _stream: id, _sample: id, of_type: u8) {
+extern "C" fn stream_output(this: &mut Object, _cmd: Sel, _stream: id, sample: id, of_type: u8) {
     unsafe {
         let ptr = *this.get_ivar::<*mut c_void>("on_output_frame") as *mut OutputHandler;
         if ptr.is_null() {
@@ -233,20 +252,53 @@ extern "C" fn stream_output(this: &mut Object, _cmd: Sel, _stream: id, _sample: 
         #[allow(non_upper_case_globals)]
         match of_type as i64 {
             SCStreamOutputType_SCStreamOutputTypeScreen => {
-                handler
-                    .video_sender
-                    .try_send(())
-                    .unwrap_or_else(move |err| {
-                        warn!("Failed to send video frame: {}", err.to_string())
-                    });
+                let sample_buffer_ref = sample as CMSampleBufferRef;
+                let epoch = CMSampleBufferGetPresentationTimeStamp(sample_buffer_ref).epoch;
+                let pixel_buffer = CMSampleBufferGetImageBuffer(sample_buffer_ref);
+
+                CVPixelBufferLockBaseAddress(pixel_buffer, 0);
+
+                let width = CVPixelBufferGetWidth(pixel_buffer);
+                let height = CVPixelBufferGetHeight(pixel_buffer);
+                if width == 0 || height == 0 {
+                    return;
+                }
+
+                let luminance_bytes_address = CVPixelBufferGetBaseAddressOfPlane(pixel_buffer, 0);
+                let luminance_stride = CVPixelBufferGetBytesPerRowOfPlane(pixel_buffer, 0);
+                let luminance_bytes = slice::from_raw_parts(
+                    luminance_bytes_address as *mut u8,
+                    height * luminance_stride,
+                )
+                .to_vec();
+
+                let chrominance_bytes_address = CVPixelBufferGetBaseAddressOfPlane(pixel_buffer, 1);
+                let chrominance_stride = CVPixelBufferGetBytesPerRowOfPlane(pixel_buffer, 1);
+                let chrominance_bytes = slice::from_raw_parts(
+                    chrominance_bytes_address as *mut u8,
+                    height * chrominance_stride / 2,
+                )
+                .to_vec();
+
+                CVPixelBufferUnlockBaseAddress(pixel_buffer, 0);
+
+                let frame = YUVFrame {
+                    display_time: epoch as u64,
+                    width: width as i32,
+                    height: height as i32,
+                    luminance_bytes,
+                    luminance_stride: luminance_stride as i32,
+                    chrominance_bytes,
+                    chrominance_stride: chrominance_stride as i32,
+                };
+
+                handler.video_sender.try_send(frame).unwrap_or(());
             }
             SCStreamOutputType_SCStreamOutputTypeAudio => {
-                handler
-                    .audio_sender
-                    .try_send(())
-                    .unwrap_or_else(move |err| {
-                        warn!("Failed to send audio frame: {}", err.to_string())
-                    });
+                let sample_buffer_ref = sample as CMSampleBufferRef;
+                let a = CMSampleBufferGetNumSamples(sample_buffer_ref) as i32;
+
+                handler.audio_sender.try_send(a).unwrap_or(());
             }
             _ => {
                 error!("Unknown output type: {}", of_type);
