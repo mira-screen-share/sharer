@@ -8,7 +8,7 @@ use block::Block;
 use objc::{class, msg_send, sel, sel_impl};
 use objc::declare::ClassDecl;
 use objc::runtime::{Object, Sel};
-use tokio::sync::{mpsc, Semaphore};
+use tokio::sync::mpsc;
 use tokio::sync::mpsc::Sender;
 
 use crate::{from_nsstring, objc_closure};
@@ -38,7 +38,11 @@ impl CaptureEngine {
         }
     }
 
-    pub unsafe fn start_capture(&mut self, config: SCStreamConfiguration, filter: SCContentFilter) {
+    pub unsafe fn start_capture(
+        &mut self,
+        config: SCStreamConfiguration,
+        filter: SCContentFilter,
+    ) {
         let (video_tx, mut video_rx) = mpsc::channel::<()>(1);
         let (audio_tx, mut audio_rx) = mpsc::channel::<()>(1);
 

@@ -132,6 +132,14 @@ impl ScreenRecorder {
         }
     }
 
+    pub async fn stop(&mut self) {
+        if !self.is_running {
+            return;
+        }
+        unsafe { self.capture_engine.lock().await.stop_capture().await; }
+        self.is_running = false;
+    }
+
     fn content_filter(&self) -> SCContentFilter {
         unsafe {
             match self.capture_type {
@@ -216,14 +224,6 @@ impl ScreenRecorder {
         }
     }
 
-    pub async fn stop(&mut self) {
-        if !self.is_running {
-            return;
-        }
-        unsafe { self.capture_engine.lock().await.stop_capture().await; }
-        self.is_running = false;
-    }
-
     fn update_engine(&mut self) {
         if !self.is_running {
             return;
@@ -239,7 +239,6 @@ impl ScreenRecorder {
             });
         }
     }
-
 
     async fn refresh_available_content(&mut self) {
         let barrier = Arc::new(Barrier::new(2));
