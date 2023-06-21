@@ -105,9 +105,8 @@ impl ScreenCapture for MacOSScreenCapture<'_> {
         output: Arc<Mutex<impl OutputSink + Send + ?Sized>>,
         mut profiler: PerformanceProfiler,
     ) -> Result<()> {
-        info!("{}", ScreenRecorder::can_record().await);
         let mut recorder = ScreenRecorder::new();
-        recorder.monitor_available_content().await;
+        recorder.start().await;
 
         let mut ticker =
             tokio::time::interval(Duration::from_millis((1000 / self.config.max_fps) as u64));

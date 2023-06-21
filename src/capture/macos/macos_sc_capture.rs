@@ -1,7 +1,7 @@
 extern crate libc;
 
 use std::ffi::c_void;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Barrier};
 
 use apple_sys::ScreenCaptureKit::{
     CGSize, CMTime, id, INSError, INSObject, INSScreen,
@@ -13,10 +13,10 @@ use apple_sys::ScreenCaptureKit::{
 };
 use block::Block;
 use itertools::Itertools;
-use tokio::sync::mpsc;
-use crate::capture::macos::capture_engine::CaptureEngine;
+use tokio::sync::{mpsc, Mutex};
 
-use crate::capture::macos::ffi_sc::{from_nsarray, from_nsstring, FromNSArray, new_nsarray, objc_closure};
+use crate::capture::macos::capture_engine::CaptureEngine;
+use crate::capture::macos::ffi_sc::{from_nsarray, from_nsstring, FromNSArray, new_nsarray, objc_closure, UnsafeSendable};
 
 enum CaptureType {
     Display,
@@ -37,7 +37,7 @@ pub struct ScreenRecorder {
     available_windows: Vec<SCWindow>,
     is_audio_capture_enabled: bool,
     is_app_audio_excluded: bool,
-    capture_engine: CaptureEngine,
+    capture_engine: Arc<Mutex<CaptureEngine>>,
     is_setup: bool,
 }
 
@@ -50,13 +50,6 @@ impl Drop for ScreenRecorder {
         }
     }
 }
-
-
-#[derive(Debug)]
-struct UnsafeSendable<T>(pub T);
-
-unsafe impl<T> Send for UnsafeSendable<T> {}
-
 
 impl ScreenRecorder {
     pub fn new() -> Self {
@@ -84,7 +77,7 @@ impl ScreenRecorder {
             available_windows: Vec::new(),
             is_audio_capture_enabled: true,
             is_app_audio_excluded: false,
-            capture_engine: CaptureEngine::new(),
+            capture_engine: Arc::new(Mutex::new(CaptureEngine::new())),
             is_setup: false,
         }
     }
@@ -129,20 +122,13 @@ impl ScreenRecorder {
             // TODO
         }
 
-        let config = self.stream_configuration();
-        let filter = self.content_filter();
-
         self.is_running = true;
 
         unsafe {
-            self.capture_engine.start_capture(config, filter);
-        }
-
-        unsafe {
-            filter.finalize();
-            filter.dealloc();
-            config.finalize();
-            config.dealloc();
+            self.capture_engine.lock().await.start_capture(
+                self.stream_configuration(),
+                self.content_filter()
+            );
         }
     }
 
@@ -230,9 +216,35 @@ impl ScreenRecorder {
         }
     }
 
+    pub async fn stop(&mut self) {
+        if !self.is_running {
+            return;
+        }
+        unsafe { self.capture_engine.lock().await.stop_capture().await; }
+        self.is_running = false;
+    }
+
+    fn update_engine(&mut self) {
+        if !self.is_running {
+            return;
+        }
+        let param = UnsafeSendable((
+            self.stream_configuration(),
+            self.content_filter(),
+        ));
+        let engine = self.capture_engine.clone();
+        unsafe {
+            tokio::task::spawn(async move {
+                engine.lock().await.update(param).await;
+            });
+        }
+    }
+
+
     async fn refresh_available_content(&mut self) {
-        let (tx, mut rx) = mpsc::channel(1);
-        let results = Arc::new(Mutex::new(None));
+        let barrier = Arc::new(Barrier::new(2));
+        let barrier_clone = barrier.clone();
+        let results = Arc::new(std::sync::Mutex::new(None));
         let results_clone = results.clone();
         unsafe {
             SCShareableContent::getShareableContentExcludingDesktopWindows_onScreenWindowsOnly_completionHandler_(
@@ -241,17 +253,17 @@ impl ScreenRecorder {
                 objc_closure!(move |content: id, error: id| {
                     if !error.is_null() {
                         let error = from_nsstring!(NSError(error).localizedDescription());
-                        error!("Error getting shareable content: {}", error);
-                        tx.blocking_send(None).unwrap();
+                        panic!("Error getting shareable content: {}", error);
+
                     } else {
                         let available_content = SCShareableContent(content);
                         available_content.retain();
                         results_clone.lock().unwrap().replace(UnsafeSendable(available_content));
-                        tx.blocking_send(Some(())).unwrap();
+                        barrier_clone.wait();
                     }
                 }),
             );
-            rx.recv().await.unwrap();
+            barrier.wait();
             let available_content = results
                 .lock()
                 .unwrap()

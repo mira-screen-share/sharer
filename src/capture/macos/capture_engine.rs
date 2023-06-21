@@ -1,22 +1,25 @@
 use std::ffi::c_void;
 use std::ops::Deref;
 use std::ptr::null_mut;
-use std::sync::Once;
+use std::sync::{Arc, Barrier, Once};
 
 use apple_sys::ScreenCaptureKit::{dispatch_queue_create, id, INSError, INSObject, ISCStream, NSError, NSObject, NSString_NSStringDeprecated, PNSObject, SCContentFilter, SCStream, SCStreamConfiguration, SCStreamOutputType_SCStreamOutputTypeAudio, SCStreamOutputType_SCStreamOutputTypeScreen};
 use block::Block;
 use objc::{class, msg_send, sel, sel_impl};
 use objc::declare::ClassDecl;
 use objc::runtime::{Object, Sel};
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, Semaphore};
 use tokio::sync::mpsc::Sender;
 
 use crate::{from_nsstring, objc_closure};
+use crate::capture::macos::ffi_sc::UnsafeSendable;
 
 pub struct CaptureEngine {
     stream: Option<SCStream>,
     output: Option<StreamOutput>,
 }
+
+unsafe impl Send for CaptureEngine {}
 
 impl Drop for CaptureEngine {
     fn drop(&mut self) {
@@ -86,11 +89,63 @@ impl CaptureEngine {
         self.stream.replace(stream).map(|stream| stream.release());
         self.stream.unwrap().startCaptureWithCompletionHandler_(objc_closure!(move |error: id| {
             if error.is_null() {
-                println!("Started recording");
+                info!("Started capturing.");
             } else {
-                println!("Error starting recording: {:?}", error);
+                let error = from_nsstring!(NSError(error).localizedDescription());
+                panic!("Error starting capturing: {:?}", error);
             }
         }));
+
+        filter.finalize();
+        filter.release();
+        config.finalize();
+        config.release();
+    }
+
+    pub async unsafe fn stop_capture(&mut self) {
+        if let Some(stream) = &self.stream {
+            let barrier = Arc::new(Barrier::new(2));
+            let barrier_clone = barrier.clone();
+            unsafe {
+                stream.stopCaptureWithCompletionHandler_(objc_closure!(move |error: id| {
+                    if !error.is_null() {
+                        let error = from_nsstring!(NSError(error).localizedDescription());
+                        error!("Error stopping capture: {}", error);
+                    }
+                    barrier_clone.wait();
+                }));
+            }
+            barrier.wait();
+        }
+    }
+
+    pub async unsafe fn update(&mut self, param: UnsafeSendable<(SCStreamConfiguration, SCContentFilter)>) {
+        if let Some(stream) = &self.stream {
+            let barrier = Arc::new(Barrier::new(3));
+            let barrier_conf = barrier.clone();
+            let barrier_filter = barrier.clone();
+            let (config, filter) = param.0;
+            stream.updateConfiguration_completionHandler_(config, objc_closure!(move |error: id| {
+                if !error.is_null() {
+                    let error = from_nsstring!(NSError(error).localizedDescription());
+                    error!("Failed to update the stream session: {}", error);
+                }
+                barrier_conf.wait();
+            }));
+            stream.updateContentFilter_completionHandler_(filter, objc_closure!(move |error: id| {
+                if !error.is_null() {
+                    let error = from_nsstring!(NSError(error).localizedDescription());
+                    error!("Failed to update the stream session: {}", error);
+                }
+                barrier_filter.wait();
+            }));
+            barrier.wait();
+
+            filter.finalize();
+            filter.release();
+            config.finalize();
+            config.release();
+        }
     }
 }
 

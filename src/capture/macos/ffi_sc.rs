@@ -24,6 +24,11 @@ macro_rules! from_nsarray {
 }
 pub use from_nsarray;
 
+#[derive(Debug)]
+pub struct UnsafeSendable<T>(pub T);
+
+unsafe impl<T> Send for UnsafeSendable<T> {}
+
 pub trait FromNSArray<T> {
     fn from_nsarray(array: NSArray) -> Vec<T>;
 }
