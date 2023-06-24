@@ -4,10 +4,16 @@ use std::ptr::null_mut;
 use std::sync::{Arc, Barrier, Once};
 use std::{mem, slice};
 
+use apple_sys::AVFAudio::{
+    kCMSampleBufferFlag_AudioBufferList_Assure16ByteAlignment, AVAudioFormat, AVAudioPCMBuffer,
+    AudioBuffer, CMAudioFormatDescriptionGetStreamBasicDescription, CMAudioFormatDescriptionRef,
+    CMSampleBufferGetAudioBufferListWithRetainedBlockBuffer, CMSampleBufferGetDataBuffer,
+    IAVAudioFormat, IAVAudioPCMBuffer, UInt32,
+};
 use apple_sys::CoreMedia::{
     CFArrayGetCount, CFArrayGetValueAtIndex, CFDictionaryGetValue, CFDictionaryRef,
-    CFNumberGetValue, CFNumberType_kCFNumberSInt64Type, CMSampleBufferGetImageBuffer,
-    CMSampleBufferGetNumSamples, CMSampleBufferGetPresentationTimeStamp,
+    CFNumberGetValue, CFNumberType_kCFNumberSInt64Type, CMSampleBufferGetFormatDescription,
+    CMSampleBufferGetImageBuffer, CMSampleBufferGetPresentationTimeStamp,
     CMSampleBufferGetSampleAttachmentsArray, CMSampleBufferIsValid, CMSampleBufferRef,
     CVPixelBufferGetBaseAddressOfPlane, CVPixelBufferGetBytesPerRowOfPlane, CVPixelBufferGetHeight,
     CVPixelBufferGetWidth, CVPixelBufferLockBaseAddress, CVPixelBufferUnlockBaseAddress,
@@ -250,89 +256,38 @@ impl Deref for StreamOutput {
 
 extern "C" fn stream_output(this: &mut Object, _cmd: Sel, _stream: id, sample: id, of_type: u8) {
     unsafe {
-        let ptr = *this.get_ivar::<*mut c_void>("on_output_frame") as *mut OutputHandler;
-        if ptr.is_null() {
-            return;
-        }
-        let handler = &*ptr;
+        let handler = {
+            let ptr = *this.get_ivar::<*mut c_void>("on_output_frame") as *mut OutputHandler;
+            if ptr.is_null() {
+                return;
+            }
+            &*ptr
+        };
 
-        let sample_buffer_ref = sample as CMSampleBufferRef;
-        if CMSampleBufferIsValid(sample_buffer_ref) == 0 {
-            return;
-        }
+        let sample_buffer_ref = {
+            let ret = sample as CMSampleBufferRef;
+            if CMSampleBufferIsValid(ret) == 0 {
+                return;
+            }
+            ret
+        };
 
         #[allow(non_upper_case_globals)]
         match of_type as i64 {
             SCStreamOutputType_SCStreamOutputTypeScreen => {
-                let attachments = CMSampleBufferGetSampleAttachmentsArray(sample_buffer_ref, 0);
-                if attachments.is_null() || CFArrayGetCount(attachments) == 0 {
-                    return;
+                if let Some(frame) = create_yuv_frame(sample_buffer_ref) {
+                    handler.video_sender.try_send(frame).unwrap_or(());
                 }
-                let attachment = CFArrayGetValueAtIndex(attachments, 0) as CFDictionaryRef;
-                let frame_status_ref =
-                    CFDictionaryGetValue(attachment, SCStreamFrameInfoStatus.0 as _) as CFTypeRef;
-                if frame_status_ref.is_null() {
-                    return;
-                }
-                let mut frame_status: i64 = 0;
-                let result = CFNumberGetValue(
-                    frame_status_ref as _,
-                    CFNumberType_kCFNumberSInt64Type,
-                    mem::transmute(&mut frame_status),
-                );
-                if result == 0 {
-                    return;
-                }
-                if frame_status != SCFrameStatus_SCFrameStatusComplete {
-                    return;
-                }
-
-                let epoch = CMSampleBufferGetPresentationTimeStamp(sample_buffer_ref).epoch;
-                let pixel_buffer = CMSampleBufferGetImageBuffer(sample_buffer_ref);
-
-                CVPixelBufferLockBaseAddress(pixel_buffer, 0);
-
-                let width = CVPixelBufferGetWidth(pixel_buffer);
-                let height = CVPixelBufferGetHeight(pixel_buffer);
-                if width == 0 || height == 0 {
-                    return;
-                }
-
-                let luminance_bytes_address = CVPixelBufferGetBaseAddressOfPlane(pixel_buffer, 0);
-                let luminance_stride = CVPixelBufferGetBytesPerRowOfPlane(pixel_buffer, 0);
-                let luminance_bytes = slice::from_raw_parts(
-                    luminance_bytes_address as *mut u8,
-                    height * luminance_stride,
-                )
-                .to_vec();
-
-                let chrominance_bytes_address = CVPixelBufferGetBaseAddressOfPlane(pixel_buffer, 1);
-                let chrominance_stride = CVPixelBufferGetBytesPerRowOfPlane(pixel_buffer, 1);
-                let chrominance_bytes = slice::from_raw_parts(
-                    chrominance_bytes_address as *mut u8,
-                    height * chrominance_stride / 2,
-                )
-                .to_vec();
-
-                CVPixelBufferUnlockBaseAddress(pixel_buffer, 0);
-
-                let frame = YUVFrame {
-                    display_time: epoch as u64,
-                    width: width as i32,
-                    height: height as i32,
-                    luminance_bytes,
-                    luminance_stride: luminance_stride as i32,
-                    chrominance_bytes,
-                    chrominance_stride: chrominance_stride as i32,
-                };
-
-                handler.video_sender.try_send(frame).unwrap_or(());
             }
             SCStreamOutputType_SCStreamOutputTypeAudio => {
-                let sample_buffer_ref = sample as CMSampleBufferRef;
-                let a = CMSampleBufferGetNumSamples(sample_buffer_ref) as i32;
-
-                handler.audio_sender.try_send(a).unwrap_or(());
+                if let Some(pcm_buffer) = create_pcm_buffer(sample_buffer_ref) {
+                    info!("frame length: {}", pcm_buffer.frameLength());
+                    // handler.audio_sender.try_send(pcm_buffer).unwrap_or(());
+                }
+                // let sample_buffer_ref = sample as CMSampleBufferRef;
+                // let a = CMSampleBufferGetNumSamples(sample_buffer_ref) as i32;
+                //
+                // handler.audio_sender.try_send(a).unwrap_or(());
             }
             _ => {
                 error!("Unknown output type: {}", of_type);
@@ -341,16 +296,144 @@ extern "C" fn stream_output(this: &mut Object, _cmd: Sel, _stream: id, sample: i
     }
 }
 
+unsafe fn create_yuv_frame(sample_buffer_ref: CMSampleBufferRef) -> Option<YUVFrame> {
+    {
+        // Check that the frame status is complete
+        let attachments = CMSampleBufferGetSampleAttachmentsArray(sample_buffer_ref, 0);
+        if attachments.is_null() || CFArrayGetCount(attachments) == 0 {
+            return None;
+        }
+        let attachment = CFArrayGetValueAtIndex(attachments, 0) as CFDictionaryRef;
+        let frame_status_ref =
+            CFDictionaryGetValue(attachment, SCStreamFrameInfoStatus.0 as _) as CFTypeRef;
+        if frame_status_ref.is_null() {
+            return None;
+        }
+        let mut frame_status: i64 = 0;
+        let result = CFNumberGetValue(
+            frame_status_ref as _,
+            CFNumberType_kCFNumberSInt64Type,
+            mem::transmute(&mut frame_status),
+        );
+        if result == 0 {
+            return None;
+        }
+        if frame_status != SCFrameStatus_SCFrameStatusComplete {
+            return None;
+        }
+    }
+
+    let epoch = CMSampleBufferGetPresentationTimeStamp(sample_buffer_ref).epoch;
+    let pixel_buffer = CMSampleBufferGetImageBuffer(sample_buffer_ref);
+
+    CVPixelBufferLockBaseAddress(pixel_buffer, 0);
+
+    let width = CVPixelBufferGetWidth(pixel_buffer);
+    let height = CVPixelBufferGetHeight(pixel_buffer);
+    if width == 0 || height == 0 {
+        return None;
+    }
+
+    let luminance_bytes_address = CVPixelBufferGetBaseAddressOfPlane(pixel_buffer, 0);
+    let luminance_stride = CVPixelBufferGetBytesPerRowOfPlane(pixel_buffer, 0);
+    let luminance_bytes = slice::from_raw_parts(
+        luminance_bytes_address as *mut u8,
+        height * luminance_stride,
+    )
+    .to_vec();
+
+    let chrominance_bytes_address = CVPixelBufferGetBaseAddressOfPlane(pixel_buffer, 1);
+    let chrominance_stride = CVPixelBufferGetBytesPerRowOfPlane(pixel_buffer, 1);
+    let chrominance_bytes = slice::from_raw_parts(
+        chrominance_bytes_address as *mut u8,
+        height * chrominance_stride / 2,
+    )
+    .to_vec();
+
+    CVPixelBufferUnlockBaseAddress(pixel_buffer, 0);
+
+    YUVFrame {
+        display_time: epoch as u64,
+        width: width as i32,
+        height: height as i32,
+        luminance_bytes,
+        luminance_stride: luminance_stride as i32,
+        chrominance_bytes,
+        chrominance_stride: chrominance_stride as i32,
+    }
+    .into()
+}
+
+struct MAudioBufferList {
+    pub mNumberBuffers: UInt32,
+    pub mBuffers: [AudioBuffer; 1],
+}
+
+unsafe fn create_pcm_buffer(sample_buffer_ref: CMSampleBufferRef) -> Option<AVAudioPCMBuffer> {
+    let mut buffer_size = 0;
+    CMSampleBufferGetAudioBufferListWithRetainedBlockBuffer(
+        sample_buffer_ref as _,
+        &mut buffer_size,
+        null_mut(),
+        0,
+        null_mut(),
+        null_mut(),
+        0,
+        null_mut(),
+    );
+
+    let mut block_buffer_ref = CMSampleBufferGetDataBuffer(sample_buffer_ref as _);
+    let audio_buffer_list_ptr =
+        std::alloc::alloc(std::alloc::Layout::from_size_align(buffer_size as usize, 16).unwrap());
+    let result = CMSampleBufferGetAudioBufferListWithRetainedBlockBuffer(
+        sample_buffer_ref as _,
+        null_mut(),
+        audio_buffer_list_ptr as _,
+        buffer_size,
+        null_mut(),
+        null_mut(),
+        kCMSampleBufferFlag_AudioBufferList_Assure16ByteAlignment,
+        &mut block_buffer_ref,
+    );
+    if result != 0 {
+        return None;
+    }
+    let audio_format_description_ref =
+        CMSampleBufferGetFormatDescription(sample_buffer_ref) as CMAudioFormatDescriptionRef;
+    let audio_stream_basic_description =
+        &*CMAudioFormatDescriptionGetStreamBasicDescription(audio_format_description_ref);
+    let sample_rate = audio_stream_basic_description.mSampleRate;
+    let channels = audio_stream_basic_description.mChannelsPerFrame;
+    let format = AVAudioFormat(
+        AVAudioFormat::alloc().initStandardFormatWithSampleRate_channels_(sample_rate, channels),
+    );
+    let pcm_buffer = AVAudioPCMBuffer(
+        AVAudioPCMBuffer::alloc().initWithPCMFormat_bufferListNoCopy_deallocator_(
+            format,
+            audio_buffer_list_ptr as *const _ as _,
+            null_mut(),
+        ),
+    );
+
+    use apple_sys::AVFAudio::PNSObject;
+    format.release();
+    // pcm_buffer.release();
+
+    pcm_buffer.into()
+}
+
 extern "C" fn stream_delegate(this: &mut Object, _cmd: Sel, _stream: id, error: id) {
     unsafe {
         let error = from_nsstring!(NSError(error).localizedDescription());
         error!("Stream stopped due to error: {}", error);
 
-        let ptr = *this.get_ivar::<*mut c_void>("on_output_frame") as *mut ErrorHandler;
-        if ptr.is_null() {
-            return;
-        }
-        let handler = &*ptr;
+        let handler = {
+            let ptr = *this.get_ivar::<*mut c_void>("on_stopped_with_error") as *mut ErrorHandler;
+            if ptr.is_null() {
+                return;
+            }
+            &*ptr
+        };
         handler
             .error_sender
             .try_send(error.to_string())
