@@ -1,30 +1,33 @@
 use std::ffi::c_void;
 use std::ops::Deref;
 use std::ptr::null_mut;
-use std::slice;
 use std::sync::{Arc, Barrier, Once};
+use std::{mem, slice};
 
 use apple_sys::CoreMedia::{
-    CMSampleBufferGetImageBuffer, CMSampleBufferGetNumSamples,
-    CMSampleBufferGetPresentationTimeStamp, CMSampleBufferRef, CVPixelBufferGetBaseAddressOfPlane,
-    CVPixelBufferGetBytesPerRowOfPlane, CVPixelBufferGetHeight, CVPixelBufferGetWidth,
-    CVPixelBufferLockBaseAddress, CVPixelBufferUnlockBaseAddress,
+    CFArrayGetCount, CFArrayGetValueAtIndex, CFDictionaryGetValue, CFDictionaryRef,
+    CFNumberGetValue, CFNumberType_kCFNumberSInt64Type, CMSampleBufferGetImageBuffer,
+    CMSampleBufferGetNumSamples, CMSampleBufferGetPresentationTimeStamp,
+    CMSampleBufferGetSampleAttachmentsArray, CMSampleBufferIsValid, CMSampleBufferRef,
+    CVPixelBufferGetBaseAddressOfPlane, CVPixelBufferGetBytesPerRowOfPlane, CVPixelBufferGetHeight,
+    CVPixelBufferGetWidth, CVPixelBufferLockBaseAddress, CVPixelBufferUnlockBaseAddress,
 };
 use apple_sys::ScreenCaptureKit::{
-    dispatch_queue_create, id, INSError, INSObject, ISCStream, NSError, NSObject,
-    NSString_NSStringDeprecated, PNSObject, SCContentFilter, SCStream, SCStreamConfiguration,
+    dispatch_queue_create, id, CFTypeRef, INSError, INSObject, ISCStream, NSError, NSObject,
+    NSString_NSStringDeprecated, PNSObject, SCContentFilter, SCFrameStatus_SCFrameStatusComplete,
+    SCStream, SCStreamConfiguration, SCStreamFrameInfoStatus,
     SCStreamOutputType_SCStreamOutputTypeAudio, SCStreamOutputType_SCStreamOutputTypeScreen,
 };
 use block::Block;
-use objc::{class, msg_send, sel, sel_impl};
 use objc::declare::ClassDecl;
 use objc::runtime::{Object, Sel};
+use objc::{class, msg_send, sel, sel_impl};
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::Sender;
 
-use crate::{from_nsstring, objc_closure};
 use crate::capture::macos::ffi::UnsafeSendable;
 use crate::capture::YUVFrame;
+use crate::{from_nsstring, objc_closure};
 
 pub struct CaptureEngine {
     stream: Option<SCStream>,
@@ -36,8 +39,12 @@ unsafe impl Send for CaptureEngine {}
 impl Drop for CaptureEngine {
     fn drop(&mut self) {
         unsafe {
-            self.stream.take().map(|stream| stream.release());
-            self.output.take().map(|output| output.release());
+            if let Some(stream) = self.stream.take() {
+                stream.release()
+            }
+            if let Some(output) = self.output.take() {
+                output.release()
+            }
         }
     }
 }
@@ -247,12 +254,39 @@ extern "C" fn stream_output(this: &mut Object, _cmd: Sel, _stream: id, sample: i
         if ptr.is_null() {
             return;
         }
-
         let handler = &*ptr;
+
+        let sample_buffer_ref = sample as CMSampleBufferRef;
+        if CMSampleBufferIsValid(sample_buffer_ref) == 0 {
+            return;
+        }
+
         #[allow(non_upper_case_globals)]
         match of_type as i64 {
             SCStreamOutputType_SCStreamOutputTypeScreen => {
-                let sample_buffer_ref = sample as CMSampleBufferRef;
+                let attachments = CMSampleBufferGetSampleAttachmentsArray(sample_buffer_ref, 0);
+                if attachments.is_null() || CFArrayGetCount(attachments) == 0 {
+                    return;
+                }
+                let attachment = CFArrayGetValueAtIndex(attachments, 0) as CFDictionaryRef;
+                let frame_status_ref =
+                    CFDictionaryGetValue(attachment, SCStreamFrameInfoStatus.0 as _) as CFTypeRef;
+                if frame_status_ref.is_null() {
+                    return;
+                }
+                let mut frame_status: i64 = 0;
+                let result = CFNumberGetValue(
+                    frame_status_ref as _,
+                    CFNumberType_kCFNumberSInt64Type,
+                    mem::transmute(&mut frame_status),
+                );
+                if result == 0 {
+                    return;
+                }
+                if frame_status != SCFrameStatus_SCFrameStatusComplete {
+                    return;
+                }
+
                 let epoch = CMSampleBufferGetPresentationTimeStamp(sample_buffer_ref).epoch;
                 let pixel_buffer = CMSampleBufferGetImageBuffer(sample_buffer_ref);
 
@@ -270,7 +304,7 @@ extern "C" fn stream_output(this: &mut Object, _cmd: Sel, _stream: id, sample: i
                     luminance_bytes_address as *mut u8,
                     height * luminance_stride,
                 )
-                    .to_vec();
+                .to_vec();
 
                 let chrominance_bytes_address = CVPixelBufferGetBaseAddressOfPlane(pixel_buffer, 1);
                 let chrominance_stride = CVPixelBufferGetBytesPerRowOfPlane(pixel_buffer, 1);
@@ -278,7 +312,7 @@ extern "C" fn stream_output(this: &mut Object, _cmd: Sel, _stream: id, sample: i
                     chrominance_bytes_address as *mut u8,
                     height * chrominance_stride / 2,
                 )
-                    .to_vec();
+                .to_vec();
 
                 CVPixelBufferUnlockBaseAddress(pixel_buffer, 0);
 
@@ -309,14 +343,14 @@ extern "C" fn stream_output(this: &mut Object, _cmd: Sel, _stream: id, sample: i
 
 extern "C" fn stream_delegate(this: &mut Object, _cmd: Sel, _stream: id, error: id) {
     unsafe {
+        let error = from_nsstring!(NSError(error).localizedDescription());
+        error!("Stream stopped due to error: {}", error);
+
         let ptr = *this.get_ivar::<*mut c_void>("on_output_frame") as *mut ErrorHandler;
         if ptr.is_null() {
             return;
         }
-
         let handler = &*ptr;
-        let error = from_nsstring!(NSError(error).localizedDescription());
-        error!("Stream stopped due to error: {}", error);
         handler
             .error_sender
             .try_send(error.to_string())
