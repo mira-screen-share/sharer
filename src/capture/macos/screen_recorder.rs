@@ -5,8 +5,8 @@ use std::sync::{Arc, Barrier};
 
 use apple_sys::ScreenCaptureKit::{
     id, CGSize, CMTime, INSError, INSObject, INSScreen, ISCContentFilter, ISCDisplay,
-    ISCRunningApplication, ISCShareableContent, ISCStream, ISCStreamConfiguration, ISCWindow,
-    NSError, NSScreen, NSString_NSStringDeprecated, PNSObject, SCContentFilter, SCDisplay,
+    ISCRunningApplication, ISCShareableContent, ISCStreamConfiguration, ISCWindow, NSError,
+    NSScreen, NSString_NSStringDeprecated, PNSObject, SCContentFilter, SCDisplay,
     SCRunningApplication, SCShareableContent, SCStreamConfiguration, SCWindow,
 };
 use block::Block;

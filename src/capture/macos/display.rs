@@ -1,10 +1,11 @@
-use crate::capture::DisplayInfo;
-use crate::result::Result;
+use anyhow::format_err;
 use apple_sys::CoreMedia::{
     CGDisplayCopyDisplayMode, CGDisplayModeGetPixelHeight, CGDisplayModeGetPixelWidth,
-    CGDisplayPixelsHigh, CGError, CGError_kCGErrorSuccess, CGGetOnlineDisplayList,
+    CGDisplayPixelsHigh, CGError_kCGErrorSuccess, CGGetOnlineDisplayList,
 };
-use anyhow::format_err;
+
+use crate::capture::DisplayInfo;
+use crate::result::Result;
 
 #[derive(PartialEq, Eq, Debug, Clone, Copy)]
 #[repr(C)]

@@ -16,15 +16,15 @@ use apple_sys::ScreenCaptureKit::{
     SCStreamOutputType_SCStreamOutputTypeAudio, SCStreamOutputType_SCStreamOutputTypeScreen,
 };
 use block::Block;
+use objc::{class, msg_send, sel, sel_impl};
 use objc::declare::ClassDecl;
 use objc::runtime::{Object, Sel};
-use objc::{class, msg_send, sel, sel_impl};
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::Sender;
 
+use crate::{from_nsstring, objc_closure};
 use crate::capture::macos::ffi::UnsafeSendable;
 use crate::capture::YUVFrame;
-use crate::{from_nsstring, objc_closure};
 
 pub struct CaptureEngine {
     stream: Option<SCStream>,
@@ -270,7 +270,7 @@ extern "C" fn stream_output(this: &mut Object, _cmd: Sel, _stream: id, sample: i
                     luminance_bytes_address as *mut u8,
                     height * luminance_stride,
                 )
-                .to_vec();
+                    .to_vec();
 
                 let chrominance_bytes_address = CVPixelBufferGetBaseAddressOfPlane(pixel_buffer, 1);
                 let chrominance_stride = CVPixelBufferGetBytesPerRowOfPlane(pixel_buffer, 1);
@@ -278,7 +278,7 @@ extern "C" fn stream_output(this: &mut Object, _cmd: Sel, _stream: id, sample: i
                     chrominance_bytes_address as *mut u8,
                     height * chrominance_stride / 2,
                 )
-                .to_vec();
+                    .to_vec();
 
                 CVPixelBufferUnlockBaseAddress(pixel_buffer, 0);
 
