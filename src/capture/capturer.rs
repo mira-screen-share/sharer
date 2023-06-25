@@ -5,7 +5,8 @@ use clap::Parser;
 use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
 
-use crate::capture::{AudioCapture, Display, DisplayInfo, ScreenCapture, ScreenCaptureImpl};
+use crate::capture::audio::AudioCapture;
+use crate::capture::{Display, DisplayInfo, ScreenCapture, ScreenCaptureImpl};
 use crate::config::Config;
 use crate::encoder;
 use crate::inputs::InputHandler;
@@ -137,7 +138,11 @@ async fn start_capture(
     };
 
     // need to outlive capture.capture, i.e. end of this function
-    let _audio_capturer = AudioCapture::capture(output.clone())?;
-    capture.capture(encoder, output, profiler).await?;
+    if cfg!(target_os = "windows") {
+        let _audio_capturer = AudioCapture::capture(output.clone())?;
+        capture.capture(encoder, output, profiler).await?;
+    } else {
+        capture.capture(encoder, output, profiler).await?;
+    }
     Ok(())
 }

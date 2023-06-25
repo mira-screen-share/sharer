@@ -6,9 +6,9 @@ use std::{mem, slice};
 
 use apple_sys::AVFAudio::{
     kCMSampleBufferFlag_AudioBufferList_Assure16ByteAlignment, AVAudioFormat, AVAudioPCMBuffer,
-    AudioBuffer, CMAudioFormatDescriptionGetStreamBasicDescription, CMAudioFormatDescriptionRef,
+    CFRelease, CMAudioFormatDescriptionGetStreamBasicDescription, CMAudioFormatDescriptionRef,
     CMSampleBufferGetAudioBufferListWithRetainedBlockBuffer, CMSampleBufferGetDataBuffer,
-    IAVAudioFormat, IAVAudioPCMBuffer, UInt32,
+    IAVAudioFormat, IAVAudioPCMBuffer,
 };
 use apple_sys::CoreMedia::{
     CFArrayGetCount, CFArrayGetValueAtIndex, CFDictionaryGetValue, CFDictionaryRef,
@@ -20,18 +20,19 @@ use apple_sys::CoreMedia::{
 };
 use apple_sys::ScreenCaptureKit::{
     dispatch_queue_create, id, CFTypeRef, INSError, INSObject, ISCStream, NSError, NSObject,
-    NSString_NSStringDeprecated, PNSObject, SCContentFilter, SCFrameStatus_SCFrameStatusComplete,
-    SCStream, SCStreamConfiguration, SCStreamFrameInfoStatus,
-    SCStreamOutputType_SCStreamOutputTypeAudio, SCStreamOutputType_SCStreamOutputTypeScreen,
+    NSString_NSStringDeprecated, PNSObject, SCContentFilter, SCFrameStatus_SCFrameStatusBlank,
+    SCFrameStatus_SCFrameStatusComplete, SCFrameStatus_SCFrameStatusIdle, SCStream,
+    SCStreamConfiguration, SCStreamFrameInfoStatus, SCStreamOutputType_SCStreamOutputTypeAudio,
+    SCStreamOutputType_SCStreamOutputTypeScreen,
 };
 use block::Block;
 use objc::declare::ClassDecl;
 use objc::runtime::{Object, Sel};
 use objc::{class, msg_send, sel, sel_impl};
-use tokio::sync::mpsc;
 use tokio::sync::mpsc::Sender;
 
 use crate::capture::macos::ffi::UnsafeSendable;
+use crate::capture::macos::pcm_buffer::PCMBuffer;
 use crate::capture::YUVFrame;
 use crate::{from_nsstring, objc_closure};
 
@@ -68,20 +69,12 @@ impl CaptureEngine {
         config: SCStreamConfiguration,
         filter: SCContentFilter,
         video_tx: Sender<YUVFrame>,
+        audio_tx: Sender<PCMBuffer>,
     ) {
-        // TODO audio capture
-        let (audio_tx, mut audio_rx) = mpsc::channel::<i32>(1);
-
         let mut output = StreamOutput(StreamOutput::alloc().init());
         output.set_on_output_frame(OutputHandler {
             video_sender: video_tx,
             audio_sender: audio_tx,
-        });
-
-        tokio::spawn(async move {
-            while let Some(_) = audio_rx.recv().await {
-                // TODO
-            }
         });
 
         let stream = SCStream(SCStream::alloc().initWithFilter_configuration_delegate_(
@@ -191,7 +184,7 @@ pub struct StreamOutput(pub id);
 
 pub struct OutputHandler {
     pub video_sender: Sender<YUVFrame>,
-    pub audio_sender: Sender<i32>,
+    pub audio_sender: Sender<PCMBuffer>,
 }
 
 pub struct ErrorHandler {
@@ -280,14 +273,9 @@ extern "C" fn stream_output(this: &mut Object, _cmd: Sel, _stream: id, sample: i
                 }
             }
             SCStreamOutputType_SCStreamOutputTypeAudio => {
-                if let Some(pcm_buffer) = create_pcm_buffer(sample_buffer_ref) {
-                    info!("frame length: {}", pcm_buffer.frameLength());
-                    // handler.audio_sender.try_send(pcm_buffer).unwrap_or(());
+                if let Some(frame) = create_pcm_buffer(sample_buffer_ref) {
+                    handler.audio_sender.try_send(frame).unwrap_or(());
                 }
-                // let sample_buffer_ref = sample as CMSampleBufferRef;
-                // let a = CMSampleBufferGetNumSamples(sample_buffer_ref) as i32;
-                //
-                // handler.audio_sender.try_send(a).unwrap_or(());
             }
             _ => {
                 error!("Unknown output type: {}", of_type);
@@ -318,7 +306,9 @@ unsafe fn create_yuv_frame(sample_buffer_ref: CMSampleBufferRef) -> Option<YUVFr
         if result == 0 {
             return None;
         }
-        if frame_status != SCFrameStatus_SCFrameStatusComplete {
+        if frame_status != SCFrameStatus_SCFrameStatusComplete
+            && frame_status != SCFrameStatus_SCFrameStatusIdle
+        {
             return None;
         }
     }
@@ -364,12 +354,7 @@ unsafe fn create_yuv_frame(sample_buffer_ref: CMSampleBufferRef) -> Option<YUVFr
     .into()
 }
 
-struct MAudioBufferList {
-    pub mNumberBuffers: UInt32,
-    pub mBuffers: [AudioBuffer; 1],
-}
-
-unsafe fn create_pcm_buffer(sample_buffer_ref: CMSampleBufferRef) -> Option<AVAudioPCMBuffer> {
+unsafe fn create_pcm_buffer(sample_buffer_ref: CMSampleBufferRef) -> Option<PCMBuffer> {
     let mut buffer_size = 0;
     CMSampleBufferGetAudioBufferListWithRetainedBlockBuffer(
         sample_buffer_ref as _,
@@ -395,6 +380,7 @@ unsafe fn create_pcm_buffer(sample_buffer_ref: CMSampleBufferRef) -> Option<AVAu
         kCMSampleBufferFlag_AudioBufferList_Assure16ByteAlignment,
         &mut block_buffer_ref,
     );
+    CFRelease(block_buffer_ref as _);
     if result != 0 {
         return None;
     }
@@ -411,15 +397,19 @@ unsafe fn create_pcm_buffer(sample_buffer_ref: CMSampleBufferRef) -> Option<AVAu
         AVAudioPCMBuffer::alloc().initWithPCMFormat_bufferListNoCopy_deallocator_(
             format,
             audio_buffer_list_ptr as *const _ as _,
-            null_mut(),
+            objc_closure!(move |_: id| {
+                std::alloc::dealloc(
+                    audio_buffer_list_ptr,
+                    std::alloc::Layout::from_size_align(buffer_size as usize, 16).unwrap(),
+                );
+            }),
         ),
     );
 
     use apple_sys::AVFAudio::PNSObject;
     format.release();
-    // pcm_buffer.release();
 
-    pcm_buffer.into()
+    PCMBuffer::new(pcm_buffer).into()
 }
 
 extern "C" fn stream_delegate(this: &mut Object, _cmd: Sel, _stream: id, error: id) {

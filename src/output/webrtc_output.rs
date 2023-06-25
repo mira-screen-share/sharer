@@ -157,7 +157,7 @@ impl OutputSink for WebRTCOutput {
         self.audio_track
             .write_sample(&Sample {
                 data: input,
-                duration: Duration::from_millis(10_u64),
+                duration: Duration::from_millis(20_u64), // TODO
                 ..Default::default()
             })
             .await

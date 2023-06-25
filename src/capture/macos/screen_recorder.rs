@@ -18,6 +18,7 @@ use crate::capture::macos::capture_engine::CaptureEngine;
 use crate::capture::macos::ffi::{
     from_nsarray, from_nsstring, new_nsarray, objc_closure, FromNSArray, UnsafeSendable,
 };
+use crate::capture::macos::pcm_buffer::PCMBuffer;
 use crate::capture::YUVFrame;
 
 enum CaptureType {
@@ -33,6 +34,7 @@ pub struct ScreenRecorder {
     is_app_excluded: bool,
     content_size: CGSize,
     scale_factor: usize,
+    max_fps: u8,
     available_content: Option<SCShareableContent>,
     available_apps: Vec<SCRunningApplication>,
     available_displays: Vec<SCDisplay>,
@@ -75,6 +77,7 @@ impl ScreenRecorder {
                     (unsafe { screen.backingScaleFactor() }) as usize
                 }
             },
+            max_fps: 60,
             available_content: None,
             available_apps: Vec::new(),
             available_displays: Vec::new(),
@@ -84,6 +87,10 @@ impl ScreenRecorder {
             capture_engine: Arc::new(Mutex::new(CaptureEngine::new())),
             is_setup: false,
         }
+    }
+
+    pub fn set_max_fps(&mut self, fps: u8) {
+        self.max_fps = fps;
     }
 
     pub async fn can_record() -> bool {
@@ -109,7 +116,7 @@ impl ScreenRecorder {
     }
 
     /// Starts capturing screen content.
-    pub async fn start(&mut self, video_tx: Sender<YUVFrame>) {
+    pub async fn start(&mut self, video_tx: Sender<YUVFrame>, audio_tx: Sender<PCMBuffer>) {
         // Exit early if already running.
         if self.is_running {
             return;
@@ -133,6 +140,7 @@ impl ScreenRecorder {
                 self.stream_configuration(),
                 self.content_filter(),
                 video_tx,
+                audio_tx,
             );
         }
     }
@@ -214,18 +222,16 @@ impl ScreenRecorder {
                 }
             }
 
-            // Set the capture interval at 60 fps.
-            // TODO pull from config
             config.setMinimumFrameInterval_(CMTime {
                 value: 1,
-                timescale: 60,
+                timescale: self.max_fps as i32,
                 flags: 0,
                 epoch: 0,
             });
 
             // Increase the depth of the frame queue to ensure high fps at the expense of increasing
             // the memory footprint of WindowServer.
-            config.setQueueDepth_(5);
+            config.setQueueDepth_(1);
 
             config
         }
