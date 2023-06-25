@@ -11,6 +11,7 @@ pub enum PCMData {
 }
 
 impl PCMData {
+    #[allow(dead_code)]
     pub fn to_bytes(&self) -> Vec<u8> {
         match self {
             PCMData::F32(data) => unsafe {

@@ -20,10 +20,9 @@ use apple_sys::CoreMedia::{
 };
 use apple_sys::ScreenCaptureKit::{
     dispatch_queue_create, id, CFTypeRef, INSError, INSObject, ISCStream, NSError, NSObject,
-    NSString_NSStringDeprecated, PNSObject, SCContentFilter, SCFrameStatus_SCFrameStatusBlank,
-    SCFrameStatus_SCFrameStatusComplete, SCFrameStatus_SCFrameStatusIdle, SCStream,
-    SCStreamConfiguration, SCStreamFrameInfoStatus, SCStreamOutputType_SCStreamOutputTypeAudio,
-    SCStreamOutputType_SCStreamOutputTypeScreen,
+    NSString_NSStringDeprecated, PNSObject, SCContentFilter, SCFrameStatus_SCFrameStatusComplete,
+    SCFrameStatus_SCFrameStatusIdle, SCStream, SCStreamConfiguration, SCStreamFrameInfoStatus,
+    SCStreamOutputType_SCStreamOutputTypeAudio, SCStreamOutputType_SCStreamOutputTypeScreen,
 };
 use block::Block;
 use objc::declare::ClassDecl;
@@ -56,6 +55,7 @@ impl Drop for CaptureEngine {
     }
 }
 
+#[allow(dead_code)]
 impl CaptureEngine {
     pub fn new() -> Self {
         Self {
@@ -191,6 +191,7 @@ pub struct ErrorHandler {
     pub error_sender: Sender<String>,
 }
 
+#[allow(dead_code)]
 impl StreamOutput {
     pub fn alloc() -> Self {
         static REGISTER: Once = Once::new();

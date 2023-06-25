@@ -21,11 +21,13 @@ use crate::capture::macos::ffi::{
 use crate::capture::macos::pcm_buffer::PCMBuffer;
 use crate::capture::YUVFrame;
 
+#[allow(dead_code)]
 enum CaptureType {
     Display,
     Window,
 }
 
+#[allow(dead_code)]
 pub struct ScreenRecorder {
     is_running: bool,
     capture_type: CaptureType,
@@ -57,6 +59,7 @@ impl Drop for ScreenRecorder {
     }
 }
 
+#[allow(dead_code)]
 impl ScreenRecorder {
     pub fn new() -> Self {
         ScreenRecorder {
@@ -187,7 +190,7 @@ impl ScreenRecorder {
                     }
                 }
                 CaptureType::Window => {
-                    if let Some(window) = self.selected_window {
+                    if let Some(_window) = self.selected_window {
                         todo!()
                     } else {
                         panic!("No window selected.")
