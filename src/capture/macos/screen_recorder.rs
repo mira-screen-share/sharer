@@ -11,8 +11,8 @@ use apple_sys::ScreenCaptureKit::{
 };
 use block::Block;
 use itertools::Itertools;
+use tokio::sync::mpsc;
 use tokio::sync::mpsc::Sender;
-use tokio::sync::{mpsc, Mutex};
 
 use crate::capture::macos::capture_engine::CaptureEngine;
 use crate::capture::macos::ffi::{
@@ -43,7 +43,7 @@ pub struct ScreenRecorder {
     available_windows: Vec<SCWindow>,
     is_audio_capture_enabled: bool,
     is_app_audio_excluded: bool,
-    capture_engine: Arc<Mutex<CaptureEngine>>,
+    capture_engine: CaptureEngine,
     is_setup: bool,
 }
 
@@ -52,9 +52,12 @@ unsafe impl Send for ScreenRecorder {}
 impl Drop for ScreenRecorder {
     fn drop(&mut self) {
         unsafe {
-            self.available_content
-                .take()
-                .map(|content| content.release());
+            if self.is_running {
+                self.stop();
+            }
+            if let Some(content) = self.available_content.take() {
+                content.release();
+            }
         }
     }
 }
@@ -87,7 +90,7 @@ impl ScreenRecorder {
             available_windows: Vec::new(),
             is_audio_capture_enabled: true,
             is_app_audio_excluded: false,
-            capture_engine: Arc::new(Mutex::new(CaptureEngine::new())),
+            capture_engine: CaptureEngine::new(),
             is_setup: false,
         }
     }
@@ -139,7 +142,7 @@ impl ScreenRecorder {
         self.is_running = true;
 
         unsafe {
-            self.capture_engine.lock().await.start_capture(
+            self.capture_engine.start_capture(
                 self.stream_configuration(),
                 self.content_filter(),
                 video_tx,
@@ -148,12 +151,12 @@ impl ScreenRecorder {
         }
     }
 
-    pub async fn stop(&mut self) {
+    pub fn stop(&mut self) {
         if !self.is_running {
             return;
         }
         unsafe {
-            self.capture_engine.lock().await.stop_capture().await;
+            self.capture_engine.stop_capture();
         }
         self.is_running = false;
     }
@@ -244,12 +247,9 @@ impl ScreenRecorder {
         if !self.is_running {
             return;
         }
-        let param = UnsafeSendable((self.stream_configuration(), self.content_filter()));
-        let engine = self.capture_engine.clone();
         unsafe {
-            tokio::task::spawn(async move {
-                engine.lock().await.update(param).await;
-            });
+            self.capture_engine
+                .update(self.stream_configuration(), self.content_filter());
         }
     }
 

@@ -30,7 +30,6 @@ use objc::runtime::{Object, Sel};
 use objc::{class, msg_send, sel, sel_impl};
 use tokio::sync::mpsc::Sender;
 
-use crate::capture::macos::ffi::UnsafeSendable;
 use crate::capture::macos::pcm_buffer::PCMBuffer;
 use crate::capture::YUVFrame;
 use crate::{from_nsstring, objc_closure};
@@ -90,7 +89,7 @@ impl CaptureEngine {
                 b"app.mirashare.screen\0".as_ptr() as *const _,
                 NSObject(null_mut()),
             ),
-            NSError(NSError::alloc().init()).0 as _,
+            NSError::alloc().0 as _,
         );
 
         stream.addStreamOutput_type_sampleHandlerQueue_error_(
@@ -100,7 +99,7 @@ impl CaptureEngine {
                 b"app.mirashare.audio\0".as_ptr() as *const _,
                 NSObject(null_mut()),
             ),
-            NSError(NSError::alloc().init()).0 as _,
+            NSError::alloc().0 as _,
         );
 
         self.output.replace(output).map(|output| output.release());
@@ -122,7 +121,7 @@ impl CaptureEngine {
         config.release();
     }
 
-    pub async unsafe fn stop_capture(&mut self) {
+    pub unsafe fn stop_capture(&mut self) {
         if let Some(stream) = &self.stream {
             let barrier = Arc::new(Barrier::new(2));
             let barrier_clone = barrier.clone();
@@ -139,15 +138,11 @@ impl CaptureEngine {
         }
     }
 
-    pub async unsafe fn update(
-        &mut self,
-        param: UnsafeSendable<(SCStreamConfiguration, SCContentFilter)>,
-    ) {
+    pub unsafe fn update(&mut self, config: SCStreamConfiguration, filter: SCContentFilter) {
         if let Some(stream) = &self.stream {
             let barrier = Arc::new(Barrier::new(3));
             let barrier_conf = barrier.clone();
             let barrier_filter = barrier.clone();
-            let (config, filter) = param.0;
             stream.updateConfiguration_completionHandler_(
                 config,
                 objc_closure!(move |error: id| {
