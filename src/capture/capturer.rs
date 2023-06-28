@@ -1,4 +1,5 @@
-use std::sync::Arc;
+use std::sync::mpsc::Sender;
+use std::sync::{Arc, Barrier};
 
 use clap::Parser;
 
@@ -72,7 +73,7 @@ impl Capturer {
             signaller_opt.lock().await.replace(signaller.clone());
 
             tokio::select! {
-                _ = start_capture(args, config, signaller) => {}
+                _ = start_capture(args, config, signaller, shutdown_token.clone()) => {}
                 _ = shutdown_token.cancelled() => {}
             }
         });
@@ -111,6 +112,7 @@ async fn start_capture(
     args: Args,
     config: Config,
     signaller: Arc<dyn Signaller + Send + Sync>,
+    shutdown_token: CancellationToken,
 ) -> Result<()> {
     let display = Display::online().unwrap()[args.display].select()?;
     let dpi_conversion_factor = display.dpi_conversion_factor();
@@ -136,8 +138,7 @@ async fn start_capture(
         .await?
     };
 
-    // need to outlive capture.capture, i.e. end of this function
-    let _audio_capturer = AudioCapture::capture(output.clone())?;
+    AudioCapture::capture(output.clone(), shutdown_token)?;
     capture.capture(encoder, output, profiler).await?;
     Ok(())
 }
