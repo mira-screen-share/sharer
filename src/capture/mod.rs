@@ -7,9 +7,9 @@ use tokio::sync::Mutex;
 pub trait ScreenCapture {
     async fn capture(
         &mut self,
-        mut encoder: FfmpegEncoder,
+        encoder: FfmpegEncoder,
         output: Arc<Mutex<impl OutputSink + Send + ?Sized>>,
-        mut profiler: PerformanceProfiler,
+        profiler: PerformanceProfiler,
     ) -> Result<()>;
 }
 
@@ -39,9 +39,9 @@ pub use frame::YUVFrame;
 #[cfg(target_os = "macos")]
 pub use macos::display::Display;
 #[cfg(target_os = "macos")]
-pub use macos::MacOSScreenCapture as ScreenCaptureImpl;
+pub use macos::MacOSCapture as ScreenCaptureImpl;
 
-mod yuv_convert;
-pub use yuv_convert::YuvConverter;
 mod audio;
-pub use audio::AudioCapture;
+mod yuv_convert;
+
+pub use yuv_convert::YuvConverter;

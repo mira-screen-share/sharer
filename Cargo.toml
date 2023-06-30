@@ -34,10 +34,11 @@ strum_macros = "0.24.3"
 strum = "0.24.1"
 iced_aw = { version = "0.5.2", features = ["tabs"] }
 
-
 [target.'cfg(target_os = "macos")'.dependencies]
 libc = "0.2.108"
 block = "0.1.6"
+apple-sys = { version = "0.2.0", features = ["AVFAudio", "CoreMedia", "ScreenCaptureKit"] }
+objc = "0.2.3"
 
 [target.'cfg(target_os = "windows")'.dependencies]
 [dependencies.windows]

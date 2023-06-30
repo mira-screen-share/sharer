@@ -1,20 +1,20 @@
-use crate::output::OutputSink;
-use crate::Result;
+use std::sync::mpsc::Sender;
+use std::sync::Arc;
+use std::thread;
+use std::time::Duration;
+
 use ac_ffmpeg::codec::audio::frame::get_sample_format;
 use ac_ffmpeg::codec::audio::{AudioEncoder, AudioFrameMut, ChannelLayout};
 use ac_ffmpeg::codec::Encoder;
+use anyhow::anyhow;
 use bytes::Bytes;
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
-use cpal::{SampleFormat, Stream};
-
-use anyhow::anyhow;
-use std::sync::mpsc::{Receiver, Sender};
-use std::sync::{Arc, Barrier};
-use std::thread;
-use tokio::select;
+use cpal::SampleFormat;
 use tokio::sync::Mutex;
-use tokio::task::futures;
 use tokio_util::sync::CancellationToken;
+
+use crate::output::OutputSink;
+use crate::Result;
 
 pub struct AudioCapture {
     encoder: AudioEncoder,
@@ -32,6 +32,7 @@ fn convert_sample_format(format: SampleFormat) -> ac_ffmpeg::codec::audio::Sampl
     })
 }
 
+#[allow(dead_code)]
 impl AudioCapture {
     fn write_input_data<T>(&mut self, input: &[T])
     where
@@ -102,7 +103,10 @@ impl AudioCapture {
             loop {
                 let data: Bytes = receiver.recv().unwrap();
                 let mut output = output.lock().await;
-                output.write_audio(data).await.unwrap();
+                output
+                    .write_audio(data, Duration::from_millis(10))
+                    .await
+                    .unwrap();
             }
         });
 
