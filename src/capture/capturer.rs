@@ -139,14 +139,9 @@ async fn start_capture(
         .await?
     };
 
-    // need to outlive capture.capture, i.e. end of this function
-    if cfg!(target_os = "windows") {
-        let _audio_capturer = AudioCapture::capture(output.clone())?;
-        capture.capture(encoder, output, profiler).await?;
-    } else {
-        capture.capture(encoder, output, profiler).await?;
-    }
+    #[cfg(target_os = "windows")]
     AudioCapture::capture(output.clone(), shutdown_token)?;
+
     capture.capture(encoder, output, profiler).await?;
     Ok(())
 }
