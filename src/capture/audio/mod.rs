@@ -10,6 +10,7 @@ use cpal::SampleFormat;
 use anyhow::anyhow;
 use std::sync::mpsc::Sender;
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::Mutex;
 
 pub struct AudioCapture {
@@ -103,7 +104,10 @@ impl AudioCapture {
                 }
                 let data = receiver.recv().unwrap();
                 let mut output = output.lock().await;
-                output.write_audio(data).await.unwrap();
+                output
+                    .write_audio(data, Duration::from_millis(10))
+                    .await
+                    .unwrap();
             }
         });
 

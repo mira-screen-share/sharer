@@ -2,7 +2,7 @@ use std::ffi::c_void;
 use std::ops::Deref;
 use std::ptr::null_mut;
 use std::sync::{Arc, Barrier, Once};
-use std::{mem, slice};
+use std::{alloc, mem, slice};
 
 use apple_sys::AVFAudio::{
     kCMSampleBufferFlag_AudioBufferList_Assure16ByteAlignment, AVAudioFormat, AVAudioPCMBuffer,
@@ -21,7 +21,7 @@ use apple_sys::CoreMedia::{
 use apple_sys::ScreenCaptureKit::{
     dispatch_queue_create, id, CFTypeRef, INSError, INSObject, ISCStream, NSError, NSObject,
     NSString_NSStringDeprecated, PNSObject, SCContentFilter, SCFrameStatus_SCFrameStatusComplete,
-    SCFrameStatus_SCFrameStatusIdle, SCStream, SCStreamConfiguration, SCStreamFrameInfoStatus,
+    SCStream, SCStreamConfiguration, SCStreamFrameInfoStatus,
     SCStreamOutputType_SCStreamOutputTypeAudio, SCStreamOutputType_SCStreamOutputTypeScreen,
 };
 use block::Block;
@@ -68,13 +68,10 @@ impl CaptureEngine {
         config: SCStreamConfiguration,
         filter: SCContentFilter,
         video_tx: Sender<YUVFrame>,
-        audio_tx: Sender<PCMBuffer>,
+        audio_tx: Option<Sender<PCMBuffer>>,
     ) {
         let mut output = StreamOutput(StreamOutput::alloc().init());
-        output.set_on_output_frame(OutputHandler {
-            video_sender: video_tx,
-            audio_sender: audio_tx,
-        });
+        output.set_on_output_frame(OutputHandler { video_tx, audio_tx });
 
         let stream = SCStream(SCStream::alloc().initWithFilter_configuration_delegate_(
             filter,
@@ -178,12 +175,12 @@ impl CaptureEngine {
 pub struct StreamOutput(pub id);
 
 pub struct OutputHandler {
-    pub video_sender: Sender<YUVFrame>,
-    pub audio_sender: Sender<PCMBuffer>,
+    pub video_tx: Sender<YUVFrame>,
+    pub audio_tx: Option<Sender<PCMBuffer>>,
 }
 
 pub struct ErrorHandler {
-    pub error_sender: Sender<String>,
+    pub error_tx: Sender<String>,
 }
 
 #[allow(dead_code)]
@@ -265,12 +262,14 @@ extern "C" fn stream_output(this: &mut Object, _cmd: Sel, _stream: id, sample: i
         match of_type as i64 {
             SCStreamOutputType_SCStreamOutputTypeScreen => {
                 if let Some(frame) = create_yuv_frame(sample_buffer_ref) {
-                    handler.video_sender.try_send(frame).unwrap_or(());
+                    handler.video_tx.try_send(frame).unwrap_or(());
                 }
             }
             SCStreamOutputType_SCStreamOutputTypeAudio => {
-                if let Some(frame) = create_pcm_buffer(sample_buffer_ref) {
-                    handler.audio_sender.try_send(frame).unwrap_or(());
+                if let Some(audio_tx) = &handler.audio_tx {
+                    if let Some(frame) = create_pcm_buffer(sample_buffer_ref) {
+                        audio_tx.try_send(frame).unwrap_or(());
+                    }
                 }
             }
             _ => {
@@ -281,8 +280,8 @@ extern "C" fn stream_output(this: &mut Object, _cmd: Sel, _stream: id, sample: i
 }
 
 unsafe fn create_yuv_frame(sample_buffer_ref: CMSampleBufferRef) -> Option<YUVFrame> {
+    // Check that the frame status is complete
     {
-        // Check that the frame status is complete
         let attachments = CMSampleBufferGetSampleAttachmentsArray(sample_buffer_ref, 0);
         if attachments.is_null() || CFArrayGetCount(attachments) == 0 {
             return None;
@@ -302,9 +301,7 @@ unsafe fn create_yuv_frame(sample_buffer_ref: CMSampleBufferRef) -> Option<YUVFr
         if result == 0 {
             return None;
         }
-        if frame_status != SCFrameStatus_SCFrameStatusComplete
-            && frame_status != SCFrameStatus_SCFrameStatusIdle
-        {
+        if frame_status != SCFrameStatus_SCFrameStatusComplete {
             return None;
         }
     }
@@ -365,7 +362,7 @@ unsafe fn create_pcm_buffer(sample_buffer_ref: CMSampleBufferRef) -> Option<PCMB
 
     let mut block_buffer_ref = CMSampleBufferGetDataBuffer(sample_buffer_ref as _);
     let audio_buffer_list_ptr =
-        std::alloc::alloc(std::alloc::Layout::from_size_align(buffer_size as usize, 16).unwrap());
+        alloc::alloc(alloc::Layout::from_size_align(buffer_size as usize, 16).unwrap());
     let result = CMSampleBufferGetAudioBufferListWithRetainedBlockBuffer(
         sample_buffer_ref as _,
         null_mut(),
@@ -421,7 +418,7 @@ extern "C" fn stream_delegate(this: &mut Object, _cmd: Sel, _stream: id, error: 
             &*ptr
         };
         handler
-            .error_sender
+            .error_tx
             .try_send(error.to_string())
             .unwrap_or_else(move |err| warn!("Failed to send error: {}", err.to_string()));
     }

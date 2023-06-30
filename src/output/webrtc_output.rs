@@ -153,11 +153,11 @@ impl OutputSink for WebRTCOutput {
             .expect("TODO: panic message");
         Ok(())
     }
-    async fn write_audio(&mut self, input: Bytes) -> Result<()> {
+    async fn write_audio(&mut self, input: Bytes, duration: Duration) -> Result<()> {
         self.audio_track
             .write_sample(&Sample {
                 data: input,
-                duration: Duration::from_millis(20_u64), // TODO
+                duration,
                 ..Default::default()
             })
             .await

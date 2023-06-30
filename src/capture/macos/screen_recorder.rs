@@ -1,13 +1,12 @@
 extern crate libc;
 
 use std::ffi::c_void;
-use std::sync::{Arc, Barrier};
 
 use apple_sys::ScreenCaptureKit::{
-    id, CGSize, CMTime, INSError, INSObject, INSScreen, ISCContentFilter, ISCDisplay,
-    ISCRunningApplication, ISCShareableContent, ISCStreamConfiguration, ISCWindow, NSError,
-    NSScreen, NSString_NSStringDeprecated, PNSObject, SCContentFilter, SCDisplay,
-    SCRunningApplication, SCShareableContent, SCStreamConfiguration, SCWindow,
+    id, CGSize, CMTime, INSBundle, INSError, INSObject, INSScreen, ISCContentFilter, ISCDisplay,
+    ISCRunningApplication, ISCShareableContent, ISCStreamConfiguration, ISCWindow, NSArray,
+    NSBundle, NSError, NSScreen, NSString_NSStringDeprecated, PNSObject, SCContentFilter,
+    SCDisplay, SCRunningApplication, SCShareableContent, SCStreamConfiguration, SCWindow,
 };
 use block::Block;
 use itertools::Itertools;
@@ -16,7 +15,7 @@ use tokio::sync::mpsc::Sender;
 
 use crate::capture::macos::capture_engine::CaptureEngine;
 use crate::capture::macos::ffi::{
-    from_nsarray, from_nsstring, new_nsarray, objc_closure, FromNSArray, UnsafeSendable,
+    from_nsarray, from_nsstring, new_nsarray, objc_closure, FromNSArray, ToNSArray, UnsafeSendable,
 };
 use crate::capture::macos::pcm_buffer::PCMBuffer;
 use crate::capture::YUVFrame;
@@ -134,11 +133,6 @@ impl ScreenRecorder {
             self.is_setup = true;
         }
 
-        // If the user enables audio capture, start monitoring the audio stream.
-        if self.is_audio_capture_enabled {
-            // TODO
-        }
-
         self.is_running = true;
 
         unsafe {
@@ -146,7 +140,11 @@ impl ScreenRecorder {
                 self.stream_configuration(),
                 self.content_filter(),
                 video_tx,
-                audio_tx,
+                if self.is_audio_capture_enabled {
+                    Some(audio_tx)
+                } else {
+                    None
+                },
             );
         }
     }
@@ -166,20 +164,25 @@ impl ScreenRecorder {
             match self.capture_type {
                 CaptureType::Display => {
                     if let Some(display) = self.selected_display {
-                        // TODO ignore self
-                        // If a user chooses to exclude the app from the stream,
-                        // exclude it by matching its bundle identifier.
-                        // let excluded_apps: NSArray = if self.is_app_excluded {
-                        //     self.available_apps.clone().into_iter().filter(|app| {
-                        //         let bundle = from_nsstring!(app.bundleIdentifier());
-                        //         let this_bundle = from_nsstring!(NSBundle::mainBundle().bundleIdentifier());
-                        //         bundle != this_bundle
-                        //     }).collect::<Vec<SCRunningApplication>>().to_nsarray()
-                        // } else {
-                        //     new_nsarray::<SCRunningApplication>()
-                        // };
+                        // Exclude the Sharer app itself by matching its bundle identifier.
+                        let excluded_apps: NSArray = if self.is_app_excluded {
+                            self.available_apps
+                                .clone()
+                                .into_iter()
+                                .filter(|app| match NSBundle::mainBundle().bundleIdentifier() {
+                                    this_bundle if this_bundle.0.is_null() => false,
+                                    bundle => {
+                                        let app_bundle = from_nsstring!(app.bundleIdentifier());
+                                        let this_bundle = from_nsstring!(bundle);
+                                        app_bundle == this_bundle
+                                    }
+                                })
+                                .collect::<Vec<SCRunningApplication>>()
+                                .to_nsarray()
+                        } else {
+                            new_nsarray::<SCRunningApplication>()
+                        };
 
-                        let excluded_apps = new_nsarray::<SCRunningApplication>();
                         SCContentFilter(
                             SCContentFilter::alloc()
                                 .initWithDisplay_excludingApplications_exceptingWindows_(
@@ -237,7 +240,7 @@ impl ScreenRecorder {
 
             // Increase the depth of the frame queue to ensure high fps at the expense of increasing
             // the memory footprint of WindowServer.
-            config.setQueueDepth_(1);
+            config.setQueueDepth_(3);
 
             config
         }
@@ -254,10 +257,7 @@ impl ScreenRecorder {
     }
 
     async fn refresh_available_content(&mut self) {
-        let barrier = Arc::new(Barrier::new(2));
-        let barrier_clone = barrier.clone();
-        let results = Arc::new(std::sync::Mutex::new(None));
-        let results_clone = results.clone();
+        let (result_tx, mut result_rx) = mpsc::channel(1);
         unsafe {
             SCShareableContent::getShareableContentExcludingDesktopWindows_onScreenWindowsOnly_completionHandler_(
                 false,
@@ -266,22 +266,14 @@ impl ScreenRecorder {
                     if !error.is_null() {
                         let error = from_nsstring!(NSError(error).localizedDescription());
                         panic!("Error getting shareable content: {}", error);
-
                     } else {
                         let available_content = SCShareableContent(content);
                         available_content.retain();
-                        results_clone.lock().unwrap().replace(UnsafeSendable(available_content));
-                        barrier_clone.wait();
+                        result_tx.blocking_send(UnsafeSendable(available_content)).unwrap();
                     }
                 }),
             );
-            barrier.wait();
-            let available_content = results
-                .lock()
-                .unwrap()
-                .take()
-                .unwrap_or_else(|| panic!("Failed to get shareable content."))
-                .0;
+            let available_content = result_rx.recv().await.unwrap().0;
             let available_displays = from_nsarray!(SCDisplay, available_content.displays());
             let available_windows = ScreenRecorder::filter_windows(from_nsarray!(
                 SCWindow,
@@ -289,12 +281,14 @@ impl ScreenRecorder {
             ));
             let available_apps =
                 from_nsarray!(SCRunningApplication, available_content.applications());
+
+            // Release later.
             let old_content = self.available_content.replace(available_content);
 
             self.selected_display = self
                 .selected_display
                 .map(
-                    // Make sure the selected display is still available.
+                    // Use the currently selected display if it is still available.
                     |selected_display| {
                         available_displays
                             .iter()
@@ -308,7 +302,7 @@ impl ScreenRecorder {
             self.selected_window = self
                 .selected_window
                 .map(
-                    // Make sure the selected window is still available.
+                    // Use the currently selected window if it is still available.
                     |selected_window| {
                         available_windows
                             .iter()
@@ -323,7 +317,9 @@ impl ScreenRecorder {
             self.available_windows = available_windows;
             self.available_apps = available_apps;
 
-            old_content.map(|content| content.release());
+            if let Some(old_content) = old_content {
+                old_content.release();
+            }
         }
     }
 
@@ -355,13 +351,18 @@ impl ScreenRecorder {
                     app => !from_nsstring!(app.applicationName()).is_empty(),
                 }
             })
-            // TODO ignore self
             // Remove this app's window from the list.
-            // .filter(|window| unsafe {
-            //     let window_bundle = from_nsstring!(window.owningApplication().bundleIdentifier());
-            //     let this_bundle = from_nsstring!(NSBundle::mainBundle().bundleIdentifier());
-            //     window_bundle != this_bundle
-            // })
+            .filter(|window| unsafe {
+                match NSBundle::mainBundle().bundleIdentifier() {
+                    this_bundle if this_bundle.0.is_null() => true,
+                    bundle => {
+                        let this_bundle = from_nsstring!(bundle);
+                        let window_bundle =
+                            from_nsstring!(window.owningApplication().bundleIdentifier());
+                        window_bundle != this_bundle
+                    }
+                }
+            })
             .collect()
     }
 }

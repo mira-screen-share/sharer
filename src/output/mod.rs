@@ -1,12 +1,13 @@
 use async_trait::async_trait;
 use bytes::Bytes;
+use std::time::Duration;
 
 use crate::Result;
 
 #[async_trait]
 pub trait OutputSink: Send + Sync + 'static {
     async fn write(&mut self, input: Bytes) -> Result<()>;
-    async fn write_audio(&mut self, input: Bytes) -> Result<()>;
+    async fn write_audio(&mut self, input: Bytes, duration: Duration) -> Result<()>;
 }
 
 mod file_output;

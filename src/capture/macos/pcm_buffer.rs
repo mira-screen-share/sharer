@@ -46,6 +46,7 @@ pub struct PCMBuffer {
     pub channels: usize,
     pub sample_size: usize,
     pub stride: usize,
+    pub frame_duration: f64,
 }
 
 impl PCMBuffer {
@@ -76,6 +77,8 @@ impl PCMBuffer {
             let stride = buffer.stride() as usize;
             let channels = buffer.format().channelCount() as usize;
             let sample_size = buffer.frameLength() as usize;
+            let sample_rate = buffer.format().sampleRate();
+            let frame_duration = 1000.0 / (sample_rate / sample_size as f64);
             let data = if !buffer.floatChannelData().is_null() {
                 PCMData::F32(Self::aaa::<f32>(
                     stride,
@@ -103,10 +106,11 @@ impl PCMBuffer {
             Self {
                 buffer,
                 data,
-                sample_rate: buffer.format().sampleRate() as _,
+                sample_rate,
                 channels,
                 sample_size,
                 stride,
+                frame_duration,
             }
         }
     }

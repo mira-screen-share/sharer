@@ -4,6 +4,7 @@ use async_trait::async_trait;
 use bytes::Bytes;
 use std::fs::File;
 use std::io::Write;
+use std::time::Duration;
 
 pub struct FileOutput {
     file: File,
@@ -25,7 +26,7 @@ impl OutputSink for FileOutput {
         self.file.write_all(&input)?;
         Ok(())
     }
-    async fn write_audio(&mut self, input: Bytes) -> Result<()> {
+    async fn write_audio(&mut self, input: Bytes, _duration: Duration) -> Result<()> {
         self.file_audio.write_all(&input)?;
         Ok(())
     }

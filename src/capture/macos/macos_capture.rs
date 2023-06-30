@@ -58,7 +58,7 @@ impl ScreenCapture for MacOSCapture<'_> {
                             ChannelLayout::from_channels(pcm_buffer.channels as u32).unwrap(),
                         )
                         .sample_format(pcm_buffer.sample_format())
-                        .set_option("frame_duration", "20") // TODO
+                        .set_option("frame_duration", pcm_buffer.frame_duration)
                         .build()
                         .unwrap()
                 });
@@ -78,7 +78,10 @@ impl ScreenCapture for MacOSCapture<'_> {
                 output_audio_clone
                     .lock()
                     .await
-                    .write_audio(Bytes::from(ret))
+                    .write_audio(
+                        Bytes::from(ret),
+                        Duration::from_millis(pcm_buffer.frame_duration as u64),
+                    )
                     .await
                     .unwrap();
             }
