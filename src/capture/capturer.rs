@@ -4,7 +4,7 @@ use clap::Parser;
 use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
 
-use crate::capture::{Display, DisplayInfo, ScreenCapture, ScreenCaptureImpl};
+use crate::capture::{ScreenCapture, ScreenCaptureImpl};
 use crate::config::Config;
 use crate::encoder;
 use crate::inputs::InputHandler;
@@ -112,18 +112,16 @@ async fn start_capture(
     signaller: Arc<dyn Signaller + Send + Sync>,
     #[allow(unused_variables)] shutdown_token: CancellationToken,
 ) -> Result<()> {
-    let display = Display::online().unwrap()[args.display].select()?;
-    let dpi_conversion_factor = display.dpi_conversion_factor();
     let profiler = PerformanceProfiler::new(args.profiler, config.max_fps);
-    let resolution = display.resolution();
-    let mut capture = ScreenCaptureImpl::new(display, &config)?;
+    let mut capture = ScreenCaptureImpl::new(config.clone())?;
+    let resolution = capture.display().resolution();
+    info!("resolution: {:?}", resolution);
     let mut encoder = encoder::FfmpegEncoder::new(resolution.0, resolution.1, &config.encoder);
     let input_handler = Arc::new(InputHandler::new(
         args.disable_control,
-        dpi_conversion_factor,
+        capture.display().dpi_conversion_factor(),
     ));
 
-    info!("Resolution: {:?}", resolution);
     let output: Arc<Mutex<dyn OutputSink + Send>> = if let Some(path) = args.file {
         Arc::new(Mutex::new(FileOutput::new(&path)))
     } else {

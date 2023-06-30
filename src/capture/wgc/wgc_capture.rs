@@ -10,7 +10,7 @@ use windows::Graphics::Capture::{
 use windows::Graphics::DirectX::DirectXPixelFormat;
 
 use crate::capture::wgc::d3d;
-use crate::capture::YuvConverter;
+use crate::capture::{Display, YuvConverter};
 use crate::config::Config;
 use crate::encoder::{FfmpegEncoder, FrameData};
 use crate::performance_profiler::PerformanceProfiler;
@@ -18,15 +18,17 @@ use crate::result::Result;
 use crate::{OutputSink, ScreenCapture};
 use tokio::sync::Mutex;
 
-pub struct WGCScreenCapture<'a> {
+pub struct WGCScreenCapture {
     item: GraphicsCaptureItem,
     frame_pool: Direct3D11CaptureFramePool,
-    config: &'a Config,
+    config: Config,
     duplicator: YuvConverter,
 }
 
-impl<'a> WGCScreenCapture<'a> {
-    pub fn new(item: GraphicsCaptureItem, config: &'a Config) -> Result<Self> {
+#[async_trait]
+impl ScreenCapture for WGCScreenCapture {
+    fn new(config: Config) -> Result<ScreenCaptureImpl> {
+        let item = Display::online().unwrap()[0].select()?; // TODO
         let item_size = item.Size()?;
         let (device, d3d_device, d3d_context) = d3d::create_direct3d_devices_and_context()?;
         let device = Arc::new(device);
@@ -49,10 +51,11 @@ impl<'a> WGCScreenCapture<'a> {
             duplicator,
         })
     }
-}
 
-#[async_trait]
-impl ScreenCapture for WGCScreenCapture<'_> {
+    fn display(&self) -> &dyn DisplayInfo {
+        &self.item
+    }
+
     async fn capture(
         &mut self,
         mut encoder: FfmpegEncoder,
@@ -104,7 +107,7 @@ impl ScreenCapture for WGCScreenCapture<'_> {
     }
 }
 
-impl Drop for WGCScreenCapture<'_> {
+impl Drop for WGCScreenCapture {
     fn drop(&mut self) {
         self.frame_pool.Close().unwrap();
     }

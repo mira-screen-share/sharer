@@ -10,15 +10,13 @@ use apple_sys::ScreenCaptureKit::{
 };
 use block::Block;
 use itertools::Itertools;
-use tokio::sync::mpsc;
-use tokio::sync::mpsc::Sender;
 
 use crate::capture::macos::capture_engine::CaptureEngine;
 use crate::capture::macos::ffi::{
     from_nsarray, from_nsstring, new_nsarray, objc_closure, FromNSArray, ToNSArray, UnsafeSendable,
 };
 use crate::capture::macos::pcm_buffer::PCMBuffer;
-use crate::capture::YUVFrame;
+use crate::capture::{DisplayInfo, YUVFrame};
 
 #[allow(dead_code)]
 enum CaptureType {
@@ -98,30 +96,34 @@ impl ScreenRecorder {
         self.max_fps = fps;
     }
 
-    pub async fn can_record() -> bool {
-        let (tx, mut rx) = mpsc::channel::<bool>(1);
+    pub fn can_record() -> bool {
+        let (tx, rx) = std::sync::mpsc::channel::<bool>();
         unsafe {
             SCShareableContent::getShareableContentExcludingDesktopWindows_onScreenWindowsOnly_completionHandler_(
                 false,
                 true,
                 objc_closure!(move |_content: id, error: id| {
                     let result = error.is_null();
-                    tx.blocking_send(result).unwrap();
+                    tx.send(result).unwrap();
                 }),
             );
         }
-        rx.recv().await.unwrap()
+        rx.recv().unwrap()
     }
 
-    pub async fn monitor_available_content(&mut self) {
+    pub fn monitor_available_content(&mut self) {
         if self.is_setup {
             return;
         }
-        self.refresh_available_content().await;
+        self.refresh_available_content();
     }
 
     /// Starts capturing screen content.
-    pub async fn start(&mut self, video_tx: Sender<YUVFrame>, audio_tx: Sender<PCMBuffer>) {
+    pub fn start(
+        &mut self,
+        video_tx: tokio::sync::mpsc::Sender<YUVFrame>,
+        audio_tx: tokio::sync::mpsc::Sender<PCMBuffer>,
+    ) {
         // Exit early if already running.
         if self.is_running {
             return;
@@ -129,7 +131,7 @@ impl ScreenRecorder {
 
         if !self.is_setup {
             // Starting polling for available screen content.
-            self.monitor_available_content().await;
+            self.monitor_available_content();
             self.is_setup = true;
         }
 
@@ -214,22 +216,9 @@ impl ScreenRecorder {
             config.setCapturesAudio_(self.is_audio_capture_enabled);
             config.setExcludesCurrentProcessAudio_(self.is_app_audio_excluded);
 
-            match self.capture_type {
-                CaptureType::Display => {
-                    if let Some(display) = self.selected_display {
-                        // Configure the display content width and height.
-                        config.setWidth_(display.width() as usize * self.scale_factor);
-                        config.setHeight_(display.height() as usize * self.scale_factor);
-                    }
-                }
-                CaptureType::Window => {
-                    if let Some(window) = self.selected_window {
-                        // Configure the display content width and height.
-                        config.setWidth_(window.frame().size.width as usize * 2);
-                        config.setHeight_(window.frame().size.height as usize * 2);
-                    }
-                }
-            }
+            let (width, height) = self.resolution();
+            config.setWidth_(width as _);
+            config.setHeight_(height as _);
 
             config.setMinimumFrameInterval_(CMTime {
                 value: 1,
@@ -256,8 +245,8 @@ impl ScreenRecorder {
         }
     }
 
-    async fn refresh_available_content(&mut self) {
-        let (result_tx, mut result_rx) = mpsc::channel(1);
+    fn refresh_available_content(&mut self) {
+        let (result_tx, result_rx) = std::sync::mpsc::channel();
         unsafe {
             SCShareableContent::getShareableContentExcludingDesktopWindows_onScreenWindowsOnly_completionHandler_(
                 false,
@@ -269,11 +258,11 @@ impl ScreenRecorder {
                     } else {
                         let available_content = SCShareableContent(content);
                         available_content.retain();
-                        result_tx.blocking_send(UnsafeSendable(available_content)).unwrap();
+                        result_tx.send(UnsafeSendable(available_content)).unwrap();
                     }
                 }),
             );
-            let available_content = result_rx.recv().await.unwrap().0;
+            let available_content = result_rx.recv().unwrap().0;
             let available_displays = from_nsarray!(SCDisplay, available_content.displays());
             let available_windows = ScreenRecorder::filter_windows(from_nsarray!(
                 SCWindow,
@@ -364,5 +353,43 @@ impl ScreenRecorder {
                 }
             })
             .collect()
+    }
+}
+
+impl DisplayInfo for ScreenRecorder {
+    fn resolution(&self) -> (u32, u32) {
+        match self.capture_type {
+            CaptureType::Display => {
+                if let Some(display) = self.selected_display {
+                    unsafe {
+                        (
+                            display.width() as u32 * self.dpi_conversion_factor() as u32,
+                            display.height() as u32 * self.dpi_conversion_factor() as u32,
+                        )
+                    }
+                } else {
+                    panic!("No display is selected.")
+                }
+            }
+            CaptureType::Window => {
+                if let Some(window) = self.selected_window {
+                    unsafe {
+                        (
+                            window.frame().size.width as u32 * self.dpi_conversion_factor() as u32,
+                            window.frame().size.height as u32 * self.dpi_conversion_factor() as u32,
+                        )
+                    }
+                } else {
+                    panic!("No window is selected.")
+                }
+            }
+        }
+    }
+
+    fn dpi_conversion_factor(&self) -> f64 {
+        match self.capture_type {
+            CaptureType::Display => self.scale_factor as f64,
+            CaptureType::Window => 2.0,
+        }
     }
 }

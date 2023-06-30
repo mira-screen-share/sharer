@@ -5,6 +5,10 @@ use tokio::sync::Mutex;
 
 #[async_trait]
 pub trait ScreenCapture {
+    fn new(config: Config) -> Result<ScreenCaptureImpl>;
+
+    fn display(&self) -> &dyn DisplayInfo;
+
     async fn capture(
         &mut self,
         encoder: FfmpegEncoder,
@@ -37,11 +41,10 @@ mod macos;
 
 pub use frame::YUVFrame;
 #[cfg(target_os = "macos")]
-pub use macos::display::Display;
-#[cfg(target_os = "macos")]
 pub use macos::MacOSCapture as ScreenCaptureImpl;
 
 mod audio;
 mod yuv_convert;
 
+use crate::config::Config;
 pub use yuv_convert::YuvConverter;

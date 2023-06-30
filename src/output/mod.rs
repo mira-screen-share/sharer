@@ -11,9 +11,11 @@ pub trait OutputSink: Send + Sync + 'static {
 }
 
 mod file_output;
+mod noop_output;
 mod webrtc_output;
 mod webrtc_peer;
 
 pub use file_output::FileOutput;
+pub use noop_output::NoOpOutput;
 pub use webrtc_output::WebRTCOutput;
 pub use webrtc_peer::WebRTCPeer;
