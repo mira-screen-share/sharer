@@ -50,28 +50,6 @@ pub struct PCMBuffer {
 }
 
 impl PCMBuffer {
-    unsafe fn aaa<T: Copy + Default>(
-        stride: usize,
-        channels: usize,
-        sample_size: usize,
-        data: *const *mut T,
-    ) -> Vec<T> {
-        let mut ret: Vec<T> = Vec::with_capacity(channels * sample_size);
-        if stride > 1 || channels == 1 {
-            for i in 0..(sample_size * channels) {
-                ret.push(data.read().add(i).read());
-            }
-        } else {
-            let channel_data = std::slice::from_raw_parts(data, channels);
-            for j in 0..sample_size {
-                for i in 0..channels {
-                    ret.push(channel_data[i].add(j).read());
-                }
-            }
-        }
-        ret
-    }
-
     pub fn new(buffer: AVAudioPCMBuffer) -> Self {
         unsafe {
             let stride = buffer.stride() as usize;
@@ -80,25 +58,25 @@ impl PCMBuffer {
             let sample_rate = buffer.format().sampleRate();
             let frame_duration = 1000.0 / (sample_rate / sample_size as f64);
             let data = if !buffer.floatChannelData().is_null() {
-                PCMData::F32(Self::aaa::<f32>(
+                PCMData::F32(read_buffer_data::<f32>(
+                    buffer.floatChannelData(),
                     stride,
                     channels,
                     sample_size,
-                    buffer.floatChannelData(),
                 ))
             } else if !buffer.int16ChannelData().is_null() {
-                PCMData::I16(Self::aaa::<i16>(
+                PCMData::I16(read_buffer_data::<i16>(
+                    buffer.int16ChannelData(),
                     stride,
                     channels,
                     sample_size,
-                    buffer.int16ChannelData(),
                 ))
             } else if !buffer.int32ChannelData().is_null() {
-                PCMData::I32(Self::aaa::<i32>(
+                PCMData::I32(read_buffer_data::<i32>(
+                    buffer.int32ChannelData(),
                     stride,
                     channels,
                     sample_size,
-                    buffer.int32ChannelData(),
                 ))
             } else {
                 panic!("Unreachable");
@@ -150,6 +128,28 @@ impl PCMBuffer {
             }
         }
     }
+}
+
+unsafe fn read_buffer_data<T: Copy + Default>(
+    data: *const *mut T,
+    stride: usize,
+    channels: usize,
+    sample_size: usize,
+) -> Vec<T> {
+    let mut ret: Vec<T> = Vec::with_capacity(channels * sample_size);
+    if stride > 1 || channels == 1 {
+        for i in 0..(sample_size * channels) {
+            ret.push(data.read().add(i).read());
+        }
+    } else {
+        let channel_data = std::slice::from_raw_parts(data, channels);
+        for j in 0..sample_size {
+            for i in 0..channels {
+                ret.push(channel_data[i].add(j).read());
+            }
+        }
+    }
+    ret
 }
 
 unsafe impl Send for PCMBuffer {}
