@@ -1,12 +1,9 @@
-use std::sync::mpsc::Sender;
-use std::sync::{Arc, Barrier};
+use std::sync::Arc;
 
 use clap::Parser;
-
 use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
 
-use crate::capture::audio::AudioCapture;
 use crate::capture::{Display, DisplayInfo, ScreenCapture, ScreenCaptureImpl};
 use crate::config::Config;
 use crate::encoder;
@@ -113,7 +110,7 @@ async fn start_capture(
     args: Args,
     config: Config,
     signaller: Arc<dyn Signaller + Send + Sync>,
-    shutdown_token: CancellationToken,
+    #[allow(unused_variables)] shutdown_token: CancellationToken,
 ) -> Result<()> {
     let display = Display::online().unwrap()[args.display].select()?;
     let dpi_conversion_factor = display.dpi_conversion_factor();
