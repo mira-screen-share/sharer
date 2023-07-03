@@ -167,7 +167,7 @@ impl ScreenRecorder {
             match self.capture_type {
                 CaptureType::Display => {
                     if let Some(display) = self.selected_display {
-                        // Exclude the Sharer app itself by matching its bundle identifier.
+                        // Exclude the Sharer app itself.
                         let excluded_apps: NSArray = if self.is_app_excluded {
                             self.available_apps
                                 .clone()
