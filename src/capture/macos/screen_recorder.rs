@@ -3,10 +3,11 @@ extern crate libc;
 use std::ffi::c_void;
 
 use apple_sys::ScreenCaptureKit::{
-    id, CGSize, CMTime, INSBundle, INSError, INSObject, INSScreen, ISCContentFilter, ISCDisplay,
-    ISCRunningApplication, ISCShareableContent, ISCStreamConfiguration, ISCWindow, NSArray,
-    NSBundle, NSError, NSScreen, NSString_NSStringDeprecated, PNSObject, SCContentFilter,
-    SCDisplay, SCRunningApplication, SCShareableContent, SCStreamConfiguration, SCWindow,
+    id, CGSize, CMTime, INSBundle, INSError, INSObject, INSProcessInfo, INSScreen,
+    ISCContentFilter, ISCDisplay, ISCRunningApplication, ISCShareableContent,
+    ISCStreamConfiguration, ISCWindow, NSArray, NSBundle, NSError, NSProcessInfo, NSScreen,
+    NSString_NSStringDeprecated, PNSObject, SCContentFilter, SCDisplay, SCRunningApplication,
+    SCShareableContent, SCStreamConfiguration, SCWindow,
 };
 use block::Block;
 use itertools::Itertools;
@@ -172,7 +173,15 @@ impl ScreenRecorder {
                                 .clone()
                                 .into_iter()
                                 .filter(|app| match NSBundle::mainBundle().bundleIdentifier() {
-                                    this_bundle if this_bundle.0.is_null() => false,
+                                    this_bundle if this_bundle.0.is_null() => {
+                                        let app_name = from_nsstring!(app.applicationName());
+                                        let this_name = {
+                                            from_nsstring!(
+                                                NSProcessInfo::processInfo().processName()
+                                            )
+                                        };
+                                        app_name == this_name
+                                    }
                                     bundle => {
                                         let app_bundle = from_nsstring!(app.bundleIdentifier());
                                         let this_bundle = from_nsstring!(bundle);
@@ -343,7 +352,12 @@ impl ScreenRecorder {
             // Remove this app's window from the list.
             .filter(|window| unsafe {
                 match NSBundle::mainBundle().bundleIdentifier() {
-                    this_bundle if this_bundle.0.is_null() => true,
+                    this_bundle if this_bundle.0.is_null() => {
+                        let window_name =
+                            from_nsstring!(window.owningApplication().applicationName());
+                        let this_name = from_nsstring!(NSProcessInfo::processInfo().processName());
+                        window_name != this_name
+                    }
                     bundle => {
                         let this_bundle = from_nsstring!(bundle);
                         let window_bundle =
