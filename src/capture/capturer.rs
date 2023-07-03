@@ -5,6 +5,7 @@ use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
 
 use crate::capture::{ScreenCapture, ScreenCaptureImpl};
+use crate::capture::audio::AudioCapture;
 use crate::config::Config;
 use crate::encoder;
 use crate::inputs::InputHandler;

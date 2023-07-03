@@ -10,7 +10,7 @@ use windows::Graphics::Capture::{
 use windows::Graphics::DirectX::DirectXPixelFormat;
 
 use crate::capture::wgc::d3d;
-use crate::capture::{Display, YuvConverter};
+use crate::capture::{Display, DisplayInfo, ScreenCaptureImpl, YuvConverter};
 use crate::config::Config;
 use crate::encoder::{FfmpegEncoder, FrameData};
 use crate::performance_profiler::PerformanceProfiler;
