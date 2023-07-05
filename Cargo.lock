@@ -1641,7 +1641,7 @@ dependencies = [
 [[package]]
 name = "enigo"
 version = "0.0.14"
-source = "git+https://github.com/mira-screen-share/enigo?branch=master#842009dc20c5499c1068454915ffa0416eaa3e31"
+source = "git+https://github.com/mira-screen-share/enigo?branch=master#db13390938cee18a7422aec52ae0c22e115b44d5"
 dependencies = [
  "core-graphics 0.18.0",
  "libc",
