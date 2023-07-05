@@ -3,10 +3,13 @@ use std::time::Duration;
 
 use ac_ffmpeg::codec::audio::{AudioEncoder, AudioFrameMut, ChannelLayout};
 use ac_ffmpeg::codec::Encoder;
+use apple_sys::ScreenCaptureKit::SCDisplay;
 use async_trait::async_trait;
 use bytes::Bytes;
 use tokio::sync::Mutex;
 
+use crate::capture::display::DisplaySelector;
+use crate::capture::macos::ffi::UnsafeSendable;
 use crate::capture::macos::pcm_buffer::PCMBuffer;
 use crate::capture::macos::screen_recorder::ScreenRecorder;
 use crate::capture::{DisplayInfo, ScreenCaptureImpl, YUVFrame};
@@ -106,5 +109,17 @@ impl ScreenCapture for MacOSCapture {
         }
 
         Ok(())
+    }
+}
+
+impl DisplaySelector for MacOSCapture {
+    type Display = UnsafeSendable<SCDisplay>;
+
+    fn available_displays(&self) -> Result<Vec<Self::Display>> {
+        self.recorder.available_displays()
+    }
+
+    fn select_display(&mut self, display: &Self::Display) -> Result<()> {
+        self.recorder.select_display(display)
     }
 }

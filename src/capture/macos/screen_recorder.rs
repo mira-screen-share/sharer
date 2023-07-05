@@ -2,6 +2,7 @@ extern crate libc;
 
 use std::ffi::c_void;
 
+use anyhow::anyhow;
 use apple_sys::ScreenCaptureKit::{
     id, CGSize, CMTime, INSBundle, INSError, INSObject, INSProcessInfo, INSScreen,
     ISCContentFilter, ISCDisplay, ISCRunningApplication, ISCShareableContent,
@@ -12,12 +13,14 @@ use apple_sys::ScreenCaptureKit::{
 use block::Block;
 use itertools::Itertools;
 
+use crate::capture::display::{DisplaySelector, Named};
 use crate::capture::macos::capture_engine::CaptureEngine;
 use crate::capture::macos::ffi::{
     from_nsarray, from_nsstring, new_nsarray, objc_closure, FromNSArray, ToNSArray, UnsafeSendable,
 };
 use crate::capture::macos::pcm_buffer::PCMBuffer;
 use crate::capture::{DisplayInfo, YUVFrame};
+use crate::result::Result;
 
 #[allow(dead_code)]
 enum CaptureType {
@@ -404,6 +407,41 @@ impl DisplayInfo for ScreenRecorder {
         match self.capture_type {
             CaptureType::Display => self.scale_factor as f64,
             CaptureType::Window => 2.0,
+        }
+    }
+}
+
+impl Named for UnsafeSendable<SCDisplay> {
+    fn name(&self) -> String {
+        let id = unsafe { self.0.displayID() };
+        let width = unsafe { self.0.width() };
+        let height = unsafe { self.0.height() };
+        format!("Display {} ({} x {})", id, width, height)
+    }
+}
+
+impl DisplaySelector for ScreenRecorder {
+    type Display = UnsafeSendable<SCDisplay>;
+
+    fn available_displays(&self) -> Result<Vec<Self::Display>> {
+        Ok(self
+            .available_displays
+            .iter()
+            .map(|display| UnsafeSendable(display.clone()))
+            .collect())
+    }
+
+    fn select_display(&mut self, display: &Self::Display) -> Result<()> {
+        match self
+            .available_displays
+            .iter()
+            .find(|available_display| available_display.0 == display.0 .0)
+        {
+            Some(display) => {
+                self.selected_display = Some(display.clone());
+                Ok(())
+            }
+            None => Err(anyhow!("Display is not available.")),
         }
     }
 }

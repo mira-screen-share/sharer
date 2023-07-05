@@ -9,8 +9,8 @@ use windows::Graphics::Capture::{
 
 use windows::Graphics::DirectX::DirectXPixelFormat;
 
-use crate::capture::wgc::d3d;
-use crate::capture::{Display, DisplayInfo, ScreenCaptureImpl, YuvConverter};
+use crate::capture::wgc::{d3d, Display};
+use crate::capture::{DisplayInfo, ScreenCaptureImpl, YuvConverter};
 use crate::config::Config;
 use crate::encoder::{FfmpegEncoder, FrameData};
 use crate::performance_profiler::PerformanceProfiler;
@@ -19,16 +19,18 @@ use crate::{OutputSink, ScreenCapture};
 use tokio::sync::Mutex;
 
 pub struct WGCScreenCapture {
+    config: Config,
+    engine: CaptureEngine,
+}
+
+struct CaptureEngine {
     item: GraphicsCaptureItem,
     frame_pool: Direct3D11CaptureFramePool,
-    config: Config,
     duplicator: YuvConverter,
 }
 
-#[async_trait]
-impl ScreenCapture for WGCScreenCapture {
-    fn new(config: Config) -> Result<ScreenCaptureImpl> {
-        let item = Display::online().unwrap()[0].select()?; // TODO
+impl CaptureEngine {
+    fn new(item: GraphicsCaptureItem) -> Self {
         let item_size = item.Size()?;
         let (device, d3d_device, d3d_context) = d3d::create_direct3d_devices_and_context()?;
         let device = Arc::new(device);
@@ -44,12 +46,20 @@ impl ScreenCapture for WGCScreenCapture {
             d3d_context,
             (item_size.Width as u32, item_size.Height as u32),
         )?;
-        Ok(Self {
+        Self {
             item,
             frame_pool,
-            config,
             duplicator,
-        })
+        }
+    }
+}
+
+#[async_trait]
+impl ScreenCapture for WGCScreenCapture {
+    fn new(config: Config) -> Result<ScreenCaptureImpl> {
+        let item = Display::available().unwrap()[0].select()?;
+        let engine = CaptureEngine::new(item);
+        Ok(Self { config, engine })
     }
 
     fn display(&self) -> &dyn DisplayInfo {
@@ -103,6 +113,19 @@ impl ScreenCapture for WGCScreenCapture {
             ticker.tick().await;
         }
         session.Close()?;
+        Ok(())
+    }
+}
+
+impl DisplaySelector for WGCScreenCapture {
+    type Display = Display;
+
+    fn available_displays(&self) -> Result<Vec<Display>> {
+        Display::online()
+    }
+
+    fn select_display(&mut self, &display: Display) -> Result<()> {
+        self.engine = CaptureEngine::new(display.select()?);
         Ok(())
     }
 }

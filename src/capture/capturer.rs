@@ -4,14 +4,15 @@ use clap::Parser;
 use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
 
-use crate::capture::{ScreenCapture, ScreenCaptureImpl};
+#[allow(unused_imports)]
 use crate::capture::audio::AudioCapture;
+use crate::capture::display::{DisplaySelector, Named};
+use crate::capture::{ScreenCapture, ScreenCaptureImpl};
 use crate::config::Config;
 use crate::encoder;
 use crate::inputs::InputHandler;
 use crate::output::{FileOutput, OutputSink, WebRTCOutput};
 use crate::performance_profiler::PerformanceProfiler;
-use crate::result::Result;
 use crate::signaller::{Signaller, WebSocketSignaller};
 
 #[derive(Parser, Debug, Clone)]
@@ -40,16 +41,18 @@ pub struct Capturer {
     shutdown_token_opt: Option<CancellationToken>,
     signaller: Arc<Mutex<Option<Arc<dyn Signaller + Send + Sync>>>>,
     notify_update: Arc<dyn Fn() + Send + Sync>,
+    capture: Arc<Mutex<ScreenCaptureImpl>>,
 }
 
 impl Capturer {
     pub fn new(args: Args, config: Config, notify_update: Arc<dyn Fn() + Send + Sync>) -> Self {
         Self {
             args,
-            config,
+            config: config.clone(),
             shutdown_token_opt: None,
             signaller: Arc::new(Mutex::new(None)),
             notify_update,
+            capture: Arc::new(Mutex::new(ScreenCaptureImpl::new(config.clone()).unwrap())),
         }
     }
 
@@ -59,23 +62,7 @@ impl Capturer {
 
         let shutdown_token = CancellationToken::new();
         self.shutdown_token_opt = Some(shutdown_token.clone());
-
-        let signaller_opt = self.signaller.clone();
-        let notify_update = self.notify_update.clone();
-        tokio::spawn(async move {
-            let signaller_url = config.signaller_url.clone();
-            let signaller = Arc::new(
-                WebSocketSignaller::new(&signaller_url, notify_update)
-                    .await
-                    .unwrap(),
-            );
-            signaller_opt.lock().await.replace(signaller.clone());
-
-            tokio::select! {
-                _ = start_capture(args, config, signaller, shutdown_token.clone()) => {}
-                _ = shutdown_token.cancelled() => {}
-            }
-        });
+        self.start_capture(args, config, shutdown_token.clone());
     }
 
     pub fn shutdown(&mut self) {
@@ -98,46 +85,93 @@ impl Capturer {
     }
 
     pub fn get_room_id(&self) -> Option<String> {
-        self.signaller
-            .clone()
-            .try_lock()
-            .unwrap() // TODO:Fix
-            .as_ref()
-            .map_or(None, |s| s.get_room_id())
+        match self.signaller.clone().try_lock() {
+            Ok(signaller) => signaller.as_ref().map_or(None, |s| s.get_room_id()),
+            Err(e) => {
+                error!("Failed to get room id: {}", e);
+                None
+            }
+        }
     }
-}
 
-async fn start_capture(
-    args: Args,
-    config: Config,
-    signaller: Arc<dyn Signaller + Send + Sync>,
-    #[allow(unused_variables)] shutdown_token: CancellationToken,
-) -> Result<()> {
-    let profiler = PerformanceProfiler::new(args.profiler, config.max_fps);
-    let mut capture = ScreenCaptureImpl::new(config.clone())?;
-    let resolution = capture.display().resolution();
-    info!("resolution: {:?}", resolution);
-    let mut encoder = encoder::FfmpegEncoder::new(resolution.0, resolution.1, &config.encoder);
-    let input_handler = Arc::new(InputHandler::new(
-        args.disable_control,
-        capture.display().dpi_conversion_factor(),
-    ));
+    pub fn available_displays(&self) -> Vec<String> {
+        match self.capture.try_lock() {
+            Ok(capture) => capture
+                .available_displays()
+                .unwrap()
+                .iter()
+                .map(|d| d.name())
+                .collect(),
+            Err(e) => {
+                error!("Failed to get available displays: {}", e);
+                vec![]
+            }
+        }
+    }
 
-    let output: Arc<Mutex<dyn OutputSink + Send>> = if let Some(path) = args.file {
-        Arc::new(Mutex::new(FileOutput::new(&path)))
-    } else {
-        WebRTCOutput::new(
-            signaller,
-            &mut encoder.force_idr,
-            input_handler.clone(),
-            &config,
-        )
-        .await?
-    };
+    pub fn select_display(&mut self, display: usize) {
+        match self.capture.try_lock() {
+            Ok(mut capture) => {
+                let displays = capture.available_displays().unwrap();
+                if display < displays.len() {
+                    capture.select_display(&displays[display]).unwrap();
+                }
+            }
+            Err(e) => {
+                error!("Failed to select display: {}", e);
+            }
+        }
+    }
 
-    #[cfg(target_os = "windows")]
-    AudioCapture::capture(output.clone(), shutdown_token)?;
+    fn start_capture(
+        &mut self,
+        args: Args,
+        config: Config,
+        #[allow(unused_variables)] shutdown_token: CancellationToken,
+    ) {
+        let profiler = PerformanceProfiler::new(args.profiler, config.max_fps);
+        let signaller_opt = self.signaller.clone();
+        let notify_update = self.notify_update.clone();
+        let capture = self.capture.clone();
 
-    capture.capture(encoder, output, profiler).await?;
-    Ok(())
+        tokio::spawn(async move {
+            tokio::select! {
+                _ = async move {
+                    let signaller_url = config.signaller_url.clone();
+                    let signaller = Arc::new(
+                        WebSocketSignaller::new(&signaller_url, notify_update)
+                            .await
+                            .unwrap(),
+                    );
+                    signaller_opt.lock().await.replace(signaller.clone());
+
+                    let mut capture = capture.try_lock().unwrap();
+                    let resolution = capture.display().resolution();
+                    let mut encoder = encoder::FfmpegEncoder::new(resolution.0, resolution.1, &config.encoder);
+                    let input_handler = Arc::new(InputHandler::new(
+                        args.disable_control,
+                        capture.display().dpi_conversion_factor(),
+                    ));
+
+                    let output: Arc<Mutex<dyn OutputSink + Send>> = if let Some(path) = args.file {
+                        Arc::new(Mutex::new(FileOutput::new(&path)))
+                    } else {
+                        WebRTCOutput::new(
+                            signaller,
+                            &mut encoder.force_idr,
+                            input_handler.clone(),
+                            &config,
+                        )
+                            .await.unwrap()
+                    };
+
+                    #[cfg(target_os = "windows")]
+                    AudioCapture::capture(output.clone(), shutdown_token)?;
+
+                    capture.capture(encoder, output, profiler).await.unwrap();
+                } => {}
+                _ = shutdown_token.cancelled() => {}
+            }
+        });
+    }
 }

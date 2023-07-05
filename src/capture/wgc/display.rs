@@ -1,3 +1,4 @@
+use crate::capture::display::{DisplaySelector, Named};
 use crate::capture::DisplayInfo;
 use crate::result::Result;
 use windows::Graphics::Capture::GraphicsCaptureItem;
@@ -26,6 +27,12 @@ impl Display {
     pub fn select(&self) -> Result<GraphicsCaptureItem> {
         let interop = windows::core::factory::<GraphicsCaptureItem, IGraphicsCaptureItemInterop>()?;
         Ok(unsafe { interop.CreateForMonitor(self.handle) }?)
+    }
+}
+
+impl Named for Display {
+    fn name(&self) -> String {
+        "TODO".to_string()
     }
 }
 

@@ -30,8 +30,6 @@ use crate::performance_profiler::PerformanceProfiler;
 #[cfg(target_os = "windows")]
 mod wgc;
 #[cfg(target_os = "windows")]
-pub use wgc::display::Display;
-#[cfg(target_os = "windows")]
 pub use wgc::WGCScreenCapture as ScreenCaptureImpl;
 
 pub mod capturer;
@@ -44,6 +42,7 @@ pub use frame::YUVFrame;
 pub use macos::MacOSCapture as ScreenCaptureImpl;
 
 mod audio;
+pub mod display;
 mod yuv_convert;
 
 use crate::config::Config;
