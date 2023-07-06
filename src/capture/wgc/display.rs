@@ -1,4 +1,3 @@
-use crate::capture::display::DisplaySelector;
 use crate::capture::DisplayInfo;
 use crate::result::Result;
 use windows::Graphics::Capture::GraphicsCaptureItem;

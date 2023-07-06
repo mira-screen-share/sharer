@@ -85,7 +85,7 @@ impl ScreenCapture for WGCScreenCapture {
         mut encoder: FfmpegEncoder,
         output: Arc<Mutex<impl OutputSink + Send + ?Sized>>,
         mut profiler: PerformanceProfiler,
-        mut shutdown_token: CancellationToken,
+        shutdown_token: CancellationToken,
     ) -> Result<()> {
         let session = self
             .engine
