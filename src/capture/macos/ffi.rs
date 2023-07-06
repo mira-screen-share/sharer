@@ -1,5 +1,5 @@
 use apple_sys::ScreenCaptureKit::{
-    INSArray, NSArray, NSArray_NSExtendedArray, SCDisplay, SCRunningApplication, SCWindow,
+    INSArray, NSArray, NSArray_NSExtendedArray, NSScreen, SCDisplay, SCRunningApplication, SCWindow,
 };
 
 #[macro_export]
@@ -75,3 +75,4 @@ macro_rules! impl_from_to_nsarray_for {
 impl_from_to_nsarray_for!(SCRunningApplication);
 impl_from_to_nsarray_for!(SCDisplay);
 impl_from_to_nsarray_for!(SCWindow);
+impl_from_to_nsarray_for!(NSScreen);

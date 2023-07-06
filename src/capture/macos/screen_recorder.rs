@@ -3,12 +3,13 @@ extern crate libc;
 use std::ffi::c_void;
 
 use anyhow::anyhow;
+use apple_sys::AVFAudio::CGDirectDisplayID;
 use apple_sys::ScreenCaptureKit::{
-    id, CGSize, CMTime, INSBundle, INSError, INSObject, INSProcessInfo, INSScreen,
-    ISCContentFilter, ISCDisplay, ISCRunningApplication, ISCShareableContent,
-    ISCStreamConfiguration, ISCWindow, NSArray, NSBundle, NSError, NSProcessInfo, NSScreen,
-    NSString_NSStringDeprecated, PNSObject, SCContentFilter, SCDisplay, SCRunningApplication,
-    SCShareableContent, SCStreamConfiguration, SCWindow,
+    id, CGSize, CMTime, INSBundle, INSDictionary, INSError, INSNumber, INSObject, INSProcessInfo,
+    INSScreen, ISCContentFilter, ISCDisplay, ISCRunningApplication, ISCShareableContent,
+    ISCStreamConfiguration, ISCWindow, NSArray, NSBundle, NSDictionary, NSError, NSNumber,
+    NSProcessInfo, NSScreen, NSString, NSString_NSStringDeprecated, PNSObject, SCContentFilter,
+    SCDisplay, SCRunningApplication, SCShareableContent, SCStreamConfiguration, SCWindow,
 };
 use block::Block;
 use itertools::Itertools;
@@ -170,6 +171,8 @@ impl ScreenRecorder {
             match self.capture_type {
                 CaptureType::Display => {
                     if let Some(display) = self.selected_display {
+                        info!("Capturing display: {}", display.displayID());
+
                         // Exclude the Sharer app itself.
                         let excluded_apps: NSArray = if self.is_app_excluded {
                             self.available_apps
@@ -411,12 +414,34 @@ impl DisplayInfo for ScreenRecorder {
     }
 }
 
+unsafe fn display_name_for_id(id: CGDirectDisplayID) -> Option<String> {
+    for screen in from_nsarray!(NSScreen, NSScreen::screens()) {
+        let screen_dictionary = screen.deviceDescription();
+        if screen_dictionary.0.is_null() {
+            continue;
+        }
+        let screen_id = NSNumber(
+            <NSDictionary as INSDictionary<NSString, NSNumber>>::objectForKey_(
+                &screen_dictionary,
+                NSString::alloc().initWithCString_(b"NSScreenNumber\0".as_ptr() as *const _),
+            ),
+        );
+        if screen_id.unsignedIntValue() == id {
+            return Some(from_nsstring!(screen.localizedName()).to_string());
+        }
+    }
+    None
+}
+
 impl ToString for UnsafeSendable<SCDisplay> {
     fn to_string(&self) -> String {
         let id = unsafe { self.0.displayID() };
         let width = unsafe { self.0.width() };
         let height = unsafe { self.0.height() };
-        format!("Display {} ({} x {})", id, width, height)
+        match unsafe { display_name_for_id(id) } {
+            Some(name) => format!("{} ({} x {})", name, width, height),
+            None => format!("Display {} ({} x {})", id, width, height),
+        }
     }
 }
 
@@ -437,7 +462,8 @@ impl Eq for UnsafeSendable<SCDisplay> {}
 impl DisplaySelector for ScreenRecorder {
     type Display = UnsafeSendable<SCDisplay>;
 
-    fn available_displays(&self) -> Result<Vec<Self::Display>> {
+    fn available_displays(&mut self) -> Result<Vec<Self::Display>> {
+        self.refresh_available_content();
         Ok(self
             .available_displays
             .iter()

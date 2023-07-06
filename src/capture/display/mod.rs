@@ -3,7 +3,7 @@ use crate::result::Result;
 pub trait DisplaySelector {
     type Display: ToString + Eq;
 
-    fn available_displays(&self) -> Result<Vec<Self::Display>>;
+    fn available_displays(&mut self) -> Result<Vec<Self::Display>>;
 
     fn select_display(&mut self, display: &Self::Display) -> Result<()>;
 

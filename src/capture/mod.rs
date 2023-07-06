@@ -2,6 +2,7 @@ use crate::{OutputSink, Result};
 use async_trait::async_trait;
 use std::sync::Arc;
 use tokio::sync::Mutex;
+use tokio_util::sync::CancellationToken;
 
 #[async_trait]
 pub trait ScreenCapture {
@@ -9,12 +10,15 @@ pub trait ScreenCapture {
 
     fn display(&self) -> &dyn DisplayInfo;
 
-    async fn capture(
+    async fn start_capture(
         &mut self,
         encoder: FfmpegEncoder,
         output: Arc<Mutex<impl OutputSink + Send + ?Sized>>,
         profiler: PerformanceProfiler,
+        shutdown_token: CancellationToken,
     ) -> Result<()>;
+
+    async fn stop_capture(&mut self) -> Result<()>;
 }
 
 pub trait DisplayInfo {

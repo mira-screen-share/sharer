@@ -66,7 +66,7 @@ impl ScreenCapture for WGCScreenCapture {
         &self.item
     }
 
-    async fn capture(
+    async fn start_capture(
         &mut self,
         mut encoder: FfmpegEncoder,
         output: Arc<Mutex<impl OutputSink + Send + ?Sized>>,
