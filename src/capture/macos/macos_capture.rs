@@ -122,4 +122,8 @@ impl DisplaySelector for MacOSCapture {
     fn select_display(&mut self, display: &Self::Display) -> Result<()> {
         self.recorder.select_display(display)
     }
+
+    fn selected_display(&self) -> Result<Option<Self::Display>> {
+        self.recorder.selected_display()
+    }
 }

@@ -1,7 +1,10 @@
+use iced::widget::pick_list;
 use iced::Alignment::Center;
 use iced::Length::Fill;
 
 use crate::capture::capturer::Capturer;
+use crate::capture::display::DisplaySelector;
+use crate::capture::ScreenCaptureImpl;
 use crate::column_iced;
 use crate::gui::app;
 use crate::gui::component::Component;
@@ -15,6 +18,7 @@ pub struct StartPage {}
 #[derive(Clone, Debug)]
 pub enum Message {
     Start,
+    SelectDisplay(<ScreenCaptureImpl as DisplaySelector>::Display),
 }
 
 impl From<Message> for app::Message {
@@ -27,10 +31,14 @@ pub struct UpdateProps<'a> {
     pub capturer: &'a mut Capturer,
 }
 
+pub struct ViewProps<'a> {
+    pub capturer: &'a Capturer,
+}
+
 impl<'a> Component<'a> for StartPage {
     type Message = Message;
     type UpdateProps = UpdateProps<'a>;
-    type ViewProps = ();
+    type ViewProps = ViewProps<'a>;
 
     fn update(
         &mut self,
@@ -41,15 +49,26 @@ impl<'a> Component<'a> for StartPage {
             Message::Start => {
                 props.capturer.run();
             }
+            Message::SelectDisplay(display) => {
+                props.capturer.select_display(display);
+            }
         }
         iced::Command::none()
     }
 
-    fn view(&self, _params: Self::ViewProps) -> Element<'_, app::Message> {
-        column_iced![FAB::new("Start Sharing", Icon::PlayCircle)
-            .style(button::Style::Primary)
-            .build()
-            .on_press(Message::Start.into()),]
+    fn view(&self, params: Self::ViewProps) -> Element<'_, app::Message> {
+        column_iced![
+            pick_list(
+                params.capturer.available_displays(),
+                params.capturer.selected_display(),
+                move |message| app::Message::Start(Message::SelectDisplay(message))
+            )
+            .width(Fill),
+            FAB::new("Start Sharing", Icon::PlayCircle)
+                .style(button::Style::Primary)
+                .build()
+                .on_press(Message::Start.into()),
+        ]
         .align_items(Center)
         .padding(16)
         .width(Fill)

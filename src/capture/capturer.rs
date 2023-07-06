@@ -6,7 +6,7 @@ use tokio_util::sync::CancellationToken;
 
 #[allow(unused_imports)]
 use crate::capture::audio::AudioCapture;
-use crate::capture::display::{DisplaySelector, Named};
+use crate::capture::display::DisplaySelector;
 use crate::capture::{ScreenCapture, ScreenCaptureImpl};
 use crate::config::Config;
 use crate::encoder;
@@ -94,14 +94,9 @@ impl Capturer {
         }
     }
 
-    pub fn available_displays(&self) -> Vec<String> {
+    pub fn available_displays(&self) -> Vec<<ScreenCaptureImpl as DisplaySelector>::Display> {
         match self.capture.try_lock() {
-            Ok(capture) => capture
-                .available_displays()
-                .unwrap()
-                .iter()
-                .map(|d| d.name())
-                .collect(),
+            Ok(capture) => capture.available_displays().unwrap(),
             Err(e) => {
                 error!("Failed to get available displays: {}", e);
                 vec![]
@@ -109,13 +104,20 @@ impl Capturer {
         }
     }
 
-    pub fn select_display(&mut self, display: usize) {
+    pub fn selected_display(&self) -> Option<<ScreenCaptureImpl as DisplaySelector>::Display> {
+        match self.capture.try_lock() {
+            Ok(capture) => capture.selected_display().unwrap(),
+            Err(e) => {
+                error!("Failed to get selected display: {}", e);
+                None
+            }
+        }
+    }
+
+    pub fn select_display(&mut self, display: <ScreenCaptureImpl as DisplaySelector>::Display) {
         match self.capture.try_lock() {
             Ok(mut capture) => {
-                let displays = capture.available_displays().unwrap();
-                if display < displays.len() {
-                    capture.select_display(&displays[display]).unwrap();
-                }
+                capture.select_display(&display).unwrap();
             }
             Err(e) => {
                 error!("Failed to select display: {}", e);

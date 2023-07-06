@@ -30,8 +30,8 @@ impl Display {
     }
 }
 
-impl Named for Display {
-    fn name(&self) -> String {
+impl ToString for Display {
+    fn to_string(&self) -> String {
         "TODO".to_string()
     }
 }

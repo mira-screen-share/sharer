@@ -13,7 +13,7 @@ use apple_sys::ScreenCaptureKit::{
 use block::Block;
 use itertools::Itertools;
 
-use crate::capture::display::{DisplaySelector, Named};
+use crate::capture::display::DisplaySelector;
 use crate::capture::macos::capture_engine::CaptureEngine;
 use crate::capture::macos::ffi::{
     from_nsarray, from_nsstring, new_nsarray, objc_closure, FromNSArray, ToNSArray, UnsafeSendable,
@@ -411,14 +411,28 @@ impl DisplayInfo for ScreenRecorder {
     }
 }
 
-impl Named for UnsafeSendable<SCDisplay> {
-    fn name(&self) -> String {
+impl ToString for UnsafeSendable<SCDisplay> {
+    fn to_string(&self) -> String {
         let id = unsafe { self.0.displayID() };
         let width = unsafe { self.0.width() };
         let height = unsafe { self.0.height() };
         format!("Display {} ({} x {})", id, width, height)
     }
 }
+
+impl Clone for UnsafeSendable<SCDisplay> {
+    fn clone(&self) -> Self {
+        Self(self.0)
+    }
+}
+
+impl PartialEq<Self> for UnsafeSendable<SCDisplay> {
+    fn eq(&self, other: &Self) -> bool {
+        self.0 .0 == other.0 .0
+    }
+}
+
+impl Eq for UnsafeSendable<SCDisplay> {}
 
 impl DisplaySelector for ScreenRecorder {
     type Display = UnsafeSendable<SCDisplay>;
@@ -443,5 +457,11 @@ impl DisplaySelector for ScreenRecorder {
             }
             None => Err(anyhow!("Display is not available.")),
         }
+    }
+
+    fn selected_display(&self) -> Result<Option<Self::Display>> {
+        Ok(self
+            .selected_display
+            .map_or(None, |display| Some(UnsafeSendable(display))))
     }
 }
