@@ -2,7 +2,9 @@ use crate::capture::DisplayInfo;
 use crate::result::Result;
 use windows::Graphics::Capture::GraphicsCaptureItem;
 use windows::Win32::Foundation::{BOOL, LPARAM, RECT};
-use windows::Win32::Graphics::Gdi::{EnumDisplayMonitors, HDC, HMONITOR};
+use windows::Win32::Graphics::Gdi::{
+    EnumDisplayMonitors, GetMonitorInfoA, HDC, HMONITOR, MONITORINFO, MONITORINFOEXA,
+};
 use windows::Win32::System::WinRT::Graphics::Capture::IGraphicsCaptureItemInterop;
 
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -31,7 +33,23 @@ impl Display {
 
 impl ToString for Display {
     fn to_string(&self) -> String {
-        "TODO".to_string()
+        let mut info = MONITORINFOEXA {
+            monitorInfo: MONITORINFO {
+                cbSize: std::mem::size_of::<MONITORINFOEXA>() as u32,
+                ..Default::default()
+            },
+            szDevice: [0; 32],
+        };
+        let ptr = &mut info as *mut _ as *mut MONITORINFO;
+        unsafe {
+            GetMonitorInfoA(self.handle, ptr);
+        }
+        let name = unsafe { std::ffi::CStr::from_ptr(info.szDevice.as_ptr() as _) };
+        let name = name.to_str().unwrap().to_string();
+        let width = info.monitorInfo.rcMonitor.right - info.monitorInfo.rcMonitor.left;
+        let height = info.monitorInfo.rcMonitor.bottom - info.monitorInfo.rcMonitor.top;
+
+        format!("{} ({} x {})", name, width, height)
     }
 }
 
