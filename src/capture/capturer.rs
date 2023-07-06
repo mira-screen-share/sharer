@@ -159,7 +159,7 @@ impl Capturer {
                 };
 
                 #[cfg(target_os = "windows")]
-                AudioCapture::capture(output.clone(), shutdown_token)?;
+                AudioCapture::capture(output.clone(), shutdown_token.clone()).unwrap();
 
                 capture
                     .start_capture(encoder, output, profiler, shutdown_token.clone())

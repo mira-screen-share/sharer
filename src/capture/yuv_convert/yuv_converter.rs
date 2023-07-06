@@ -19,6 +19,7 @@ use windows::{
     Win32::Graphics::{Direct3D::*, Direct3D11::*, Dxgi::Common::*},
 };
 
+#[derive(Clone)]
 pub struct YuvConverter {
     device: Arc<ID3D11Device>,
     device_context: Arc<ID3D11DeviceContext>,

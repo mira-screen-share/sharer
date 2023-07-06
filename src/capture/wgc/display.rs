@@ -1,4 +1,4 @@
-use crate::capture::display::{DisplaySelector, Named};
+use crate::capture::display::DisplaySelector;
 use crate::capture::DisplayInfo;
 use crate::result::Result;
 use windows::Graphics::Capture::GraphicsCaptureItem;
@@ -6,7 +6,7 @@ use windows::Win32::Foundation::{BOOL, LPARAM, RECT};
 use windows::Win32::Graphics::Gdi::{EnumDisplayMonitors, HDC, HMONITOR};
 use windows::Win32::System::WinRT::Graphics::Capture::IGraphicsCaptureItemInterop;
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Display {
     pub handle: HMONITOR,
 }
