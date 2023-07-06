@@ -1,4 +1,5 @@
-use iced::widget::pick_list;
+use iced::alignment::{Horizontal, Vertical};
+use iced::widget::{container, pick_list, vertical_space};
 use iced::Alignment::Center;
 use iced::Length::Fill;
 
@@ -57,21 +58,29 @@ impl<'a> Component<'a> for StartPage {
     }
 
     fn view(&self, params: Self::ViewProps) -> Element<'_, app::Message> {
-        column_iced![
-            pick_list(
-                params.capturer.available_displays(),
-                params.capturer.selected_display(),
-                move |message| app::Message::Start(Message::SelectDisplay(message))
-            )
-            .width(Fill),
-            FAB::new("Start Sharing", Icon::PlayCircle)
-                .style(button::Style::Primary)
-                .build()
-                .on_press(Message::Start.into()),
-        ]
-        .align_items(Center)
-        .padding(16)
+        container(
+            column_iced![
+                pick_list(
+                    params.capturer.available_displays(),
+                    params.capturer.selected_display(),
+                    move |message| app::Message::Start(Message::SelectDisplay(message))
+                )
+                .width(Fill),
+                vertical_space(32),
+                FAB::new("Start Sharing", Icon::PlayCircle)
+                    .style(button::Style::Primary)
+                    .build()
+                    .on_press(Message::Start.into()),
+            ]
+            .align_items(Center)
+            .padding(16)
+            .width(Fill)
+            .max_width(400),
+        )
         .width(Fill)
+        .height(Fill)
+        .align_x(Horizontal::Center)
+        .align_y(Vertical::Center)
         .into()
     }
 }
