@@ -293,7 +293,7 @@ impl ScreenRecorder {
                     |selected_display| {
                         available_displays
                             .iter()
-                            .find(|display| display.0 == selected_display.0)
+                            .find(|display| display.displayID() == selected_display.displayID())
                             .cloned()
                     },
                 )
@@ -307,7 +307,7 @@ impl ScreenRecorder {
                     |selected_window| {
                         available_windows
                             .iter()
-                            .find(|window| window.0 == selected_window.0)
+                            .find(|window| window.windowID() == selected_window.windowID())
                             .cloned()
                     },
                 )
@@ -428,7 +428,7 @@ impl Clone for UnsafeSendable<SCDisplay> {
 
 impl PartialEq<Self> for UnsafeSendable<SCDisplay> {
     fn eq(&self, other: &Self) -> bool {
-        self.0 .0 == other.0 .0
+        unsafe { self.0.displayID() == other.0.displayID() }
     }
 }
 
@@ -449,8 +449,9 @@ impl DisplaySelector for ScreenRecorder {
         match self
             .available_displays
             .iter()
-            .find(|available_display| available_display.0 == display.0 .0)
-        {
+            .find(|available_display| unsafe {
+                available_display.displayID() == display.0.displayID()
+            }) {
             Some(display) => {
                 self.selected_display = Some(display.clone());
                 Ok(())

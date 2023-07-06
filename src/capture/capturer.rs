@@ -41,7 +41,7 @@ pub struct Capturer {
     shutdown_token_opt: Option<CancellationToken>,
     signaller: Arc<Mutex<Option<Arc<dyn Signaller + Send + Sync>>>>,
     notify_update: Arc<dyn Fn() + Send + Sync>,
-    capture: Arc<Mutex<ScreenCaptureImpl>>,
+    capture: Option<ScreenCaptureImpl>,
 }
 
 impl Capturer {
@@ -52,7 +52,7 @@ impl Capturer {
             shutdown_token_opt: None,
             signaller: Arc::new(Mutex::new(None)),
             notify_update,
-            capture: Arc::new(Mutex::new(ScreenCaptureImpl::new(config.clone()).unwrap())),
+            capture: Some(ScreenCaptureImpl::new(config.clone()).unwrap()),
         }
     }
 
@@ -95,33 +95,24 @@ impl Capturer {
     }
 
     pub fn available_displays(&self) -> Vec<<ScreenCaptureImpl as DisplaySelector>::Display> {
-        match self.capture.try_lock() {
-            Ok(capture) => capture.available_displays().unwrap(),
-            Err(e) => {
-                error!("Failed to get available displays: {}", e);
-                vec![]
-            }
+        if let Some(capture) = self.capture.as_ref() {
+            capture.available_displays().unwrap()
+        } else {
+            Vec::new()
         }
     }
 
     pub fn selected_display(&self) -> Option<<ScreenCaptureImpl as DisplaySelector>::Display> {
-        match self.capture.try_lock() {
-            Ok(capture) => capture.selected_display().unwrap(),
-            Err(e) => {
-                error!("Failed to get selected display: {}", e);
-                None
-            }
+        if let Some(capture) = self.capture.as_ref() {
+            capture.selected_display().unwrap()
+        } else {
+            None
         }
     }
 
     pub fn select_display(&mut self, display: <ScreenCaptureImpl as DisplaySelector>::Display) {
-        match self.capture.try_lock() {
-            Ok(mut capture) => {
-                capture.select_display(&display).unwrap();
-            }
-            Err(e) => {
-                error!("Failed to select display: {}", e);
-            }
+        if let Some(capture) = self.capture.as_mut() {
+            capture.select_display(&display).unwrap();
         }
     }
 
@@ -134,7 +125,10 @@ impl Capturer {
         let profiler = PerformanceProfiler::new(args.profiler, config.max_fps);
         let signaller_opt = self.signaller.clone();
         let notify_update = self.notify_update.clone();
-        let capture = self.capture.clone();
+        let mut capture = self
+            .capture
+            .replace(ScreenCaptureImpl::new(config.clone()).unwrap())
+            .unwrap();
 
         tokio::spawn(async move {
             tokio::select! {
@@ -146,8 +140,6 @@ impl Capturer {
                             .unwrap(),
                     );
                     signaller_opt.lock().await.replace(signaller.clone());
-
-                    let mut capture = capture.try_lock().unwrap();
                     let resolution = capture.display().resolution();
                     let mut encoder = encoder::FfmpegEncoder::new(resolution.0, resolution.1, &config.encoder);
                     let input_handler = Arc::new(InputHandler::new(
@@ -171,6 +163,7 @@ impl Capturer {
                     AudioCapture::capture(output.clone(), shutdown_token)?;
 
                     capture.capture(encoder, output, profiler).await.unwrap();
+                    info!("Capture finished")
                 } => {}
                 _ = shutdown_token.cancelled() => {}
             }
