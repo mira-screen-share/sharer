@@ -2,23 +2,26 @@ extern crate libc;
 
 use std::ffi::c_void;
 
+use anyhow::anyhow;
 use apple_sys::ScreenCaptureKit::{
-    id, CGSize, CMTime, INSBundle, INSError, INSObject, INSScreen, ISCContentFilter, ISCDisplay,
-    ISCRunningApplication, ISCShareableContent, ISCStreamConfiguration, ISCWindow, NSArray,
-    NSBundle, NSError, NSScreen, NSString_NSStringDeprecated, PNSObject, SCContentFilter,
-    SCDisplay, SCRunningApplication, SCShareableContent, SCStreamConfiguration, SCWindow,
+    id, CGSize, CMTime, INSBundle, INSError, INSObject, INSProcessInfo, ISCContentFilter,
+    ISCDisplay, ISCRunningApplication, ISCShareableContent, ISCStreamConfiguration, ISCWindow,
+    NSArray, NSBundle, NSError, NSProcessInfo, NSString_NSStringDeprecated, PNSObject,
+    SCContentFilter, SCDisplay, SCRunningApplication, SCShareableContent, SCStreamConfiguration,
+    SCWindow,
 };
 use block::Block;
 use itertools::Itertools;
-use tokio::sync::mpsc;
-use tokio::sync::mpsc::Sender;
 
+use crate::capture::display::DisplaySelector;
 use crate::capture::macos::capture_engine::CaptureEngine;
+use crate::capture::macos::display::Display;
 use crate::capture::macos::ffi::{
     from_nsarray, from_nsstring, new_nsarray, objc_closure, FromNSArray, ToNSArray, UnsafeSendable,
 };
 use crate::capture::macos::pcm_buffer::PCMBuffer;
-use crate::capture::YUVFrame;
+use crate::capture::{DisplayInfo, YUVFrame};
+use crate::result::Result;
 
 #[allow(dead_code)]
 enum CaptureType {
@@ -30,15 +33,14 @@ enum CaptureType {
 pub struct ScreenRecorder {
     is_running: bool,
     capture_type: CaptureType,
-    selected_display: Option<SCDisplay>,
+    selected_display: Option<Display>,
     selected_window: Option<SCWindow>,
     is_app_excluded: bool,
     content_size: CGSize,
-    scale_factor: usize,
     max_fps: u8,
     available_content: Option<SCShareableContent>,
     available_apps: Vec<SCRunningApplication>,
-    available_displays: Vec<SCDisplay>,
+    available_displays: Vec<Display>,
     available_windows: Vec<SCWindow>,
     is_audio_capture_enabled: bool,
     is_app_audio_excluded: bool,
@@ -74,14 +76,6 @@ impl ScreenRecorder {
                 width: 1.,
                 height: 1.,
             },
-            scale_factor: {
-                let screen = unsafe { NSScreen::mainScreen() };
-                if screen.0.is_null() {
-                    2
-                } else {
-                    (unsafe { screen.backingScaleFactor() }) as usize
-                }
-            },
             max_fps: 60,
             available_content: None,
             available_apps: Vec::new(),
@@ -98,30 +92,34 @@ impl ScreenRecorder {
         self.max_fps = fps;
     }
 
-    pub async fn can_record() -> bool {
-        let (tx, mut rx) = mpsc::channel::<bool>(1);
+    pub fn can_record() -> bool {
+        let (tx, rx) = std::sync::mpsc::channel::<bool>();
         unsafe {
             SCShareableContent::getShareableContentExcludingDesktopWindows_onScreenWindowsOnly_completionHandler_(
                 false,
                 true,
                 objc_closure!(move |_content: id, error: id| {
                     let result = error.is_null();
-                    tx.blocking_send(result).unwrap();
+                    tx.send(result).unwrap();
                 }),
             );
         }
-        rx.recv().await.unwrap()
+        rx.recv().unwrap()
     }
 
-    pub async fn monitor_available_content(&mut self) {
+    pub fn monitor_available_content(&mut self) {
         if self.is_setup {
             return;
         }
-        self.refresh_available_content().await;
+        self.refresh_available_content();
     }
 
     /// Starts capturing screen content.
-    pub async fn start(&mut self, video_tx: Sender<YUVFrame>, audio_tx: Sender<PCMBuffer>) {
+    pub fn start(
+        &mut self,
+        video_tx: tokio::sync::mpsc::Sender<YUVFrame>,
+        audio_tx: tokio::sync::mpsc::Sender<PCMBuffer>,
+    ) {
         // Exit early if already running.
         if self.is_running {
             return;
@@ -129,7 +127,7 @@ impl ScreenRecorder {
 
         if !self.is_setup {
             // Starting polling for available screen content.
-            self.monitor_available_content().await;
+            self.monitor_available_content();
             self.is_setup = true;
         }
 
@@ -163,14 +161,24 @@ impl ScreenRecorder {
         unsafe {
             match self.capture_type {
                 CaptureType::Display => {
-                    if let Some(display) = self.selected_display {
-                        // Exclude the Sharer app itself by matching its bundle identifier.
+                    if let Some(display) = &self.selected_display {
+                        info!("Capturing display: {}", display.sc_display.displayID());
+
+                        // Exclude the Sharer app itself.
                         let excluded_apps: NSArray = if self.is_app_excluded {
                             self.available_apps
                                 .clone()
                                 .into_iter()
                                 .filter(|app| match NSBundle::mainBundle().bundleIdentifier() {
-                                    this_bundle if this_bundle.0.is_null() => false,
+                                    this_bundle if this_bundle.0.is_null() => {
+                                        let app_name = from_nsstring!(app.applicationName());
+                                        let this_name = {
+                                            from_nsstring!(
+                                                NSProcessInfo::processInfo().processName()
+                                            )
+                                        };
+                                        app_name == this_name
+                                    }
                                     bundle => {
                                         let app_bundle = from_nsstring!(app.bundleIdentifier());
                                         let this_bundle = from_nsstring!(bundle);
@@ -186,7 +194,7 @@ impl ScreenRecorder {
                         SCContentFilter(
                             SCContentFilter::alloc()
                                 .initWithDisplay_excludingApplications_exceptingWindows_(
-                                    display,
+                                    display.sc_display,
                                     excluded_apps,
                                     new_nsarray::<SCWindow>(),
                                 ),
@@ -214,22 +222,9 @@ impl ScreenRecorder {
             config.setCapturesAudio_(self.is_audio_capture_enabled);
             config.setExcludesCurrentProcessAudio_(self.is_app_audio_excluded);
 
-            match self.capture_type {
-                CaptureType::Display => {
-                    if let Some(display) = self.selected_display {
-                        // Configure the display content width and height.
-                        config.setWidth_(display.width() as usize * self.scale_factor);
-                        config.setHeight_(display.height() as usize * self.scale_factor);
-                    }
-                }
-                CaptureType::Window => {
-                    if let Some(window) = self.selected_window {
-                        // Configure the display content width and height.
-                        config.setWidth_(window.frame().size.width as usize * 2);
-                        config.setHeight_(window.frame().size.height as usize * 2);
-                    }
-                }
-            }
+            let (width, height) = self.resolution();
+            config.setWidth_(width as _);
+            config.setHeight_(height as _);
 
             config.setMinimumFrameInterval_(CMTime {
                 value: 1,
@@ -256,8 +251,8 @@ impl ScreenRecorder {
         }
     }
 
-    async fn refresh_available_content(&mut self) {
-        let (result_tx, mut result_rx) = mpsc::channel(1);
+    fn refresh_available_content(&mut self) {
+        let (result_tx, result_rx) = std::sync::mpsc::channel();
         unsafe {
             SCShareableContent::getShareableContentExcludingDesktopWindows_onScreenWindowsOnly_completionHandler_(
                 false,
@@ -269,11 +264,11 @@ impl ScreenRecorder {
                     } else {
                         let available_content = SCShareableContent(content);
                         available_content.retain();
-                        result_tx.blocking_send(UnsafeSendable(available_content)).unwrap();
+                        result_tx.send(UnsafeSendable(available_content)).unwrap();
                     }
                 }),
             );
-            let available_content = result_rx.recv().await.unwrap().0;
+            let available_content = result_rx.recv().unwrap().0;
             let available_displays = from_nsarray!(SCDisplay, available_content.displays());
             let available_windows = ScreenRecorder::filter_windows(from_nsarray!(
                 SCWindow,
@@ -285,37 +280,41 @@ impl ScreenRecorder {
             // Release later.
             let old_content = self.available_content.replace(available_content);
 
+            self.available_displays = available_displays
+                .iter()
+                .map(|display| Display::new(display.clone()))
+                .collect();
+            self.available_windows = available_windows;
+            self.available_apps = available_apps;
+
             self.selected_display = self
                 .selected_display
+                .as_ref()
                 .map(
                     // Use the currently selected display if it is still available.
                     |selected_display| {
-                        available_displays
+                        self.available_displays
                             .iter()
-                            .find(|display| display.0 == selected_display.0)
+                            .find(|display| display == &selected_display)
                             .cloned()
                     },
                 )
                 .flatten()
-                .or(available_displays.first().cloned());
+                .or(self.available_displays.first().cloned());
 
             self.selected_window = self
                 .selected_window
                 .map(
                     // Use the currently selected window if it is still available.
                     |selected_window| {
-                        available_windows
+                        self.available_windows
                             .iter()
-                            .find(|window| window.0 == selected_window.0)
+                            .find(|window| window.windowID() == selected_window.windowID())
                             .cloned()
                     },
                 )
                 .flatten()
-                .or(available_windows.first().cloned());
-
-            self.available_displays = available_displays;
-            self.available_windows = available_windows;
-            self.available_apps = available_apps;
+                .or(self.available_windows.first().cloned());
 
             if let Some(old_content) = old_content {
                 old_content.release();
@@ -354,7 +353,12 @@ impl ScreenRecorder {
             // Remove this app's window from the list.
             .filter(|window| unsafe {
                 match NSBundle::mainBundle().bundleIdentifier() {
-                    this_bundle if this_bundle.0.is_null() => true,
+                    this_bundle if this_bundle.0.is_null() => {
+                        let window_name =
+                            from_nsstring!(window.owningApplication().applicationName());
+                        let this_name = from_nsstring!(NSProcessInfo::processInfo().processName());
+                        window_name != this_name
+                    }
                     bundle => {
                         let this_bundle = from_nsstring!(bundle);
                         let window_bundle =
@@ -364,5 +368,63 @@ impl ScreenRecorder {
                 }
             })
             .collect()
+    }
+}
+
+impl DisplayInfo for ScreenRecorder {
+    fn resolution(&self) -> (u32, u32) {
+        match self.capture_type {
+            CaptureType::Display => self
+                .selected_display
+                .as_ref()
+                .unwrap_or_else(|| panic!("No display is selected."))
+                .resolution(),
+            CaptureType::Window => {
+                if let Some(window) = self.selected_window {
+                    unsafe {
+                        (
+                            window.frame().size.width as u32 * self.dpi_conversion_factor() as u32,
+                            window.frame().size.height as u32 * self.dpi_conversion_factor() as u32,
+                        )
+                    }
+                } else {
+                    panic!("No window is selected.")
+                }
+            }
+        }
+    }
+
+    fn dpi_conversion_factor(&self) -> f64 {
+        match self.capture_type {
+            CaptureType::Display => self
+                .selected_display
+                .as_ref()
+                .unwrap_or_else(|| panic!("No display is selected."))
+                .dpi_conversion_factor(),
+            CaptureType::Window => 2.0,
+        }
+    }
+}
+
+impl DisplaySelector for ScreenRecorder {
+    type Display = Display;
+
+    fn available_displays(&mut self) -> Result<Vec<Self::Display>> {
+        self.refresh_available_content();
+        Ok(self.available_displays.clone())
+    }
+
+    fn select_display(&mut self, display: &Self::Display) -> Result<()> {
+        match self.available_displays.iter().find(|d| d == &display) {
+            Some(display) => {
+                self.selected_display = Some(display.clone());
+                Ok(())
+            }
+            None => Err(anyhow!("Display is not available.")),
+        }
+    }
+
+    fn selected_display(&self) -> Result<Option<Self::Display>> {
+        Ok(self.selected_display.clone())
     }
 }

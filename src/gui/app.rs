@@ -99,7 +99,9 @@ impl Application for App {
                 invite_link: self.capturer.get_invite_link().unwrap_or_default(),
             })
         } else {
-            self.start_page.view(())
+            self.start_page.view(start::ViewProps {
+                capturer: &self.capturer,
+            })
         }]
         .spacing(12),]
         .align_items(Center)

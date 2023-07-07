@@ -4,14 +4,14 @@ use std::collections::VecDeque;
 
 pub(crate) struct FramePool {
     frames: VecDeque<VideoFrame>,
-    w: u32,
-    h: u32,
+    w: usize,
+    h: usize,
     time_base: TimeBase,
     pixel_format: PixelFormat,
 }
 
 impl FramePool {
-    pub fn new(w: u32, h: u32, time_base: TimeBase, pixel_format: PixelFormat) -> Self {
+    pub fn new(w: usize, h: usize, time_base: TimeBase, pixel_format: PixelFormat) -> Self {
         Self {
             frames: VecDeque::new(),
             w,
@@ -35,7 +35,6 @@ impl FramePool {
             }
         }
 
-        VideoFrameMut::black(self.pixel_format, self.w as _, self.h as _)
-            .with_time_base(self.time_base)
+        VideoFrameMut::black(self.pixel_format, self.w, self.h).with_time_base(self.time_base)
     }
 }
