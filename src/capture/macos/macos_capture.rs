@@ -3,7 +3,6 @@ use std::time::Duration;
 
 use ac_ffmpeg::codec::audio::{AudioEncoder, AudioFrameMut, ChannelLayout};
 use ac_ffmpeg::codec::Encoder;
-use apple_sys::ScreenCaptureKit::SCDisplay;
 use async_trait::async_trait;
 use bytes::Bytes;
 use tokio::select;
@@ -11,7 +10,6 @@ use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
 
 use crate::capture::display::DisplaySelector;
-use crate::capture::macos::ffi::UnsafeSendable;
 use crate::capture::macos::pcm_buffer::PCMBuffer;
 use crate::capture::macos::screen_recorder::ScreenRecorder;
 use crate::capture::{DisplayInfo, ScreenCaptureImpl, YUVFrame};
@@ -29,12 +27,12 @@ pub struct MacOSCapture {
 #[async_trait]
 impl ScreenCapture for MacOSCapture {
     fn new(config: Config) -> Result<ScreenCaptureImpl> {
-        // TODO select display
-        // TODO hot-update config
+        // TODO hot-reload config
 
         let mut recorder = ScreenRecorder::new();
         recorder.set_max_fps(config.max_fps as u8);
         recorder.monitor_available_content();
+
         Ok(Self { config, recorder })
     }
 
@@ -135,7 +133,7 @@ impl ScreenCapture for MacOSCapture {
 }
 
 impl DisplaySelector for MacOSCapture {
-    type Display = UnsafeSendable<SCDisplay>;
+    type Display = <ScreenRecorder as DisplaySelector>::Display;
 
     fn available_displays(&mut self) -> Result<Vec<Self::Display>> {
         self.recorder.available_displays()

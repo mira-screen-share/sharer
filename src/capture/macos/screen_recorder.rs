@@ -3,19 +3,19 @@ extern crate libc;
 use std::ffi::c_void;
 
 use anyhow::anyhow;
-use apple_sys::AVFAudio::CGDirectDisplayID;
 use apple_sys::ScreenCaptureKit::{
-    id, CGSize, CMTime, INSBundle, INSDictionary, INSError, INSNumber, INSObject, INSProcessInfo,
-    INSScreen, ISCContentFilter, ISCDisplay, ISCRunningApplication, ISCShareableContent,
-    ISCStreamConfiguration, ISCWindow, NSArray, NSBundle, NSDictionary, NSError, NSNumber,
-    NSProcessInfo, NSScreen, NSString, NSString_NSStringDeprecated, PNSObject, SCContentFilter,
-    SCDisplay, SCRunningApplication, SCShareableContent, SCStreamConfiguration, SCWindow,
+    id, CGSize, CMTime, INSBundle, INSError, INSObject, INSProcessInfo, ISCContentFilter,
+    ISCDisplay, ISCRunningApplication, ISCShareableContent, ISCStreamConfiguration, ISCWindow,
+    NSArray, NSBundle, NSError, NSProcessInfo, NSString_NSStringDeprecated, PNSObject,
+    SCContentFilter, SCDisplay, SCRunningApplication, SCShareableContent, SCStreamConfiguration,
+    SCWindow,
 };
 use block::Block;
 use itertools::Itertools;
 
 use crate::capture::display::DisplaySelector;
 use crate::capture::macos::capture_engine::CaptureEngine;
+use crate::capture::macos::display::Display;
 use crate::capture::macos::ffi::{
     from_nsarray, from_nsstring, new_nsarray, objc_closure, FromNSArray, ToNSArray, UnsafeSendable,
 };
@@ -33,15 +33,14 @@ enum CaptureType {
 pub struct ScreenRecorder {
     is_running: bool,
     capture_type: CaptureType,
-    selected_display: Option<SCDisplay>,
+    selected_display: Option<Display>,
     selected_window: Option<SCWindow>,
     is_app_excluded: bool,
     content_size: CGSize,
-    scale_factor: usize,
     max_fps: u8,
     available_content: Option<SCShareableContent>,
     available_apps: Vec<SCRunningApplication>,
-    available_displays: Vec<SCDisplay>,
+    available_displays: Vec<Display>,
     available_windows: Vec<SCWindow>,
     is_audio_capture_enabled: bool,
     is_app_audio_excluded: bool,
@@ -76,14 +75,6 @@ impl ScreenRecorder {
             content_size: CGSize {
                 width: 1.,
                 height: 1.,
-            },
-            scale_factor: {
-                let screen = unsafe { NSScreen::mainScreen() };
-                if screen.0.is_null() {
-                    2
-                } else {
-                    (unsafe { screen.backingScaleFactor() }) as usize
-                }
             },
             max_fps: 60,
             available_content: None,
@@ -170,8 +161,8 @@ impl ScreenRecorder {
         unsafe {
             match self.capture_type {
                 CaptureType::Display => {
-                    if let Some(display) = self.selected_display {
-                        info!("Capturing display: {}", display.displayID());
+                    if let Some(display) = &self.selected_display {
+                        info!("Capturing display: {}", display.sc_display.displayID());
 
                         // Exclude the Sharer app itself.
                         let excluded_apps: NSArray = if self.is_app_excluded {
@@ -203,7 +194,7 @@ impl ScreenRecorder {
                         SCContentFilter(
                             SCContentFilter::alloc()
                                 .initWithDisplay_excludingApplications_exceptingWindows_(
-                                    display,
+                                    display.sc_display,
                                     excluded_apps,
                                     new_nsarray::<SCWindow>(),
                                 ),
@@ -289,37 +280,41 @@ impl ScreenRecorder {
             // Release later.
             let old_content = self.available_content.replace(available_content);
 
+            self.available_displays = available_displays
+                .iter()
+                .map(|display| Display::new(display.clone()))
+                .collect();
+            self.available_windows = available_windows;
+            self.available_apps = available_apps;
+
             self.selected_display = self
                 .selected_display
+                .as_ref()
                 .map(
                     // Use the currently selected display if it is still available.
                     |selected_display| {
-                        available_displays
+                        self.available_displays
                             .iter()
-                            .find(|display| display.displayID() == selected_display.displayID())
+                            .find(|display| display == &selected_display)
                             .cloned()
                     },
                 )
                 .flatten()
-                .or(available_displays.first().cloned());
+                .or(self.available_displays.first().cloned());
 
             self.selected_window = self
                 .selected_window
                 .map(
                     // Use the currently selected window if it is still available.
                     |selected_window| {
-                        available_windows
+                        self.available_windows
                             .iter()
                             .find(|window| window.windowID() == selected_window.windowID())
                             .cloned()
                     },
                 )
                 .flatten()
-                .or(available_windows.first().cloned());
-
-            self.available_displays = available_displays;
-            self.available_windows = available_windows;
-            self.available_apps = available_apps;
+                .or(self.available_windows.first().cloned());
 
             if let Some(old_content) = old_content {
                 old_content.release();
@@ -379,18 +374,11 @@ impl ScreenRecorder {
 impl DisplayInfo for ScreenRecorder {
     fn resolution(&self) -> (u32, u32) {
         match self.capture_type {
-            CaptureType::Display => {
-                if let Some(display) = self.selected_display {
-                    unsafe {
-                        (
-                            display.width() as u32 * self.dpi_conversion_factor() as u32,
-                            display.height() as u32 * self.dpi_conversion_factor() as u32,
-                        )
-                    }
-                } else {
-                    panic!("No display is selected.")
-                }
-            }
+            CaptureType::Display => self
+                .selected_display
+                .as_ref()
+                .unwrap_or_else(|| panic!("No display is selected."))
+                .resolution(),
             CaptureType::Window => {
                 if let Some(window) = self.selected_window {
                     unsafe {
@@ -408,76 +396,26 @@ impl DisplayInfo for ScreenRecorder {
 
     fn dpi_conversion_factor(&self) -> f64 {
         match self.capture_type {
-            CaptureType::Display => self.scale_factor as f64,
+            CaptureType::Display => self
+                .selected_display
+                .as_ref()
+                .unwrap_or_else(|| panic!("No display is selected."))
+                .dpi_conversion_factor(),
             CaptureType::Window => 2.0,
         }
     }
 }
 
-unsafe fn display_name_for_id(id: CGDirectDisplayID) -> Option<String> {
-    for screen in from_nsarray!(NSScreen, NSScreen::screens()) {
-        let screen_dictionary = screen.deviceDescription();
-        if screen_dictionary.0.is_null() {
-            continue;
-        }
-        let screen_id = NSNumber(
-            <NSDictionary as INSDictionary<NSString, NSNumber>>::objectForKey_(
-                &screen_dictionary,
-                NSString::alloc().initWithCString_(b"NSScreenNumber\0".as_ptr() as *const _),
-            ),
-        );
-        if screen_id.unsignedIntValue() == id {
-            return Some(from_nsstring!(screen.localizedName()).to_string());
-        }
-    }
-    None
-}
-
-impl ToString for UnsafeSendable<SCDisplay> {
-    fn to_string(&self) -> String {
-        let id = unsafe { self.0.displayID() };
-        let width = unsafe { self.0.width() };
-        let height = unsafe { self.0.height() };
-        match unsafe { display_name_for_id(id) } {
-            Some(name) => format!("{} ({} x {})", name, width, height),
-            None => format!("Display {} ({} x {})", id, width, height),
-        }
-    }
-}
-
-impl Clone for UnsafeSendable<SCDisplay> {
-    fn clone(&self) -> Self {
-        Self(self.0)
-    }
-}
-
-impl PartialEq<Self> for UnsafeSendable<SCDisplay> {
-    fn eq(&self, other: &Self) -> bool {
-        unsafe { self.0.displayID() == other.0.displayID() }
-    }
-}
-
-impl Eq for UnsafeSendable<SCDisplay> {}
-
 impl DisplaySelector for ScreenRecorder {
-    type Display = UnsafeSendable<SCDisplay>;
+    type Display = Display;
 
     fn available_displays(&mut self) -> Result<Vec<Self::Display>> {
         self.refresh_available_content();
-        Ok(self
-            .available_displays
-            .iter()
-            .map(|display| UnsafeSendable(display.clone()))
-            .collect())
+        Ok(self.available_displays.clone())
     }
 
     fn select_display(&mut self, display: &Self::Display) -> Result<()> {
-        match self
-            .available_displays
-            .iter()
-            .find(|available_display| unsafe {
-                available_display.displayID() == display.0.displayID()
-            }) {
+        match self.available_displays.iter().find(|d| d == &display) {
             Some(display) => {
                 self.selected_display = Some(display.clone());
                 Ok(())
@@ -487,8 +425,6 @@ impl DisplaySelector for ScreenRecorder {
     }
 
     fn selected_display(&self) -> Result<Option<Self::Display>> {
-        Ok(self
-            .selected_display
-            .map_or(None, |display| Some(UnsafeSendable(display))))
+        Ok(self.selected_display.clone())
     }
 }

@@ -1,7 +1,7 @@
 use crate::result::Result;
 
 pub trait DisplaySelector {
-    type Display: ToString + Eq;
+    type Display: ToString + Eq + Send;
 
     fn available_displays(&mut self) -> Result<Vec<Self::Display>>;
 
