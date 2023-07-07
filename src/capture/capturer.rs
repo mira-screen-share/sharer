@@ -95,24 +95,31 @@ impl Capturer {
     }
 
     pub fn available_displays(&self) -> Vec<<ScreenCaptureImpl as DisplaySelector>::Display> {
-        if let Ok(mut capturer) = self.capture.try_lock() {
-            capturer.available_displays().unwrap()
-        } else {
-            Vec::new()
+        match self.capture.try_lock() {
+            Ok(mut capturer) => capturer.available_displays().unwrap(),
+            Err(e) => {
+                error!("Failed to get available displays: {}", e);
+                Vec::new()
+            }
         }
     }
 
     pub fn selected_display(&self) -> Option<<ScreenCaptureImpl as DisplaySelector>::Display> {
-        if let Ok(capturer) = self.capture.try_lock() {
-            capturer.selected_display().unwrap()
-        } else {
-            None
+        match self.capture.try_lock() {
+            Ok(capturer) => capturer.selected_display().unwrap(),
+            Err(e) => {
+                error!("Failed to get selected display: {}", e);
+                None
+            }
         }
     }
 
     pub fn select_display(&self, display: <ScreenCaptureImpl as DisplaySelector>::Display) {
-        if let Ok(mut capturer) = self.capture.try_lock() {
-            capturer.select_display(&display).unwrap()
+        match self.capture.try_lock() {
+            Ok(mut capturer) => capturer.select_display(&display).unwrap(),
+            Err(e) => {
+                error!("Failed to select display: {}", e);
+            }
         }
     }
 
