@@ -85,7 +85,7 @@ impl Capturer {
     }
 
     pub fn get_room_id(&self) -> Option<String> {
-        match self.signaller.clone().try_lock() {
+        match self.signaller.try_lock() {
             Ok(signaller) => signaller.as_ref().map(|s| s.get_room_id()).flatten(),
             Err(e) => {
                 error!("Failed to get room id: {}", e);
