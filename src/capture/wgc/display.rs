@@ -1,20 +1,19 @@
 use std::ffi::CStr;
 use std::mem::size_of;
 
-use windows::core::{PCSTR, PCWSTR};
+
 use windows::Graphics::Capture::GraphicsCaptureItem;
 use windows::Win32::Devices::Display::{
     DisplayConfigGetDeviceInfo, GetDisplayConfigBufferSizes, QueryDisplayConfig,
     DISPLAYCONFIG_DEVICE_INFO_GET_SOURCE_NAME, DISPLAYCONFIG_DEVICE_INFO_GET_TARGET_NAME,
-    DISPLAYCONFIG_DEVICE_INFO_HEADER, DISPLAYCONFIG_MODE_INFO_TYPE,
+    DISPLAYCONFIG_DEVICE_INFO_HEADER,
     DISPLAYCONFIG_MODE_INFO_TYPE_SOURCE, DISPLAYCONFIG_MODE_INFO_TYPE_TARGET,
     DISPLAYCONFIG_SOURCE_DEVICE_NAME, DISPLAYCONFIG_TARGET_DEVICE_NAME, QDC_ONLY_ACTIVE_PATHS,
 };
-use windows::Win32::Foundation::{BOOL, FALSE, LPARAM, RECT};
+use windows::Win32::Foundation::{BOOL, LPARAM, RECT};
 use windows::Win32::Graphics::Gdi::{
-    EnumDisplayDevicesA, EnumDisplayMonitors, EnumDisplaySettingsA, EnumDisplaySettingsW,
-    GetMonitorInfoA, DEVMODEA, DEVMODEW, DISPLAY_DEVICEA, ENUM_CURRENT_SETTINGS,
-    ENUM_DISPLAY_SETTINGS_MODE, HDC, HMONITOR, MONITORINFO, MONITORINFOEXA,
+    EnumDisplayMonitors,
+    GetMonitorInfoA, HDC, HMONITOR, MONITORINFO, MONITORINFOEXA,
 };
 use windows::Win32::System::WinRT::Graphics::Capture::IGraphicsCaptureItemInterop;
 
