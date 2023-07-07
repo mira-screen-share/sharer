@@ -110,10 +110,16 @@ unsafe fn try_get_user_friendly_name(device_name: String) -> Option<String> {
                     .ok()?;
 
             if gdi_device_name == device_name {
-                let target_mode = mode_info_array.iter().find(|target_mode| {
-                    target_mode.infoType == DISPLAYCONFIG_MODE_INFO_TYPE_TARGET
-                        && target_mode.adapterId == source_mode.adapterId
-                })?;
+                let target_mode = {
+                    let id = path_info_array
+                        .iter()
+                        .find(|path_info| path_info.sourceInfo.id == source_mode.id)?
+                        .targetInfo
+                        .id;
+                    mode_info_array
+                        .iter()
+                        .find(|target_mode| target_mode.id == id)?
+                };
                 let target_device_name = DISPLAYCONFIG_TARGET_DEVICE_NAME {
                     header: DISPLAYCONFIG_DEVICE_INFO_HEADER {
                         adapterId: target_mode.adapterId,
