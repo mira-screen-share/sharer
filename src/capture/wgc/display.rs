@@ -48,14 +48,14 @@ impl Display {
 
 unsafe fn get_display_name(handle: HMONITOR) -> String {
     let (device_name, width, height) = {
-        let mut info = MONITORINFOEXA {
+        let info = MONITORINFOEXA {
             monitorInfo: MONITORINFO {
                 cbSize: size_of::<MONITORINFOEXA>() as u32,
                 ..Default::default()
             },
             szDevice: [0; 32],
         };
-        GetMonitorInfoA(handle, &mut info as *mut _ as *mut MONITORINFO);
+        GetMonitorInfoA(handle, &info as *const _ as *mut _);
         (
             CStr::from_ptr(info.szDevice.as_ptr() as _)
                 .to_str()
