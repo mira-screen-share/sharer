@@ -98,6 +98,14 @@ impl Capturer {
         }
     }
 
+    pub fn get_room_password(&self) -> Option<String> {
+        if !self.room_password.is_empty() {
+            Some(self.room_password.clone())
+        } else {
+            None
+        }
+    }
+
     pub fn available_displays(&self) -> Vec<<ScreenCaptureImpl as DisplaySelector>::Display> {
         match self.capture.try_lock() {
             Ok(mut capturer) => capturer.available_displays().unwrap(),

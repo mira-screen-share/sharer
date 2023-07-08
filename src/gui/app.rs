@@ -96,6 +96,7 @@ impl Application for App {
         let element: Element<Message> = row![column_iced![if is_sharing {
             self.sharing_page.view(sharing::ViewProps {
                 room_id: self.capturer.get_room_id().unwrap_or_default(),
+                room_password: self.capturer.get_room_password().unwrap_or_default(),
                 invite_link: self.capturer.get_invite_link().unwrap_or_default(),
             })
         } else {

@@ -50,10 +50,20 @@ impl WebSocketSignaller {
 
             trace!("Received websocket message: {:?}", msg);
             let text = msg.unwrap().into_text().unwrap();
-            let msg = serde_json::from_str::<SignallerMessage>(&text).unwrap();
-            debug!("Deserialized websocket message: {:#?}", msg);
-            if let Some(tx) = topics_tx.read().await.get(msg.clone().into()) {
-                tx.send(msg).unwrap();
+            match serde_json::from_str::<SignallerMessage>(&text) {
+                Err(e) => {
+                    warn!(
+                        "Error deserializing websocket message: {}. Message: {}",
+                        e, text
+                    );
+                }
+
+                Ok(msg) => {
+                    debug!("Deserialized websocket message: {:#?}", msg);
+                    if let Some(tx) = topics_tx.read().await.get(msg.clone().into()) {
+                        tx.send(msg).unwrap();
+                    }
+                }
             }
         }
     }
