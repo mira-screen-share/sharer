@@ -161,22 +161,28 @@ macro_rules! blocking_recv {
 impl Signaller for WebSocketSignaller {
     async fn start(&self) {
         trace!("Starting session");
-        let room = uuid::Uuid::new_v4().to_string();
-        // TODO: get it from signaller
-        self.room_id.lock().unwrap().replace(room.clone());
-        (self.notify_update)();
         self.send_queue
-            .send(SignallerMessage::Start { uuid: room })
+            .send(SignallerMessage::Start {})
             .await
             .unwrap();
+        // waiting for room id
+        trace!("Waiting for room id to be assigned");
+        blocking_recv!(
+            self,
+            SignallerMessage::StartResponse { room },
+            SignallerMessageDiscriminants::StartResponse
+        );
+        info!("Assigned room id {}", room);
+        self.room_id.lock().unwrap().replace(room);
+        (self.notify_update)();
     }
     async fn accept_peer_request(&self) -> Option<(String, AuthenticationPayload)> {
         blocking_recv!(
             self,
-            SignallerMessage::Join { uuid, auth },
+            SignallerMessage::Join { from, auth },
             SignallerMessageDiscriminants::Join
         );
-        Some((uuid, auth))
+        Some((from, auth))
     }
     async fn make_new_peer(&self, uuid: String) -> Box<dyn SignallerPeer> {
         Box::new(WebSocketSignallerPeer {
@@ -208,7 +214,7 @@ impl SignallerPeer for WebSocketSignallerPeer {
             .send(SignallerMessage::Offer {
                 sdp: offer.clone(),
                 to: self.peer_uuid.clone(),
-                uuid: "0".to_string(),
+                from: "0".to_string(),
             })
             .await
             .unwrap();
@@ -241,7 +247,7 @@ impl SignallerPeer for WebSocketSignallerPeer {
         self.send_queue
             .send(SignallerMessage::Ice {
                 ice,
-                uuid: "0".to_string(),
+                from: "0".to_string(),
                 to: self.peer_uuid.clone(),
             })
             .await

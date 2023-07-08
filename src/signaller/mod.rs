@@ -57,27 +57,28 @@ pub enum DeclineReason {
 pub enum SignallerMessage {
     Offer {
         sdp: RTCSessionDescription,
-        uuid: String,
+        from: String,
         to: String,
     },
     Answer {
         sdp: RTCSessionDescription,
-        uuid: String,
+        from: String,
     },
     Join {
-        uuid: String, // viewer uuid
+        from: String, // viewer uuid
         auth: AuthenticationPayload,
     },
-    Start {
-        uuid: String,
+    Start {},
+    StartResponse {
+        room: String,
     },
     Ice {
         ice: RTCIceCandidateInit,
-        uuid: String,
+        from: String,
         to: String,
     },
     Leave {
-        uuid: String,
+        from: String,
     },
     JoinDeclined {
         reason: DeclineReason,
