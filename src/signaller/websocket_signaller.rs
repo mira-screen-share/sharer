@@ -188,7 +188,7 @@ impl Signaller for WebSocketSignaller {
     async fn reject_peer_request(&self, viewer_id: String, reason: DeclineReason) {
         self.send_queue
             .send(SignallerMessage::JoinDeclined {
-                uuid: viewer_id,
+                to: viewer_id,
                 reason,
             })
             .await

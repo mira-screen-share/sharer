@@ -42,7 +42,7 @@ impl PasswordAuthenticator {
 impl Authenticator for PasswordAuthenticator {
     fn authenticate(&self, payload: &AuthenticationPayload) -> Option<DeclineReason> {
         match payload {
-            AuthenticationPayload::Password(password) => {
+            AuthenticationPayload::Password { password } => {
                 if *password == self.password {
                     None
                 } else {

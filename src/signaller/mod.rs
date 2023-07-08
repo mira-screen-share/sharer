@@ -38,7 +38,9 @@ pub trait SignallerPeer: DynClone + Send + Sync + 'static {
 pub enum AuthenticationPayload {
     #[default]
     None,
-    Password(String),
+    Password {
+        password: String,
+    },
 }
 
 #[derive(Default, Debug, Serialize, Deserialize, Clone)]
@@ -79,7 +81,7 @@ pub enum SignallerMessage {
     },
     JoinDeclined {
         reason: DeclineReason,
-        uuid: String,
+        to: String,
     },
     KeepAlive {},
 }
