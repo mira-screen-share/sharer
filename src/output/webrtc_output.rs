@@ -17,7 +17,6 @@ use webrtc::media::Sample;
 use webrtc::peer_connection::configuration::RTCConfiguration;
 use webrtc::rtp_transceiver::rtp_codec::RTCRtpCodecCapability;
 use webrtc::track::track_local::track_local_static_sample::TrackLocalStaticSample;
-use webrtc::turn::auth::AuthHandler;
 
 use crate::output::WebRTCPeer;
 use crate::signaller::Signaller;

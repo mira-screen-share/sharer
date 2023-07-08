@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::auth::{Authenticator, PasswordAuthenticator};
+use crate::auth::PasswordAuthenticator;
 use clap::Parser;
 use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;

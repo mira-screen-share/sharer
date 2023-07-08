@@ -101,10 +101,14 @@ impl AudioCapture {
 
         tokio::spawn(async move {
             loop {
-                let data: Bytes = receiver.recv().unwrap();
+                let data = receiver.recv().map_or_else(|_| None, Some);
+                if data.is_none() {
+                    info!("Audio capture stopped");
+                    break;
+                }
                 let mut output = output.lock().await;
                 output
-                    .write_audio(data, Duration::from_millis(10))
+                    .write_audio(data.unwrap(), Duration::from_millis(10))
                     .await
                     .unwrap();
             }

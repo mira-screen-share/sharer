@@ -33,30 +33,20 @@ pub trait SignallerPeer: DynClone + Send + Sync + 'static {
     async fn send_ice_message(&self, ice: RTCIceCandidateInit);
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Default, Debug, Serialize, Deserialize, Clone)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum AuthenticationPayload {
+    #[default]
     None,
     Password(String),
 }
 
-impl Default for AuthenticationPayload {
-    fn default() -> Self {
-        AuthenticationPayload::None
-    }
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Default, Debug, Serialize, Deserialize, Clone)]
 pub enum DeclineReason {
+    #[default]
     Unknown = 0,
     IncorrectPassword = 1,
     NoCredentials = 2,
-}
-
-impl Default for DeclineReason {
-    fn default() -> Self {
-        DeclineReason::Unknown
-    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, IntoStaticStr, EnumIter, EnumDiscriminants)]
