@@ -13,7 +13,10 @@ use tokio_tungstenite::{
 use webrtc::ice_transport::ice_candidate::RTCIceCandidateInit;
 use webrtc::peer_connection::sdp::session_description::RTCSessionDescription;
 
-use crate::signaller::{Signaller, SignallerMessage, SignallerMessageDiscriminants, SignallerPeer};
+use crate::signaller::{
+    AuthenticationPayload, DeclineReason, Signaller, SignallerMessage,
+    SignallerMessageDiscriminants, SignallerPeer,
+};
 use crate::Result;
 use strum::IntoEnumIterator;
 /// ownership yielded to the user
@@ -146,10 +149,6 @@ macro_rules! blocking_recv {
 
 #[async_trait]
 impl Signaller for WebSocketSignaller {
-    fn get_room_id(&self) -> Option<String> {
-        let room = self.room_id.lock().unwrap();
-        room.clone()
-    }
     async fn start(&self) {
         trace!("Starting session");
         let room = uuid::Uuid::new_v4().to_string();
@@ -161,17 +160,33 @@ impl Signaller for WebSocketSignaller {
             .await
             .unwrap();
     }
-    async fn accept_peer(&self) -> Option<Box<dyn SignallerPeer>> {
+    async fn accept_peer_request(&self) -> Option<(String, AuthenticationPayload)> {
         blocking_recv!(
             self,
-            SignallerMessage::Join { uuid },
+            SignallerMessage::Join { uuid, auth },
             SignallerMessageDiscriminants::Join
         );
-        Some(Box::new(WebSocketSignallerPeer {
+        Some((uuid, auth))
+    }
+    async fn make_new_peer(&self, uuid: String) -> Box<dyn SignallerPeer> {
+        Box::new(WebSocketSignallerPeer {
             send_queue: self.send_queue.clone(),
             topics_rx: Arc::new(WebSocketSignaller::gen_rx(self.topics_tx.as_ref()).await),
             peer_uuid: uuid,
-        }))
+        })
+    }
+    async fn reject_peer_request(&self, viewer_id: String, reason: DeclineReason) {
+        self.send_queue
+            .send(SignallerMessage::JoinDeclined {
+                uuid: viewer_id,
+                reason,
+            })
+            .await
+            .unwrap();
+    }
+    fn get_room_id(&self) -> Option<String> {
+        let room = self.room_id.lock().unwrap();
+        room.clone()
     }
 }
 

@@ -33,6 +33,7 @@ iced = { version = "0.9.0", features = ["tokio", "image", "svg"] }
 strum_macros = "0.24.3"
 strum = "0.24.1"
 iced_aw = { version = "0.5.2", features = ["tabs"] }
+rand = "0.8.5"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 libc = "0.2.108"

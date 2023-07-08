@@ -1,6 +1,7 @@
 use crate::inputs::InputHandler;
 use async_trait::async_trait;
 
+use crate::auth::Authenticator;
 use crate::config::Config;
 use bytes::Bytes;
 use log::info;
@@ -16,6 +17,7 @@ use webrtc::media::Sample;
 use webrtc::peer_connection::configuration::RTCConfiguration;
 use webrtc::rtp_transceiver::rtp_codec::RTCRtpCodecCapability;
 use webrtc::track::track_local::track_local_static_sample::TrackLocalStaticSample;
+use webrtc::turn::auth::AuthHandler;
 
 use crate::output::WebRTCPeer;
 use crate::signaller::Signaller;
@@ -46,6 +48,7 @@ impl WebRTCOutput {
 
     pub async fn new(
         signaller: Arc<dyn Signaller + Send + Sync>,
+        authenticator: Box<dyn Authenticator>,
         encoder_force_idr: &mut Arc<AtomicBool>,
         input_handler: Arc<InputHandler>,
         config: &Config,
@@ -108,8 +111,35 @@ impl WebRTCOutput {
         let audio_track_clone = audio_track.clone();
         let webrtc_config = Self::make_config(config);
         signaller.start().await;
+
+        // handle incoming connections
         tokio::spawn(async move {
-            while let Some(peer) = signaller.accept_peer().await {
+            let (peer_sender, mut peer_receiver) = tokio::sync::mpsc::channel(16);
+
+            // handle new requests
+            tokio::spawn(async move {
+                while let Some((peer, auth)) = signaller.accept_peer_request().await {
+                    match authenticator.authenticate(&auth) {
+                        None => {
+                            peer_sender
+                                .send(signaller.make_new_peer(peer).await)
+                                .await
+                                .unwrap_or_else(|_| {
+                                    info!("Failed to send authenticated peer to peer_receiver");
+                                });
+                        }
+                        Some(reason) => {
+                            info!(
+                                "Failed to authenticate peer: uuid={} reason={:?}",
+                                peer, reason
+                            );
+                            signaller.reject_peer_request(peer, reason).await;
+                        }
+                    }
+                }
+            });
+
+            while let Some(peer) = peer_receiver.recv().await {
                 let api_clone = api_clone.clone();
                 let peers_clone = peers_clone.clone();
                 let encoder_force_idr = encoder_force_idr.clone();
