@@ -22,9 +22,25 @@ mod signaller;
 
 #[tokio::main]
 async fn main() {
-    env_logger::init_from_env(
-        env_logger::Env::default().filter_or(env_logger::DEFAULT_FILTER_ENV, "info"),
-    );
+    fern::Dispatch::new()
+        .format(|out, message, record| {
+            out.finish(format_args!(
+                "[{} {} {}] {}",
+                humantime::format_rfc3339(std::time::SystemTime::now()),
+                record.level(),
+                record.target(),
+                message
+            ))
+        })
+        .level(log::LevelFilter::Info)
+        .level_for("wgpu_core", log::LevelFilter::Warn)
+        .level_for("wgpu_hal", log::LevelFilter::Warn)
+        .level_for("iced_wgpu", log::LevelFilter::Warn)
+        .chain(std::io::stdout())
+        .apply()
+        .unwrap_or_else(|_| {
+            eprintln!("Failed to initialize logger");
+        });
     App::run(Settings {
         window: iced::window::Settings {
             size: (640, 373),
