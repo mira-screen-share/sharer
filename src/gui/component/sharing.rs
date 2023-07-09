@@ -84,7 +84,9 @@ impl<'a> Component<'a> for SharingPage {
                 }
             }
             Message::CopyPasscode => {
-                // TODO
+                if let Some(room_password) = props.capturer.get_room_password() {
+                    return clipboard::write(room_password);
+                }
             }
             Message::Stop => {
                 props.capturer.shutdown();
