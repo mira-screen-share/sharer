@@ -3104,6 +3104,7 @@ dependencies = [
  "libc",
  "log",
  "objc",
+ "rand",
  "rtcp",
  "serde",
  "serde_json",

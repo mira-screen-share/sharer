@@ -9,6 +9,7 @@ use crate::gui::app::App;
 use crate::output::OutputSink;
 use crate::result::Result;
 
+mod auth;
 mod capture;
 mod config;
 mod encoder;

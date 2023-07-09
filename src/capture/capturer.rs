@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use crate::auth::PasswordAuthenticator;
 use clap::Parser;
 use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
@@ -42,6 +43,7 @@ pub struct Capturer {
     signaller: Arc<Mutex<Option<Arc<dyn Signaller + Send + Sync>>>>,
     notify_update: Arc<dyn Fn() + Send + Sync>,
     capture: Arc<Mutex<ScreenCaptureImpl>>,
+    room_password: String,
 }
 
 impl Capturer {
@@ -53,6 +55,7 @@ impl Capturer {
             signaller: Arc::new(Mutex::new(None)),
             notify_update,
             capture: Arc::new(Mutex::new(ScreenCaptureImpl::new(config.clone()).unwrap())),
+            room_password: "".to_string(),
         }
     }
 
@@ -77,20 +80,29 @@ impl Capturer {
 
     pub fn get_invite_link(&self) -> Option<String> {
         Some(format!(
-            "{}?room={}&signaller={}",
+            "{}?room={}&pwd={}&signaller={}",
             self.config.viewer_url,
             self.get_room_id().unwrap_or_default(),
+            self.room_password,
             self.config.signaller_url
         ))
     }
 
     pub fn get_room_id(&self) -> Option<String> {
         match self.signaller.try_lock() {
-            Ok(signaller) => signaller.as_ref().map(|s| s.get_room_id()).flatten(),
+            Ok(signaller) => signaller.as_ref().and_then(|s| s.get_room_id()),
             Err(e) => {
                 error!("Failed to get room id: {}", e);
                 None
             }
+        }
+    }
+
+    pub fn get_room_password(&self) -> Option<String> {
+        if !self.room_password.is_empty() {
+            Some(self.room_password.clone())
+        } else {
+            None
         }
     }
 
@@ -133,6 +145,8 @@ impl Capturer {
         let signaller_opt = self.signaller.clone();
         let notify_update = self.notify_update.clone();
         let capture = self.capture.clone();
+        let password_auth = PasswordAuthenticator::random().unwrap();
+        self.room_password = password_auth.password();
 
         tokio::spawn(async move {
             {
@@ -157,6 +171,7 @@ impl Capturer {
                 } else {
                     WebRTCOutput::new(
                         signaller,
+                        Box::new(password_auth),
                         &mut encoder.force_idr,
                         input_handler.clone(),
                         &config,

@@ -43,6 +43,7 @@ pub struct UpdateProps<'a> {
 #[derive(Clone, Debug)]
 pub struct ViewProps {
     pub room_id: String,
+    pub room_password: String,
     pub invite_link: String,
 }
 
@@ -83,7 +84,9 @@ impl<'a> Component<'a> for SharingPage {
                 }
             }
             Message::CopyPasscode => {
-                // TODO
+                if let Some(room_password) = props.capturer.get_room_password() {
+                    return clipboard::write(room_password);
+                }
             }
             Message::Stop => {
                 props.capturer.shutdown();
@@ -184,7 +187,12 @@ impl Tab for InviteTab {
                     Message::CopyRoomID.into(),
                     156.,
                 ),
-                Self::invite_info_card("Passcode", "TODO", Message::CopyPasscode.into(), 156.,),
+                Self::invite_info_card(
+                    "Passcode",
+                    props.room_password.as_str(),
+                    Message::CopyPasscode.into(),
+                    156.,
+                ),
             ]
             .spacing(12),
             Self::invite_info_card(
