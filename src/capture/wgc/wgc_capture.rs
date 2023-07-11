@@ -44,7 +44,7 @@ impl CaptureEngine {
         let frame_pool = Direct3D11CaptureFramePool::CreateFreeThreaded(
             &d3d_device,
             DirectXPixelFormat::B8G8R8A8UIntNormalized,
-            1,
+            3,
             item_size,
         )
         .unwrap();
