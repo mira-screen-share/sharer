@@ -7,11 +7,23 @@ use crate::gui::theme::Theme;
 
 pub trait Themed: StyleSheet<Style = Theme> {}
 
-impl StyleSheet for Theme {
-    type Style = ();
+#[derive(Clone, Copy, Debug, Default)]
+pub enum Style {
+    #[default]
+    Text,
+    Label,
+}
 
-    fn appearance(&self, _style: Self::Style) -> Appearance {
-        Default::default()
+impl StyleSheet for Theme {
+    type Style = Style;
+
+    fn appearance(&self, style: Self::Style) -> Appearance {
+        Appearance {
+            color: match style {
+                Style::Text => None,
+                Style::Label => Some(self.palette().on_surface_variant),
+            },
+        }
     }
 }
 

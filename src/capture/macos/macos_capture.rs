@@ -49,10 +49,8 @@ impl ScreenCapture for MacOSCapture {
     ) -> Result<()> {
         let (video_tx, mut video_rx) = tokio::sync::mpsc::channel::<YUVFrame>(1);
         let (audio_tx, mut audio_rx) = tokio::sync::mpsc::channel::<PCMBuffer>(1);
-        let output_audio = output.clone();
-        let mut ticker =
-            tokio::time::interval(Duration::from_millis((1000 / self.config.max_fps) as u64));
 
+        let output_audio = output.clone();
         let cancel_audio = shutdown_token.clone();
         tokio::spawn(async move {
             let mut audio_encoder_opt = None;
@@ -100,7 +98,9 @@ impl ScreenCapture for MacOSCapture {
         });
 
         let cancel_video = shutdown_token.clone();
+        let max_fps = self.config.max_fps;
         tokio::spawn(async move {
+            let mut ticker = tokio::time::interval(Duration::from_millis((1000 / max_fps) as u64));
             loop {
                 select! {
                     Some(frame) = video_rx.recv() => {
