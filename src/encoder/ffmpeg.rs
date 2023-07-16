@@ -33,7 +33,7 @@ impl FfmpegEncoder {
     pub fn new(w: u32, h: u32, encoder_config: &EncoderConfig) -> Self {
         let w = if w % 2 == 0 { w } else { w + 1 } as usize;
         let h = if h % 2 == 0 { h } else { h + 1 } as usize;
-        let time_base = TimeBase::new(1, 90_000);
+        let time_base = TimeBase::new(1, 60);
 
         let pixel_format = video::frame::get_pixel_format(&encoder_config.pixel_format);
 
@@ -87,7 +87,7 @@ impl FfmpegEncoder {
 
         match frame_data {
             FrameData::NV12(nv12) => {
-                assert_eq!(self.pixel_format, "nv12");
+                //assert_eq!(self.pixel_format, "nv12");
                 let encoder_buffer_len = frame.planes_mut()[0].data_mut().len();
                 let encoder_line_size = encoder_buffer_len / self.h;
 
@@ -97,12 +97,12 @@ impl FfmpegEncoder {
                     encoder_line_size,
                     frame.planes_mut()[0].data_mut(),
                 );
-                self.copy_nv12(
+                /*self.copy_nv12(
                     &nv12.chrominance_bytes,
                     nv12.chrominance_stride as usize,
                     encoder_line_size,
                     frame.planes_mut()[1].data_mut(),
-                );
+                );*/
             }
             FrameData::BGR0(bgr0) => match self.pixel_format.as_str() {
                 "bgra" => {
