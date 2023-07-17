@@ -1,22 +1,19 @@
-use crate::inputs::InputHandler;
-
-use log::{debug, info};
-
-use rtcp::payload_feedbacks::picture_loss_indication::PictureLossIndication;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
+
+use log::{debug, info};
 use webrtc::ice_transport::ice_candidate::RTCIceCandidate;
 use webrtc::peer_connection::peer_connection_state::RTCPeerConnectionState;
 use webrtc::peer_connection::RTCPeerConnection;
+use webrtc::rtcp::payload_feedbacks::full_intra_request::FullIntraRequest;
+use webrtc::rtcp::payload_feedbacks::picture_loss_indication::PictureLossIndication;
+use webrtc::rtcp::payload_feedbacks::receiver_estimated_maximum_bitrate::ReceiverEstimatedMaximumBitrate;
+use webrtc::rtcp::receiver_report::ReceiverReport;
 use webrtc::track::track_local::track_local_static_sample::TrackLocalStaticSample;
 
+use crate::inputs::InputHandler;
 use crate::signaller::SignallerPeer;
-
 use crate::Result;
-use rtcp::packet::unmarshal;
-use rtcp::payload_feedbacks::full_intra_request::FullIntraRequest;
-use rtcp::payload_feedbacks::receiver_estimated_maximum_bitrate::ReceiverEstimatedMaximumBitrate;
-use rtcp::receiver_report::ReceiverReport;
 
 pub struct WebRTCPeer {}
 
@@ -38,9 +35,7 @@ impl WebRTCPeer {
         let encoder_force_idr_clone = encoder_force_idr.clone();
         tokio::spawn(async move {
             let mut rtcp_buf = vec![0u8; 1500];
-            while let Ok((size, _)) = rtp_sender.read(&mut rtcp_buf).await {
-                let mut buffer = &rtcp_buf[..size];
-                let pkts = unmarshal(&mut buffer).unwrap();
+            while let Ok((pkts, _)) = rtp_sender.read(&mut rtcp_buf).await {
                 for pkt in pkts {
                     if let Some(_pli) = pkt.as_any().downcast_ref::<PictureLossIndication>() {
                         info!("PLI received");
