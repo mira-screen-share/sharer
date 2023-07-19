@@ -109,6 +109,7 @@ impl Application for App {
         .height(Length::Fill)
         .into();
         element
+        // element.explain(iced::Color::WHITE)
     }
 
     fn theme(&self) -> Self::Theme {

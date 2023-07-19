@@ -1,4 +1,5 @@
-use iced::widget::{container, row, text_input, vertical_space};
+use iced::alignment::Vertical;
+use iced::widget::{container, horizontal_space, row, scrollable, text_input, vertical_space};
 use iced::Alignment::Center;
 use iced::Length::{Fill, Shrink};
 use iced::{clipboard, Command};
@@ -6,14 +7,16 @@ use iced_aw::TabLabel;
 
 use crate::capture::capturer::Capturer;
 use crate::column_iced;
+use crate::gui::component::avatar::text_avatar;
 use crate::gui::component::Component;
-use crate::gui::theme::button;
 use crate::gui::theme::button::{FilledButton, IconButton};
 use crate::gui::theme::icon::Icon;
 use crate::gui::theme::tab::Tab;
+use crate::gui::theme::text;
 use crate::gui::theme::text::text;
 use crate::gui::theme::widget::Element;
 use crate::gui::theme::widget::Tabs;
+use crate::gui::theme::{button, PaletteColor};
 use crate::gui::{app, resource};
 
 pub struct SharingPage {
@@ -100,20 +103,22 @@ impl<'a> Component<'a> for SharingPage {
 
     fn view(&self, props: Self::ViewProps) -> Element<'_, app::Message> {
         column_iced![
-            Tabs::new(self.current_tab, move |message| app::Message::Sharing(
-                Message::ChangeTab(message)
-            ))
-            .push(
-                self.invite_tab.tab_label(),
-                self.invite_tab.view(props.clone())
+            container(
+                Tabs::new(self.current_tab, move |message| app::Message::Sharing(
+                    Message::ChangeTab(message)
+                ))
+                .push(
+                    self.invite_tab.tab_label(),
+                    self.invite_tab.view(props.clone())
+                )
+                .push(self.viewers_tab.tab_label(), self.viewers_tab.view(props))
+                .tab_bar_style(Default::default())
+                .icon_font(resource::font::ICON)
+                .text_font(resource::font::BARLOW)
+                .tab_bar_position(iced_aw::TabBarPosition::Top)
             )
-            .push(self.viewers_tab.tab_label(), self.viewers_tab.view(props))
-            .tab_bar_style(Default::default())
-            .icon_font(resource::font::ICON)
-            .text_font(resource::font::BARLOW)
-            .tab_bar_position(iced_aw::TabBarPosition::Top)
-            .height(Shrink),
-            vertical_space(Fill),
+            .height(Fill)
+            .width(Fill),
             action_bar(),
         ]
         .align_items(Center)
@@ -129,41 +134,8 @@ fn action_bar<'a>() -> Element<'a, app::Message> {
         .style(button::Style::Danger)
         .build()
         .on_press(Message::Stop.into()),]
-    .padding(16)
+    .padding([0, 16, 16, 16])
     .into()
-}
-
-impl InviteTab {
-    fn invite_info_card<'a>(
-        head: &str,
-        body: &str,
-        on_copy: app::Message,
-        width: f32,
-    ) -> Element<'a, app::Message> {
-        container(
-            row![
-                column_iced![
-                    text(head).size(14).width(iced::Length::Shrink),
-                    vertical_space(6),
-                    text_input("", body)
-                        .style(crate::gui::theme::text_input::Style::Selectable)
-                        .size(18)
-                        .font(resource::font::BARLOW)
-                        .on_input(move |_| { app::Message::Ignore })
-                        .width(iced::Length::Fill)
-                        .padding(0)
-                ]
-                .width(iced::Length::Fixed(width - 72.)),
-                IconButton::new(Icon::ContentCopy).build().on_press(on_copy)
-            ]
-            .align_items(Center)
-            .spacing(8)
-            .padding([16, 8, 16, 16]),
-        )
-        .style(crate::gui::theme::container::Style::OutlinedCard)
-        .width(width)
-        .into()
-    }
 }
 
 impl Tab for InviteTab {
@@ -179,35 +151,69 @@ impl Tab for InviteTab {
     }
 
     fn content(&self, props: Self::Props) -> Element<'_, app::Message> {
-        column_iced![
-            row![
-                Self::invite_info_card(
-                    "Room",
-                    props.room_id.as_str(),
-                    Message::CopyRoomID.into(),
-                    156.,
-                ),
-                Self::invite_info_card(
-                    "Passcode",
-                    props.room_password.as_str(),
-                    Message::CopyPasscode.into(),
-                    156.,
-                ),
+        scrollable(
+            column_iced![
+                row![
+                    invite_info_card(
+                        "Room",
+                        props.room_id.as_str(),
+                        Message::CopyRoomID.into(),
+                        156.,
+                    ),
+                    invite_info_card(
+                        "Passcode",
+                        props.room_password.as_str(),
+                        Message::CopyPasscode.into(),
+                        156.,
+                    ),
+                ]
+                .spacing(12),
+                invite_info_card(
+                    "Invite Link",
+                    props.invite_link.as_str(),
+                    Message::CopyInviteLink.into(),
+                    324.,
+                )
             ]
-            .spacing(12),
-            Self::invite_info_card(
-                "Invite Link",
-                props.invite_link.as_str(),
-                Message::CopyInviteLink.into(),
-                324.,
-            )
-        ]
-        .width(Shrink)
+            .width(Shrink)
+            .align_items(Center)
+            .spacing(12)
+            .padding([0, 16]),
+        )
         .height(Fill)
-        .align_items(Center)
-        .spacing(12)
         .into()
     }
+}
+
+fn invite_info_card<'a>(
+    head: &str,
+    body: &str,
+    on_copy: app::Message,
+    width: f32,
+) -> Element<'a, app::Message> {
+    container(
+        row![
+            column_iced![
+                text(head).size(14).width(iced::Length::Shrink),
+                vertical_space(6),
+                text_input("", body)
+                    .style(crate::gui::theme::text_input::Style::Selectable)
+                    .size(18)
+                    .font(resource::font::BARLOW)
+                    .on_input(move |_| { app::Message::Ignore })
+                    .width(iced::Length::Fill)
+                    .padding(0)
+            ]
+            .width(iced::Length::Fixed(width - 72.)),
+            IconButton::new(Icon::ContentCopy).build().on_press(on_copy)
+        ]
+        .align_items(Center)
+        .spacing(8)
+        .padding([16, 8, 16, 16]),
+    )
+    .style(crate::gui::theme::container::Style::OutlinedCard)
+    .width(width)
+    .into()
 }
 
 impl Tab for ViewersTab {
@@ -223,6 +229,35 @@ impl Tab for ViewersTab {
     }
 
     fn content(&self, _props: Self::Props) -> Element<'_, app::Message> {
-        column_iced![].into()
+        scrollable(
+            column_iced![
+                text("Pending").size(16).style(text::Style::Label),
+                viewing_viewer_cell(),
+                viewing_viewer_cell(),
+                vertical_space(2),
+                text("Viewing").size(16).style(text::Style::Label),
+                viewing_viewer_cell(),
+                viewing_viewer_cell(),
+                viewing_viewer_cell(),
+                viewing_viewer_cell(),
+                viewing_viewer_cell(),
+            ]
+            .width(Fill)
+            .max_width(400)
+            .spacing(16)
+            .padding([0, 16]),
+        )
+        .height(Fill)
+        .into()
     }
+}
+
+fn viewing_viewer_cell<'a>() -> Element<'a, app::Message> {
+    row![
+        text_avatar(PaletteColor::Primary, "A"),
+        horizontal_space(16),
+        text("Viewer"),
+    ]
+    .align_items(Center)
+    .into()
 }

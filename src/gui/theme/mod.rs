@@ -150,6 +150,49 @@ impl Palette {
             scrim: Color::from_hex("000000"),
         }
     }
+
+    pub fn get_palette_color(self, palette_color: &PaletteColor) -> Color {
+        use PaletteColor::*;
+        match palette_color {
+            Primary => self.primary,
+            PrimaryContainer => self.primary_container,
+            OnPrimary => self.on_primary,
+            OnPrimaryContainer => self.on_primary_container,
+            InversePrimary => self.inverse_primary,
+            Secondary => self.secondary,
+            SecondaryContainer => self.secondary_container,
+            OnSecondary => self.on_secondary,
+            OnSecondaryContainer => self.on_secondary_container,
+            Tertiary => self.tertiary,
+            TertiaryContainer => self.tertiary_container,
+            OnTertiary => self.on_tertiary,
+            OnTertiaryContainer => self.on_tertiary_container,
+            Surface => self.surface,
+            SurfaceDim => self.surface_dim,
+            SurfaceBright => self.surface_bright,
+            SurfaceContainerLowest => self.surface_container_lowest,
+            SurfaceContainerLow => self.surface_container_low,
+            SurfaceContainer => self.surface_container,
+            SurfaceContainerHigh => self.surface_container_high,
+            SurfaceContainerHighest => self.surface_container_highest,
+            SurfaceVariant => self.surface_variant,
+            OnSurface => self.on_surface,
+            OnSurfaceVariant => self.on_surface_variant,
+            InverseSurface => self.inverse_surface,
+            InverseOnSurface => self.inverse_on_surface,
+            Background => self.background,
+            OnBackground => self.on_background,
+            Error => self.error,
+            ErrorContainer => self.error_container,
+            OnError => self.on_error,
+            OnErrorContainer => self.on_error_container,
+            Outline => self.outline,
+            OutlineVariant => self.outline_variant,
+            Shadow => self.shadow,
+            SurfaceTint => self.surface_tint,
+            Scrim => self.scrim,
+        }
+    }
 }
 
 impl Theme {
@@ -170,6 +213,78 @@ impl application::StyleSheet for Theme {
         application::Appearance {
             background_color: palette.background,
             text_color: palette.on_background,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum PaletteColor {
+    Primary,
+    PrimaryContainer,
+    OnPrimary,
+    OnPrimaryContainer,
+    InversePrimary,
+    Secondary,
+    SecondaryContainer,
+    OnSecondary,
+    OnSecondaryContainer,
+    Tertiary,
+    TertiaryContainer,
+    OnTertiary,
+    OnTertiaryContainer,
+    Surface,
+    SurfaceDim,
+    SurfaceBright,
+    SurfaceContainerLowest,
+    SurfaceContainerLow,
+    SurfaceContainer,
+    SurfaceContainerHigh,
+    SurfaceContainerHighest,
+    SurfaceVariant,
+    OnSurface,
+    OnSurfaceVariant,
+    InverseSurface,
+    InverseOnSurface,
+    Background,
+    OnBackground,
+    Error,
+    ErrorContainer,
+    OnError,
+    OnErrorContainer,
+    Outline,
+    OutlineVariant,
+    Shadow,
+    SurfaceTint,
+    Scrim,
+}
+
+impl PaletteColor {
+    pub fn on(self) -> PaletteColor {
+        use PaletteColor::*;
+        match self {
+            Primary => OnPrimary,
+            PrimaryContainer => OnPrimaryContainer,
+            Secondary => OnSecondary,
+            SecondaryContainer => OnSecondaryContainer,
+            Tertiary => OnTertiary,
+            TertiaryContainer => OnTertiaryContainer,
+            Surface => OnSurface,
+            SurfaceDim => OnSurface,
+            SurfaceBright => OnSurface,
+            SurfaceContainerLowest => OnSurface,
+            SurfaceContainerLow => OnSurface,
+            SurfaceContainer => OnSurface,
+            SurfaceContainerHigh => OnSurface,
+            SurfaceContainerHighest => OnSurface,
+            SurfaceVariant => OnSurfaceVariant,
+            InverseSurface => InverseOnSurface,
+            Background => OnBackground,
+            Error => OnError,
+            ErrorContainer => OnErrorContainer,
+            Outline => OutlineVariant,
+            SurfaceTint => OnSurface,
+            Scrim => OnBackground,
+            _ => OnSurfaceVariant,
         }
     }
 }

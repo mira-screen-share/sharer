@@ -3,7 +3,7 @@ use iced::widget::text::{Appearance, StyleSheet};
 use crate::gui::resource;
 use crate::gui::theme::icon::Icon;
 use crate::gui::theme::widget::Text;
-use crate::gui::theme::Theme;
+use crate::gui::theme::{PaletteColor, Theme};
 
 pub trait Themed: StyleSheet<Style = Theme> {}
 
@@ -12,6 +12,7 @@ pub enum Style {
     #[default]
     Text,
     Label,
+    Colored(PaletteColor),
 }
 
 impl StyleSheet for Theme {
@@ -22,6 +23,7 @@ impl StyleSheet for Theme {
             color: match style {
                 Style::Text => None,
                 Style::Label => Some(self.palette().on_surface_variant),
+                Style::Colored(color) => Some(self.palette().get_palette_color(&color)),
             },
         }
     }

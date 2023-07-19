@@ -1,4 +1,4 @@
-/// Material Design (3?) Icons
+/// Material Design Icons
 /// https://fonts.google.com/icons
 #[derive(Debug, Clone, Copy)]
 pub enum Icon {

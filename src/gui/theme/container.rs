@@ -1,6 +1,6 @@
 use iced::widget::container::{Appearance, StyleSheet};
 
-use crate::gui::theme::Theme;
+use crate::gui::theme::{PaletteColor, Theme};
 
 #[allow(dead_code)]
 #[derive(Default)]
@@ -10,6 +10,7 @@ pub enum Style {
     #[default]
     Default,
     OutlinedCard,
+    FilledEllipse(PaletteColor),
 }
 
 impl StyleSheet for Theme {
@@ -25,6 +26,12 @@ impl StyleSheet for Theme {
                 border_radius: 12.,
                 border_width: 1.,
                 border_color: palette.outline,
+                ..Appearance::default()
+            },
+            Style::FilledEllipse(fill) => Appearance {
+                background: palette.get_palette_color(fill).into(),
+                border_radius: f32::MAX,
+                border_width: 0.,
                 ..Appearance::default()
             },
         }
