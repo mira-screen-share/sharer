@@ -1,3 +1,4 @@
+use iced::alignment::Horizontal;
 use iced::widget::{container, horizontal_space, row, scrollable, text_input, vertical_space};
 use iced::Alignment::Center;
 use iced::Length::{Fill, Shrink};
@@ -241,22 +242,26 @@ impl Tab for ViewersTab {
 
     fn content(&self, _props: Self::Props) -> Element<'_, app::Message> {
         scrollable(
-            column_iced![
-                text("Pending").size(16).style(text::Style::Label),
-                pending_viewer_cell(),
-                pending_viewer_cell(),
-                vertical_space(2),
-                text("Viewing").size(16).style(text::Style::Label),
-                viewing_viewer_cell(),
-                viewing_viewer_cell(),
-                viewing_viewer_cell(),
-                viewing_viewer_cell(),
-                viewing_viewer_cell(),
-            ]
+            container(
+                column_iced![
+                    text("Pending").size(16).style(text::Style::Label),
+                    pending_viewer_cell(),
+                    pending_viewer_cell(),
+                    vertical_space(2),
+                    text("Viewing").size(16).style(text::Style::Label),
+                    viewing_viewer_cell(),
+                    viewing_viewer_cell(),
+                    viewing_viewer_cell(),
+                    viewing_viewer_cell(),
+                    viewing_viewer_cell(),
+                ]
+                .width(Fill)
+                .max_width(400)
+                .spacing(16)
+                .padding([0, 24]),
+            )
             .width(Fill)
-            .max_width(400)
-            .spacing(16)
-            .padding([0, 24]),
+            .align_x(Horizontal::Center),
         )
         .height(Fill)
         .into()
