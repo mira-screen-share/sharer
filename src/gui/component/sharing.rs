@@ -57,9 +57,9 @@ pub enum Message {
     CopyPasscode,
     CopyInviteLink,
     ChangeTab(usize),
-    DeclineJoin,
-    AcceptJoin,
-    Kick,
+    DeclineJoin(String),
+    AcceptJoin(String),
+    KickViewer(String),
 }
 
 impl From<Message> for app::Message {
@@ -100,14 +100,14 @@ impl<'a> Component<'a> for SharingPage {
             Message::ChangeTab(tab) => {
                 self.current_tab = tab;
             }
-            Message::DeclineJoin => {
-                // todo
+            Message::DeclineJoin(viewer_id) => {
+                // todo @harrynull
             }
-            Message::AcceptJoin => {
-                // todo
+            Message::AcceptJoin(viewer_id) => {
+                // todo @harrynull
             }
-            Message::Kick => {
-                // todo
+            Message::KickViewer(viewer_id) => {
+                // todo @harrynull
             }
         }
         Command::none()
@@ -245,10 +245,12 @@ impl Tab for ViewersTab {
             container(
                 column_iced![
                     text("Pending").size(16).style(text::Style::Label),
+                    // todo @harrynull
                     pending_viewer_cell(),
                     pending_viewer_cell(),
                     vertical_space(2),
                     text("Viewing").size(16).style(text::Style::Label),
+                    // todo @harrynull
                     viewing_viewer_cell(),
                     viewing_viewer_cell(),
                     viewing_viewer_cell(),
@@ -270,14 +272,14 @@ impl Tab for ViewersTab {
 
 fn viewing_viewer_cell<'a>() -> Element<'a, app::Message> {
     row![
-        text_avatar(PaletteColor::Primary, "A"),
+        text_avatar(PaletteColor::Primary, "A"), // todo @harrynull
         horizontal_space(16),
-        text("Viewer").width(Fill),
+        text("Viewer").width(Fill), // todo @harrynull
         horizontal_space(16),
         IconButton::new(Icon::PersonRemove)
             .style(button::Style::Danger)
             .build()
-            .on_press(Message::Kick.into()),
+            .on_press(Message::KickViewer("a".to_string()).into()), // todo @harrynull
     ]
     .align_items(Center)
     .into()
@@ -285,21 +287,21 @@ fn viewing_viewer_cell<'a>() -> Element<'a, app::Message> {
 
 fn pending_viewer_cell<'a>() -> Element<'a, app::Message> {
     row![
-        text_avatar(PaletteColor::Primary, "A"),
+        text_avatar(PaletteColor::Primary, "A"), // todo @harrynull
         horizontal_space(16),
-        text("Viewer").width(Fill),
+        text("Viewer").width(Fill), // todo @harrynull
         horizontal_space(16),
         IconButton::new(Icon::Done)
             .style(button::Style::Success)
             .filled(true)
             .build()
-            .on_press(Message::AcceptJoin.into()),
+            .on_press(Message::AcceptJoin("a".to_string()).into()), // todo @harrynull
         horizontal_space(8),
         IconButton::new(Icon::Close)
             .style(button::Style::Danger)
             .filled(true)
             .build()
-            .on_press(Message::DeclineJoin.into()),
+            .on_press(Message::DeclineJoin("a".to_string()).into()), // todo @harrynull
     ]
     .align_items(Center)
     .into()
