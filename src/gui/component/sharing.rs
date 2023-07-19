@@ -1,12 +1,13 @@
-use crate::auth::{ViewerIdentifier, ViewerManager};
+use std::sync::Arc;
+
 use iced::alignment::Horizontal;
 use iced::widget::{container, horizontal_space, row, scrollable, text_input, vertical_space};
 use iced::Alignment::Center;
 use iced::Length::{Fill, Shrink};
 use iced::{clipboard, Command};
 use iced_aw::TabLabel;
-use std::sync::Arc;
 
+use crate::auth::{ViewerIdentifier, ViewerManager};
 use crate::capture::capturer::Capturer;
 use crate::column_iced;
 use crate::gui::component::avatar::text_avatar;
@@ -259,17 +260,21 @@ impl Tab for ViewersTab {
     }
 
     fn content(&self, props: Self::Props) -> Element<'_, app::Message> {
-        let mut column = vec![Element::from(
-            text("Pending").size(16).style(text::Style::Label),
-        )];
-        for pending in props.pending_viewers.iter() {
-            column.push(pending_viewer_cell(pending));
+        let mut column = vec![];
+        if !props.pending_viewers.is_empty() {
+            column.push(text("Pending").size(16).style(text::Style::Label).into());
+            for pending in props.pending_viewers.iter() {
+                column.push(pending_viewer_cell(pending));
+            }
         }
-        column.push(Element::from(
-            text("Viewing").size(16).style(text::Style::Label),
-        ));
-        for viewing in props.viewing_viewers.iter() {
-            column.push(viewing_viewer_cell(viewing));
+        if !props.viewing_viewers.is_empty() {
+            if !column.is_empty() {
+                column.push(vertical_space(2).into());
+            }
+            column.push(text("Viewing").size(16).style(text::Style::Label).into());
+            for viewing in props.viewing_viewers.iter() {
+                column.push(viewing_viewer_cell(viewing));
+            }
         }
 
         scrollable(
