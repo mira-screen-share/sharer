@@ -24,6 +24,7 @@ pub enum Theme {
 }
 
 /// Material Design 3 Color System
+/// https://m3.material.io/theme-builder
 /// https://m3.material.io/styles/color/the-color-system/tokens#7fd4440e-986d-443f-8b3a-4933bff16646
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Palette {
@@ -59,6 +60,8 @@ pub struct Palette {
     pub error_container: Color,
     pub on_error: Color,
     pub on_error_container: Color,
+    pub success: Color,
+    pub on_success: Color,
     pub outline: Color,
     pub outline_variant: Color,
     pub shadow: Color,
@@ -101,6 +104,8 @@ impl Palette {
             error_container: Color::from_hex("F9DEDC"),
             on_error: Color::from_hex("FFFFFF"),
             on_error_container: Color::from_hex("410E0B"),
+            success: Color::from_hex("486726"),
+            on_success: Color::from_hex("FFFFFF"),
             outline: Color::from_hex("79747E"),
             outline_variant: Color::from_hex("C4C7C5"),
             shadow: Color::from_hex("000000"),
@@ -143,6 +148,8 @@ impl Palette {
             error_container: Color::from_hex("8C1D18"),
             on_error: Color::from_hex("601410"),
             on_error_container: Color::from_hex("F9DEDC"),
+            success: Color::from_hex("ADD284"),
+            on_success: Color::from_hex("1D3700"),
             outline: Color::from_hex("938F99"),
             outline_variant: Color::from_hex("444746"),
             shadow: Color::from_hex("000000"),
@@ -186,6 +193,8 @@ impl Palette {
             ErrorContainer => self.error_container,
             OnError => self.on_error,
             OnErrorContainer => self.on_error_container,
+            Success => self.success,
+            OnSuccess => self.on_success,
             Outline => self.outline,
             OutlineVariant => self.outline_variant,
             Shadow => self.shadow,
@@ -251,6 +260,8 @@ pub enum PaletteColor {
     ErrorContainer,
     OnError,
     OnErrorContainer,
+    Success,
+    OnSuccess,
     Outline,
     OutlineVariant,
     Shadow,
@@ -281,6 +292,7 @@ impl PaletteColor {
             Background => OnBackground,
             Error => OnError,
             ErrorContainer => OnErrorContainer,
+            Success => OnSuccess,
             Outline => OutlineVariant,
             SurfaceTint => OnSurface,
             Scrim => OnBackground,

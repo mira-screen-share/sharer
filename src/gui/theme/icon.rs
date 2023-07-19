@@ -7,6 +7,9 @@ pub enum Icon {
     StopCircle,
     Link,
     Group,
+    Close,
+    Done,
+    PersonRemove,
 }
 
 impl From<&Icon> for char {
@@ -17,6 +20,9 @@ impl From<&Icon> for char {
             Icon::StopCircle => '\u{ef71}',
             Icon::Link => '\u{e157}',
             Icon::Group => '\u{e7ef}',
+            Icon::Close => '\u{e5cd}',
+            Icon::Done => '\u{e876}',
+            Icon::PersonRemove => '\u{ef66}',
         }
     }
 }

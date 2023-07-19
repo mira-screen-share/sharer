@@ -1,3 +1,5 @@
+use std::default::Default;
+
 use iced::widget::button;
 use iced::widget::button::{Appearance, StyleSheet};
 use iced::{Background, Color};
@@ -6,7 +8,6 @@ use crate::gui::theme::button::{Style, Style::*, Themed};
 use crate::gui::theme::color::ColorExt;
 use crate::gui::theme::icon::Icon;
 use crate::gui::theme::text::icon;
-
 use crate::gui::theme::widget::Button;
 use crate::gui::theme::Theme;
 
@@ -67,13 +68,21 @@ impl StyleSheet for IconButton {
             };
 
             match &self.style {
+                Default => from(palette.surface, palette.on_surface_variant),
                 Primary => from(palette.primary, palette.on_primary),
                 Secondary => from(palette.secondary, palette.on_secondary),
                 Danger => from(palette.error, palette.on_error),
+                Success => from(palette.success, palette.on_success),
             }
         } else {
             Appearance {
-                text_color: palette.on_surface_variant,
+                text_color: match &self.style {
+                    Default => palette.on_surface_variant,
+                    Primary => palette.primary,
+                    Secondary => palette.secondary,
+                    Danger => palette.error,
+                    Success => palette.success,
+                },
                 ..partial
             }
         }
@@ -85,9 +94,11 @@ impl StyleSheet for IconButton {
 
         if self.filled {
             let state = match self.style {
+                Default => palette.on_surface,
                 Primary => palette.on_primary,
                 Secondary => palette.on_secondary,
                 Danger => palette.on_error,
+                Success => palette.on_success,
             };
 
             Appearance {
@@ -100,7 +111,15 @@ impl StyleSheet for IconButton {
             }
         } else {
             Appearance {
-                background: palette.on_surface_variant.with_alpha(0.12).into(),
+                background: match &self.style {
+                    Default => palette.on_surface_variant,
+                    Primary => palette.primary,
+                    Secondary => palette.secondary,
+                    Danger => palette.error,
+                    Success => palette.success,
+                }
+                .with_alpha(0.12)
+                .into(),
                 ..base
             }
         }

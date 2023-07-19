@@ -1,4 +1,3 @@
-use iced::alignment::Vertical;
 use iced::widget::{container, horizontal_space, row, scrollable, text_input, vertical_space};
 use iced::Alignment::Center;
 use iced::Length::{Fill, Shrink};
@@ -57,6 +56,9 @@ pub enum Message {
     CopyPasscode,
     CopyInviteLink,
     ChangeTab(usize),
+    DeclineJoin,
+    AcceptJoin,
+    Kick,
 }
 
 impl From<Message> for app::Message {
@@ -96,6 +98,15 @@ impl<'a> Component<'a> for SharingPage {
             }
             Message::ChangeTab(tab) => {
                 self.current_tab = tab;
+            }
+            Message::DeclineJoin => {
+                // todo
+            }
+            Message::AcceptJoin => {
+                // todo
+            }
+            Message::Kick => {
+                // todo
             }
         }
         Command::none()
@@ -232,8 +243,8 @@ impl Tab for ViewersTab {
         scrollable(
             column_iced![
                 text("Pending").size(16).style(text::Style::Label),
-                viewing_viewer_cell(),
-                viewing_viewer_cell(),
+                pending_viewer_cell(),
+                pending_viewer_cell(),
                 vertical_space(2),
                 text("Viewing").size(16).style(text::Style::Label),
                 viewing_viewer_cell(),
@@ -245,7 +256,7 @@ impl Tab for ViewersTab {
             .width(Fill)
             .max_width(400)
             .spacing(16)
-            .padding([0, 16]),
+            .padding([0, 24]),
         )
         .height(Fill)
         .into()
@@ -256,7 +267,34 @@ fn viewing_viewer_cell<'a>() -> Element<'a, app::Message> {
     row![
         text_avatar(PaletteColor::Primary, "A"),
         horizontal_space(16),
-        text("Viewer"),
+        text("Viewer").width(Fill),
+        horizontal_space(16),
+        IconButton::new(Icon::PersonRemove)
+            .style(button::Style::Danger)
+            .build()
+            .on_press(Message::Kick.into()),
+    ]
+    .align_items(Center)
+    .into()
+}
+
+fn pending_viewer_cell<'a>() -> Element<'a, app::Message> {
+    row![
+        text_avatar(PaletteColor::Primary, "A"),
+        horizontal_space(16),
+        text("Viewer").width(Fill),
+        horizontal_space(16),
+        IconButton::new(Icon::Done)
+            .style(button::Style::Success)
+            .filled(true)
+            .build()
+            .on_press(Message::AcceptJoin.into()),
+        horizontal_space(8),
+        IconButton::new(Icon::Close)
+            .style(button::Style::Danger)
+            .filled(true)
+            .build()
+            .on_press(Message::DeclineJoin.into()),
     ]
     .align_items(Center)
     .into()
