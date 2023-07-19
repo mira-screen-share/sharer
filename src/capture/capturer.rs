@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::auth::PasswordAuthenticator;
+use crate::auth::{ComplexAuthenticator, PasswordAuthenticator, ViewerManager};
 use clap::Parser;
 use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
@@ -44,6 +44,7 @@ pub struct Capturer {
     notify_update: Arc<dyn Fn() + Send + Sync>,
     capture: Arc<Mutex<ScreenCaptureImpl>>,
     room_password: String,
+    viewer_manager: Arc<ViewerManager>,
 }
 
 impl Capturer {
@@ -53,10 +54,15 @@ impl Capturer {
             config: config.clone(),
             shutdown_token_opt: None,
             signaller: Arc::new(Mutex::new(None)),
-            notify_update,
+            notify_update: notify_update.clone(),
             capture: Arc::new(Mutex::new(ScreenCaptureImpl::new(config.clone()).unwrap())),
             room_password: "".to_string(),
+            viewer_manager: Arc::new(ViewerManager::new(notify_update)),
         }
+    }
+
+    pub fn get_viewer_manager(&self) -> Arc<ViewerManager> {
+        return self.viewer_manager.clone();
     }
 
     pub fn run(&mut self) {
@@ -145,7 +151,9 @@ impl Capturer {
         let signaller_opt = self.signaller.clone();
         let notify_update = self.notify_update.clone();
         let capture = self.capture.clone();
-        let password_auth = PasswordAuthenticator::random().unwrap();
+
+        let password_auth = Arc::new(PasswordAuthenticator::random().unwrap());
+        let viewer_manager = self.viewer_manager.clone();
         self.room_password = password_auth.password();
 
         tokio::spawn(async move {
@@ -171,7 +179,10 @@ impl Capturer {
                 } else {
                     WebRTCOutput::new(
                         signaller,
-                        Box::new(password_auth),
+                        Arc::new(ComplexAuthenticator::new(vec![
+                            password_auth,
+                            viewer_manager,
+                        ])),
                         &mut encoder.force_idr,
                         input_handler.clone(),
                         &config,

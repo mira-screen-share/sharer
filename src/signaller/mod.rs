@@ -49,6 +49,7 @@ pub enum DeclineReason {
     Unknown = 0,
     IncorrectPassword = 1,
     NoCredentials = 2,
+    UserDeclined = 3,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, IntoStaticStr, EnumIter, EnumDiscriminants)]

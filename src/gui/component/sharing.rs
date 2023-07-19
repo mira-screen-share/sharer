@@ -1,9 +1,11 @@
+use crate::auth::{ViewerIdentifier, ViewerManager};
 use iced::alignment::Horizontal;
 use iced::widget::{container, horizontal_space, row, scrollable, text_input, vertical_space};
 use iced::Alignment::Center;
 use iced::Length::{Fill, Shrink};
 use iced::{clipboard, Command};
 use iced_aw::TabLabel;
+use std::sync::Arc;
 
 use crate::capture::capturer::Capturer;
 use crate::column_iced;
@@ -23,14 +25,16 @@ pub struct SharingPage {
     current_tab: usize,
     invite_tab: InviteTab,
     viewers_tab: ViewersTab,
+    viewer_manager: Arc<ViewerManager>,
 }
 
 impl SharingPage {
-    pub fn new() -> Self {
+    pub fn new(viewer_manager: Arc<ViewerManager>) -> Self {
         Self {
             current_tab: Default::default(),
             invite_tab: InviteTab {},
             viewers_tab: ViewersTab {},
+            viewer_manager,
         }
     }
 }
@@ -48,6 +52,8 @@ pub struct ViewProps {
     pub room_id: String,
     pub room_password: String,
     pub invite_link: String,
+    pub viewing_viewers: Vec<ViewerIdentifier>,
+    pub pending_viewers: Vec<ViewerIdentifier>,
 }
 
 #[derive(Clone, Debug)]
@@ -57,9 +63,9 @@ pub enum Message {
     CopyPasscode,
     CopyInviteLink,
     ChangeTab(usize),
-    DeclineJoin(String),
-    AcceptJoin(String),
-    KickViewer(String),
+    DeclineJoin(ViewerIdentifier),
+    AcceptJoin(ViewerIdentifier),
+    KickViewer(ViewerIdentifier),
 }
 
 impl From<Message> for app::Message {
@@ -101,10 +107,22 @@ impl<'a> Component<'a> for SharingPage {
                 self.current_tab = tab;
             }
             Message::DeclineJoin(viewer_id) => {
-                // todo @harrynull
+                let handle = tokio::runtime::Handle::current();
+                let viewer_manager = self.viewer_manager.clone();
+                tokio::task::block_in_place(move || {
+                    handle.block_on(async move {
+                        viewer_manager.decline_viewer(viewer_id).await;
+                    })
+                });
             }
             Message::AcceptJoin(viewer_id) => {
-                // todo @harrynull
+                let handle = tokio::runtime::Handle::current();
+                let viewer_manager = self.viewer_manager.clone();
+                tokio::task::block_in_place(move || {
+                    handle.block_on(async move {
+                        viewer_manager.permit_viewer(viewer_id).await;
+                    })
+                });
             }
             Message::KickViewer(viewer_id) => {
                 // todo @harrynull
@@ -240,27 +258,27 @@ impl Tab for ViewersTab {
         TabLabel::IconText(Icon::Group.into(), self.title())
     }
 
-    fn content(&self, _props: Self::Props) -> Element<'_, app::Message> {
+    fn content(&self, props: Self::Props) -> Element<'_, app::Message> {
+        let mut column = vec![Element::from(
+            text("Pending").size(16).style(text::Style::Label),
+        )];
+        for pending in props.pending_viewers.iter() {
+            column.push(pending_viewer_cell(pending));
+        }
+        column.push(Element::from(
+            text("Viewing").size(16).style(text::Style::Label),
+        ));
+        for viewing in props.viewing_viewers.iter() {
+            column.push(viewing_viewer_cell(viewing));
+        }
+
         scrollable(
             container(
-                column_iced![
-                    text("Pending").size(16).style(text::Style::Label),
-                    // todo @harrynull
-                    pending_viewer_cell(),
-                    pending_viewer_cell(),
-                    vertical_space(2),
-                    text("Viewing").size(16).style(text::Style::Label),
-                    // todo @harrynull
-                    viewing_viewer_cell(),
-                    viewing_viewer_cell(),
-                    viewing_viewer_cell(),
-                    viewing_viewer_cell(),
-                    viewing_viewer_cell(),
-                ]
-                .width(Fill)
-                .max_width(400)
-                .spacing(16)
-                .padding([0, 24]),
+                iced::widget::Column::with_children(column)
+                    .width(Fill)
+                    .max_width(400)
+                    .spacing(16)
+                    .padding([0, 24]),
             )
             .width(Fill)
             .align_x(Horizontal::Center),
@@ -270,38 +288,38 @@ impl Tab for ViewersTab {
     }
 }
 
-fn viewing_viewer_cell<'a>() -> Element<'a, app::Message> {
+fn viewing_viewer_cell<'a>(viewer: &ViewerIdentifier) -> Element<'a, app::Message> {
     row![
-        text_avatar(PaletteColor::Primary, "A"), // todo @harrynull
+        text_avatar(PaletteColor::Primary, viewer.name.chars().next().unwrap()),
         horizontal_space(16),
-        text("Viewer").width(Fill), // todo @harrynull
+        text(viewer.name.clone()).width(Fill),
         horizontal_space(16),
         IconButton::new(Icon::PersonRemove)
             .style(button::Style::Danger)
             .build()
-            .on_press(Message::KickViewer("a".to_string()).into()), // todo @harrynull
+            .on_press(Message::KickViewer(viewer.clone()).into()),
     ]
     .align_items(Center)
     .into()
 }
 
-fn pending_viewer_cell<'a>() -> Element<'a, app::Message> {
+fn pending_viewer_cell<'a>(viewer: &ViewerIdentifier) -> Element<'a, app::Message> {
     row![
-        text_avatar(PaletteColor::Primary, "A"), // todo @harrynull
+        text_avatar(PaletteColor::Primary, viewer.name.chars().next().unwrap()),
         horizontal_space(16),
-        text("Viewer").width(Fill), // todo @harrynull
+        text(viewer.name.clone()).width(Fill),
         horizontal_space(16),
         IconButton::new(Icon::Done)
             .style(button::Style::Success)
             .filled(true)
             .build()
-            .on_press(Message::AcceptJoin("a".to_string()).into()), // todo @harrynull
+            .on_press(Message::AcceptJoin(viewer.clone()).into()),
         horizontal_space(8),
         IconButton::new(Icon::Close)
             .style(button::Style::Danger)
             .filled(true)
             .build()
-            .on_press(Message::DeclineJoin("a".to_string()).into()), // todo @harrynull
+            .on_press(Message::DeclineJoin(viewer.clone()).into()),
     ]
     .align_items(Center)
     .into()

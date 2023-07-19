@@ -47,7 +47,7 @@ impl WebRTCOutput {
 
     pub async fn new(
         signaller: Arc<dyn Signaller + Send + Sync>,
-        authenticator: Box<dyn Authenticator>,
+        authenticator: Arc<dyn Authenticator>,
         encoder_force_idr: &mut Arc<AtomicBool>,
         input_handler: Arc<InputHandler>,
         config: &Config,
@@ -118,23 +118,28 @@ impl WebRTCOutput {
             // handle new requests
             tokio::spawn(async move {
                 while let Some((peer, auth)) = signaller.accept_peer_request().await {
-                    match authenticator.authenticate(&auth) {
-                        None => {
-                            peer_sender
-                                .send(signaller.make_new_peer(peer).await)
-                                .await
-                                .unwrap_or_else(|_| {
-                                    info!("Failed to send authenticated peer to peer_receiver");
-                                });
-                        }
-                        Some(reason) => {
-                            info!(
-                                "Failed to authenticate peer: uuid={} reason={:?}",
-                                peer, reason
-                            );
-                            signaller.reject_peer_request(peer, reason).await;
-                        }
-                    }
+                    let auther = authenticator.clone();
+                    let sender_clone = peer_sender.clone();
+                    let signaller_clone = signaller.clone();
+                    tokio::spawn(async move {
+                        match auther.authenticate(peer.clone(), &auth).await {
+                            None => {
+                                sender_clone
+                                    .send(signaller_clone.make_new_peer(peer).await)
+                                    .await
+                                    .unwrap_or_else(|_| {
+                                        info!("Failed to send authenticated peer to peer_receiver");
+                                    });
+                            }
+                            Some(reason) => {
+                                info!(
+                                    "Failed to authenticate peer: uuid={} reason={:?}",
+                                    peer, reason
+                                );
+                                signaller_clone.reject_peer_request(peer, reason).await;
+                            }
+                        };
+                    });
                 }
             });
 

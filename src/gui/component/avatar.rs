@@ -17,7 +17,7 @@ pub fn avatar(fill: PaletteColor, content: Element<Message>) -> Element<Message>
         .into()
 }
 
-pub fn text_avatar(fill: PaletteColor, text: &str) -> Element<Message> {
+pub fn text_avatar<'a>(fill: PaletteColor, text: impl ToString) -> Element<'a, Message> {
     avatar(
         fill,
         bold(text)
