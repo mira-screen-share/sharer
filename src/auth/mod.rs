@@ -19,7 +19,6 @@ fn random_user_friendly_string(len: usize) -> String {
     pub struct UserFriendlyAlphabet;
     impl Distribution<u8> for UserFriendlyAlphabet {
         fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> u8 {
-            const RANGE: u32 = 32;
             const GEN_ASCII_STR_CHARSET: &[u8] = b"ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
             GEN_ASCII_STR_CHARSET[(rng.next_u32() >> (32 - 5)) as usize]
         }
