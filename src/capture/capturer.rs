@@ -62,7 +62,7 @@ impl Capturer {
     }
 
     pub fn get_viewer_manager(&self) -> Arc<ViewerManager> {
-        return self.viewer_manager.clone();
+        self.viewer_manager.clone()
     }
 
     pub fn run(&mut self) {
@@ -181,7 +181,7 @@ impl Capturer {
                         signaller,
                         Arc::new(ComplexAuthenticator::new(vec![
                             password_auth,
-                            viewer_manager,
+                            viewer_manager.clone(),
                         ])),
                         &mut encoder.force_idr,
                         input_handler.clone(),
@@ -206,6 +206,7 @@ impl Capturer {
             // Cleanup
             capture.lock().await.stop_capture().await.unwrap();
             signaller_opt.lock().await.take();
+            viewer_manager.clear().await;
 
             notify_update(); // Update when capture stops
         });

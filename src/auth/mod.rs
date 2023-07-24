@@ -116,6 +116,11 @@ impl ViewerManager {
         self.send_viewer_auth_result(viewer, false).await;
         (self.notify_update)();
     }
+    pub async fn clear(&self) {
+        self.viewing_viewers.lock().await.clear();
+        self.pending_viewers.lock().await.clear();
+        self.auth_result_senders.lock().await.clear();
+    }
 }
 
 #[async_trait]
