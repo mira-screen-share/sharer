@@ -18,7 +18,10 @@ use rtcp::payload_feedbacks::full_intra_request::FullIntraRequest;
 use rtcp::payload_feedbacks::receiver_estimated_maximum_bitrate::ReceiverEstimatedMaximumBitrate;
 use rtcp::receiver_report::ReceiverReport;
 
-pub struct WebRTCPeer {}
+pub struct WebRTCPeer {
+    uuid: String,
+    peer_connection: Arc<RTCPeerConnection>,
+}
 
 impl WebRTCPeer {
     pub async fn new(
@@ -31,6 +34,7 @@ impl WebRTCPeer {
     ) -> Result<Self> {
         debug!("Initializing a new WebRTC peer");
 
+        let uuid = signaller_peer.get_uuid();
         let rtp_sender = peer_connection.add_track(video_track).await?;
 
         peer_connection.add_track(audio_track).await?;
@@ -132,6 +136,17 @@ impl WebRTCPeer {
         });
 
         info!("WebRTC peer initialized");
-        Ok(Self {})
+        Ok(Self {
+            uuid,
+            peer_connection,
+        })
+    }
+
+    pub fn get_uuid(&self) -> String {
+        self.uuid.clone()
+    }
+
+    pub async fn kick(&self) {
+        self.peer_connection.close().await;
     }
 }

@@ -50,12 +50,11 @@ impl Application for App {
             config,
             Arc::new(|| intermediate_update_sender.try_send(()).unwrap()),
         );
-        let viewer_manager = capturer.get_viewer_manager();
         (
             App {
                 capturer,
                 start_page: StartPage {},
-                sharing_page: SharingPage::new(viewer_manager),
+                sharing_page: SharingPage::new(),
                 intermediate_update_receiver: Some(intermediate_update_receiver),
             },
             Command::none(),
@@ -74,12 +73,16 @@ impl Application for App {
                     capturer: &mut self.capturer,
                 },
             ),
-            Message::Sharing(message) => self.sharing_page.update(
-                message,
-                sharing::UpdateProps {
-                    capturer: &mut self.capturer,
-                },
-            ),
+            Message::Sharing(message) => {
+                let viewer_manager = self.capturer.get_viewer_manager();
+                self.sharing_page.update(
+                    message,
+                    sharing::UpdateProps {
+                        capturer: &mut self.capturer,
+                        viewer_manager,
+                    },
+                )
+            }
             Message::Ignore => Command::none(),
             Message::UpdateChannel(channel) => {
                 let mut receiver = self.intermediate_update_receiver.take().unwrap();

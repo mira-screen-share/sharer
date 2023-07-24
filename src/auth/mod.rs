@@ -1,3 +1,4 @@
+use crate::output::WebRTCOutput;
 use crate::signaller::{AuthenticationPayload, DeclineReason};
 use crate::Result;
 use anyhow::anyhow;
@@ -81,6 +82,7 @@ pub struct ViewerManager {
     pending_viewers: Mutex<Vec<ViewerIdentifier>>,
     auth_result_senders: Mutex<HashMap<String, Sender<bool>>>,
     notify_update: Arc<dyn Fn() + Send + Sync>,
+    webrtc_output: Mutex<Option<Arc<Mutex<WebRTCOutput>>>>,
 }
 
 impl ViewerManager {
@@ -90,6 +92,7 @@ impl ViewerManager {
             pending_viewers: Mutex::new(Vec::new()),
             auth_result_senders: Mutex::new(HashMap::new()),
             notify_update,
+            webrtc_output: Mutex::new(None),
         }
     }
     pub async fn get_viewing_viewers(&self) -> Vec<ViewerIdentifier> {
@@ -120,7 +123,16 @@ impl ViewerManager {
         self.viewing_viewers.lock().await.clear();
         self.pending_viewers.lock().await.clear();
         self.auth_result_senders.lock().await.clear();
+        self.webrtc_output.lock().await.take();
     }
+    pub async fn kick_viewer(&self, viewer: ViewerIdentifier) {
+        let output = self.webrtc_output.lock().await;
+        if let Some(output) = output.as_ref() {
+            output.lock().await.kick_peer(&viewer.uuid).await;
+            self.viewer_left(&viewer.uuid).await;
+        }
+    }
+
     pub async fn viewer_left(&self, viewer_uuid: &String) {
         self.viewing_viewers
             .lock()
@@ -131,6 +143,10 @@ impl ViewerManager {
             .await
             .retain(|v| v.uuid != *viewer_uuid);
         (self.notify_update)();
+    }
+
+    pub async fn set_webrtc_output(&self, output: Arc<Mutex<WebRTCOutput>>) {
+        *self.webrtc_output.lock().await = Some(output);
     }
 }
 

@@ -26,16 +26,14 @@ pub struct SharingPage {
     current_tab: usize,
     invite_tab: InviteTab,
     viewers_tab: ViewersTab,
-    viewer_manager: Arc<ViewerManager>,
 }
 
 impl SharingPage {
-    pub fn new(viewer_manager: Arc<ViewerManager>) -> Self {
+    pub fn new() -> Self {
         Self {
             current_tab: Default::default(),
             invite_tab: InviteTab {},
             viewers_tab: ViewersTab {},
-            viewer_manager,
         }
     }
 }
@@ -46,6 +44,7 @@ pub struct ViewersTab {}
 
 pub struct UpdateProps<'a> {
     pub capturer: &'a mut Capturer,
+    pub viewer_manager: Arc<ViewerManager>,
 }
 
 #[derive(Clone, Debug)]
@@ -109,7 +108,7 @@ impl<'a> Component<'a> for SharingPage {
             }
             Message::DeclineJoin(viewer_id) => {
                 let handle = tokio::runtime::Handle::current();
-                let viewer_manager = self.viewer_manager.clone();
+                let viewer_manager = props.viewer_manager.clone();
                 tokio::task::block_in_place(move || {
                     handle.block_on(async move {
                         viewer_manager.decline_viewer(viewer_id).await;
@@ -118,7 +117,7 @@ impl<'a> Component<'a> for SharingPage {
             }
             Message::AcceptJoin(viewer_id) => {
                 let handle = tokio::runtime::Handle::current();
-                let viewer_manager = self.viewer_manager.clone();
+                let viewer_manager = props.viewer_manager.clone();
                 tokio::task::block_in_place(move || {
                     handle.block_on(async move {
                         viewer_manager.permit_viewer(viewer_id).await;
@@ -126,7 +125,13 @@ impl<'a> Component<'a> for SharingPage {
                 });
             }
             Message::KickViewer(viewer_id) => {
-                // todo @harrynull
+                let handle = tokio::runtime::Handle::current();
+                let viewer_manager = props.viewer_manager.clone();
+                tokio::task::block_in_place(move || {
+                    handle.block_on(async move {
+                        viewer_manager.kick_viewer(viewer_id).await;
+                    })
+                });
             }
         }
         Command::none()

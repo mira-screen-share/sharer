@@ -262,5 +262,7 @@ impl SignallerPeer for WebSocketSignallerPeer {
             .unwrap();
     }
 
-    //async fn block_until_left(&self)
+    fn get_uuid(&self) -> String {
+        self.peer_uuid.clone()
+    }
 }

@@ -45,6 +45,15 @@ impl WebRTCOutput {
         }
     }
 
+    pub async fn kick_peer(&self, uuid: &String) {
+        let mut peers = self.peers.lock().await;
+        let peer = peers.iter().find(|p| p.get_uuid() == *uuid);
+        if let Some(peer) = peer {
+            peer.kick().await;
+            peers.retain(|p| p.get_uuid() != *uuid);
+        }
+    }
+
     pub async fn new(
         signaller: Arc<dyn Signaller + Send + Sync>,
         authenticator: Arc<dyn Authenticator>,

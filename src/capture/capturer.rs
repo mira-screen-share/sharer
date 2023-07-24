@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::auth::{ComplexAuthenticator, PasswordAuthenticator, ViewerManager};
+use crate::auth::{ComplexAuthenticator, PasswordAuthenticator, ViewerIdentifier, ViewerManager};
 use clap::Parser;
 use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
@@ -194,7 +194,7 @@ impl Capturer {
                 let output: Arc<Mutex<dyn OutputSink + Send>> = if let Some(path) = args.file {
                     Arc::new(Mutex::new(FileOutput::new(&path)))
                 } else {
-                    WebRTCOutput::new(
+                    let webrtc = WebRTCOutput::new(
                         signaller,
                         Arc::new(ComplexAuthenticator::new(vec![
                             password_auth,
@@ -205,7 +205,9 @@ impl Capturer {
                         &config,
                     )
                     .await
-                    .unwrap()
+                    .unwrap();
+                    viewer_manager.set_webrtc_output(webrtc.clone()).await;
+                    webrtc
                 };
 
                 #[cfg(target_os = "windows")]

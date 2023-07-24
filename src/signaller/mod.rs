@@ -33,6 +33,8 @@ pub trait SignallerPeer: DynClone + Send + Sync + 'static {
     async fn recv_ice_message(&self) -> Option<RTCIceCandidateInit>;
     /// send an ice message to the peer
     async fn send_ice_message(&self, ice: RTCIceCandidateInit);
+    /// get uuid
+    fn get_uuid(&self) -> String;
 }
 
 #[derive(Default, Debug, Serialize, Deserialize, Clone)]
