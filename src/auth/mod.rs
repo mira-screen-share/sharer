@@ -1,12 +1,8 @@
 use crate::signaller::{AuthenticationPayload, DeclineReason};
 use crate::Result;
 use anyhow::anyhow;
-<<<<<<< Updated upstream
-use rand::distributions::Alphanumeric;
-=======
 use async_trait::async_trait;
-use rand::distributions::{Alphanumeric, Distribution};
->>>>>>> Stashed changes
+use rand::distributions::Distribution;
 use rand::{thread_rng, Rng};
 
 pub trait Authenticator: Send + Sync {
