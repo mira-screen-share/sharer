@@ -15,7 +15,7 @@ use crate::gui::component::start::StartPage;
 use crate::gui::component::{sharing, start, Component};
 use crate::gui::theme::widget::Element;
 use crate::gui::theme::Theme;
-use crate::{capture, column_iced, config};
+use crate::{column_iced, config};
 
 pub struct App {
     capturer: Capturer,

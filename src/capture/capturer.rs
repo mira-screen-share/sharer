@@ -1,10 +1,10 @@
 use std::sync::Arc;
 
-use crate::auth::{ComplexAuthenticator, PasswordAuthenticator, ViewerIdentifier, ViewerManager};
 use clap::Parser;
 use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
 
+use crate::auth::{ComplexAuthenticator, PasswordAuthenticator, ViewerManager};
 #[allow(unused_imports)]
 use crate::capture::audio::AudioCapture;
 use crate::capture::display::DisplaySelector;

@@ -1,15 +1,16 @@
-use crate::output::WebRTCOutput;
-use crate::signaller::{AuthenticationPayload, DeclineReason};
-use crate::Result;
+use std::collections::HashMap;
+use std::sync::Arc;
+
 use anyhow::anyhow;
 use async_trait::async_trait;
 use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
-use std::collections::HashMap;
-use std::ops::Index;
-use std::sync::Arc;
 use tokio::sync::mpsc::Sender;
 use tokio::sync::Mutex;
+
+use crate::output::WebRTCOutput;
+use crate::signaller::{AuthenticationPayload, DeclineReason};
+use crate::Result;
 
 #[async_trait]
 pub trait Authenticator: Send + Sync {
@@ -155,7 +156,7 @@ impl Authenticator for ViewerManager {
     async fn authenticate(
         &self,
         uuid: String,
-        payload: &AuthenticationPayload,
+        _payload: &AuthenticationPayload,
     ) -> Option<DeclineReason> {
         let viewer = ViewerIdentifier {
             uuid: uuid.clone(),

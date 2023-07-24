@@ -1,22 +1,20 @@
-use crate::inputs::InputHandler;
-
-use log::{debug, info};
-
-use rtcp::payload_feedbacks::picture_loss_indication::PictureLossIndication;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
+
+use log::{debug, info};
+use rtcp::packet::unmarshal;
+use rtcp::payload_feedbacks::full_intra_request::FullIntraRequest;
+use rtcp::payload_feedbacks::picture_loss_indication::PictureLossIndication;
+use rtcp::payload_feedbacks::receiver_estimated_maximum_bitrate::ReceiverEstimatedMaximumBitrate;
+use rtcp::receiver_report::ReceiverReport;
 use webrtc::ice_transport::ice_candidate::RTCIceCandidate;
 use webrtc::peer_connection::peer_connection_state::RTCPeerConnectionState;
 use webrtc::peer_connection::RTCPeerConnection;
 use webrtc::track::track_local::track_local_static_sample::TrackLocalStaticSample;
 
+use crate::inputs::InputHandler;
 use crate::signaller::SignallerPeer;
-
 use crate::Result;
-use rtcp::packet::unmarshal;
-use rtcp::payload_feedbacks::full_intra_request::FullIntraRequest;
-use rtcp::payload_feedbacks::receiver_estimated_maximum_bitrate::ReceiverEstimatedMaximumBitrate;
-use rtcp::receiver_report::ReceiverReport;
 
 pub struct WebRTCPeer {
     uuid: String,
@@ -147,6 +145,8 @@ impl WebRTCPeer {
     }
 
     pub async fn kick(&self) {
-        self.peer_connection.close().await;
+        self.peer_connection.close().await.unwrap_or_else(|e| {
+            error!("Failed to close peer connection: {}", e);
+        });
     }
 }
