@@ -41,9 +41,12 @@ pub struct InputHandler {
 }
 
 impl InputHandler {
-    fn handle_input_event(input_msg: Bytes, dpi_factor: f64) -> Result<()> {
+    fn handle_input_event(
+        enigo: &mut enigo::Enigo,
+        input_msg: Bytes,
+        dpi_factor: f64,
+    ) -> Result<()> {
         let scroll_reverse_factor = if cfg!(target_os = "windows") { -1. } else { 1. };
-        let mut enigo = enigo::Enigo::new();
         let input_msg = serde_json::from_slice::<InputMessage>(&input_msg)?;
         debug!("Deserialized input message: {:#?}", input_msg);
         match input_msg {
@@ -81,12 +84,13 @@ impl InputHandler {
 
     pub fn new(disabled_control: bool, dpi_factor: f64) -> Self {
         let (sender, mut receiver) = mpsc::channel::<Bytes>(32);
-        tokio::spawn(async move {
-            while let Some(msg) = receiver.recv().await {
+        std::thread::spawn(move || {
+            let mut enigo = enigo::Enigo::new();
+            while let Some(msg) = receiver.blocking_recv() {
                 if disabled_control {
                     continue; // Skip the message if user disabled remote control
                 }
-                if let Err(err) = Self::handle_input_event(msg, 1. / dpi_factor) {
+                if let Err(err) = Self::handle_input_event(&mut enigo, msg, 1. / dpi_factor) {
                     warn!("Error handling input event: {}", err);
                 }
             }
