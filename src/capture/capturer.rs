@@ -141,6 +141,18 @@ impl Capturer {
         }
     }
 
+    async fn handle_left_viewers(
+        signaller: Arc<dyn Signaller + Send + Sync>,
+        view_manager: Arc<ViewerManager>,
+    ) {
+        loop {
+            info!("waiting for viewer to leave");
+            let left_viewer = signaller.blocking_wait_leave_message().await;
+            info!("Viewer left: {}", left_viewer);
+            view_manager.viewer_left(&left_viewer).await;
+        }
+    }
+
     fn capture(
         &mut self,
         args: Args,
@@ -165,6 +177,12 @@ impl Capturer {
                         .await
                         .unwrap(),
                 );
+
+                tokio::spawn(Self::handle_left_viewers(
+                    signaller.clone(),
+                    viewer_manager.clone(),
+                ));
+
                 signaller_opt.lock().await.replace(signaller.clone());
                 let resolution = capture.display().resolution();
                 let mut encoder =

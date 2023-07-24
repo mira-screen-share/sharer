@@ -121,6 +121,17 @@ impl ViewerManager {
         self.pending_viewers.lock().await.clear();
         self.auth_result_senders.lock().await.clear();
     }
+    pub async fn viewer_left(&self, viewer_uuid: &String) {
+        self.viewing_viewers
+            .lock()
+            .await
+            .retain(|v| v.uuid != *viewer_uuid);
+        self.pending_viewers
+            .lock()
+            .await
+            .retain(|v| v.uuid != *viewer_uuid);
+        (self.notify_update)();
+    }
 }
 
 #[async_trait]

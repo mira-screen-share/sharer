@@ -204,6 +204,14 @@ impl Signaller for WebSocketSignaller {
         let room = self.room_id.lock().unwrap();
         room.clone()
     }
+    async fn blocking_wait_leave_message(&self) -> String {
+        blocking_recv!(
+            self,
+            SignallerMessage::Leave { from },
+            SignallerMessageDiscriminants::Leave
+        );
+        from
+    }
 }
 
 #[async_trait]
@@ -253,4 +261,6 @@ impl SignallerPeer for WebSocketSignallerPeer {
             .await
             .unwrap();
     }
+
+    //async fn block_until_left(&self)
 }

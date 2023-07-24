@@ -19,6 +19,8 @@ pub trait Signaller: Send + 'static {
     async fn reject_peer_request(&self, viewer_id: String, reason: DeclineReason);
     /// get room id
     fn get_room_id(&self) -> Option<String>;
+    /// get leave message. returns uuid of the viewer left.
+    async fn blocking_wait_leave_message(&self) -> String;
 }
 
 #[async_trait]
