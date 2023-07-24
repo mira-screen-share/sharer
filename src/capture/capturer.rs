@@ -146,7 +146,6 @@ impl Capturer {
         view_manager: Arc<ViewerManager>,
     ) {
         loop {
-            info!("waiting for viewer to leave");
             let left_viewer = signaller.blocking_wait_leave_message().await;
             info!("Viewer left: {}", left_viewer);
             view_manager.viewer_left(&left_viewer).await;
