@@ -1,8 +1,11 @@
+use std::collections::HashMap;
+use std::sync::Arc;
+
+use crate::config::IceServer;
 use async_trait::async_trait;
 use futures_util::stream::{SplitSink, SplitStream};
 use futures_util::{SinkExt, StreamExt};
-use std::collections::HashMap;
-use std::sync::Arc;
+use strum::IntoEnumIterator;
 use tokio::net::TcpStream;
 use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::sync::{broadcast, mpsc, Mutex, RwLock};
@@ -18,7 +21,7 @@ use crate::signaller::{
     SignallerMessageDiscriminants, SignallerPeer,
 };
 use crate::Result;
-use strum::IntoEnumIterator;
+
 /// ownership yielded to the user
 #[derive(Debug, Clone)]
 struct WebSocketSignallerPeer {
@@ -144,16 +147,8 @@ impl WebSocketSignaller {
 
 macro_rules! blocking_recv {
     ($self:ident, $topic:pat, $discriminant:path) => {
-        let $topic = $self.topics_rx
-                                                                  .read()
-                                                                  .await
-                                                                  .get($discriminant.into())
-                                                                  .unwrap()
-                                                                  .lock()
-                                                                  .await
-                                                                  .recv()
-                                                                  .await
-                                                                  .unwrap() else { unreachable!() };
+        let $topic = $self.topics_rx.read().await.get($discriminant.into())
+                        .unwrap().lock().await.recv().await.unwrap() else { unreachable!() };
     };
 }
 
@@ -216,13 +211,14 @@ impl Signaller for WebSocketSignaller {
 
 #[async_trait]
 impl SignallerPeer for WebSocketSignallerPeer {
-    async fn send_offer(&self, offer: &RTCSessionDescription) {
+    async fn send_offer(&self, offer: &RTCSessionDescription, ice_servers: Vec<IceServer>) {
         trace!("Sending offer");
         self.send_queue
             .send(SignallerMessage::Offer {
                 sdp: offer.clone(),
                 to: self.peer_uuid.clone(),
                 from: "0".to_string(),
+                ice_servers,
             })
             .await
             .unwrap();

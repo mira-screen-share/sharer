@@ -14,6 +14,8 @@ use webrtc::track::track_local::track_local_static_sample::TrackLocalStaticSampl
 
 use crate::inputs::InputHandler;
 use crate::signaller::SignallerPeer;
+
+use crate::config::IceServer;
 use crate::Result;
 
 pub struct WebRTCPeer {
@@ -29,6 +31,7 @@ impl WebRTCPeer {
         input_handler: Arc<InputHandler>,
         video_track: Arc<TrackLocalStaticSample>,
         audio_track: Arc<TrackLocalStaticSample>,
+        ice_servers: Vec<IceServer>,
     ) -> Result<Self> {
         debug!("Initializing a new WebRTC peer");
 
@@ -111,7 +114,7 @@ impl WebRTCPeer {
         let offer = peer_connection.create_offer(None).await?;
         peer_connection.set_local_description(offer.clone()).await?;
         trace!("Making an offer: {}", offer.sdp);
-        signaller_peer.send_offer(&offer).await;
+        signaller_peer.send_offer(&offer, ice_servers).await;
 
         info!("Waiting any answers from signaller");
         let answer = signaller_peer.recv_answer().await.unwrap();
