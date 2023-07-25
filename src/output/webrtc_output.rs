@@ -109,6 +109,7 @@ impl WebRTCOutput {
         let video_track_clone = video_track.clone();
         let audio_track_clone = audio_track.clone();
         let webrtc_config = Self::make_config(config);
+        let ice_servers = config.ice_servers.clone();
         signaller.start().await;
 
         // handle incoming connections
@@ -146,6 +147,7 @@ impl WebRTCOutput {
                 let audio_track_clone = audio_track_clone.clone();
                 let webrtc_config = webrtc_config.clone();
                 let input_handler = input_handler.clone();
+                let ice_servers = ice_servers.clone();
                 tokio::spawn(async move {
                     let peer = WebRTCPeer::new(
                         Arc::new(api_clone.new_peer_connection(webrtc_config).await.unwrap()),
@@ -154,6 +156,7 @@ impl WebRTCOutput {
                         input_handler,
                         video_track_clone,
                         audio_track_clone,
+                        ice_servers,
                     )
                     .await
                     .expect("Failed to create peer");
