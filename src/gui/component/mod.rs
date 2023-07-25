@@ -5,6 +5,7 @@ use iced::Command;
 use crate::gui::app;
 use crate::gui::theme::widget::Element;
 
+mod avatar;
 pub mod sharing;
 pub mod start;
 

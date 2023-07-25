@@ -1,5 +1,6 @@
 use iced::alignment::{Horizontal, Vertical};
 use iced::widget::{container, pick_list, vertical_space};
+use iced::Alignment;
 use iced::Alignment::Center;
 use iced::Length::Fill;
 
@@ -12,6 +13,8 @@ use crate::gui::component::Component;
 use crate::gui::theme::button;
 use crate::gui::theme::button::FAB;
 use crate::gui::theme::icon::Icon;
+use crate::gui::theme::text;
+use crate::gui::theme::text::text;
 use crate::gui::theme::widget::Element;
 
 pub struct StartPage {}
@@ -60,11 +63,17 @@ impl<'a> Component<'a> for StartPage {
     fn view(&self, params: Self::ViewProps) -> Element<'_, app::Message> {
         container(
             column_iced![
-                pick_list(
-                    params.capturer.available_displays(),
-                    params.capturer.selected_display(),
-                    move |message| app::Message::Start(Message::SelectDisplay(message))
-                )
+                column_iced![
+                    text("Display").size(16).style(text::Style::Label),
+                    vertical_space(8),
+                    pick_list(
+                        params.capturer.available_displays(),
+                        params.capturer.selected_display(),
+                        move |message| app::Message::Start(Message::SelectDisplay(message))
+                    )
+                    .width(Fill),
+                ]
+                .align_items(Alignment::Start)
                 .width(Fill),
                 vertical_space(32),
                 FAB::new("Start Sharing", Icon::PlayCircle)
