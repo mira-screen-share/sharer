@@ -12,25 +12,29 @@ pub trait Signaller: Send + 'static {
     /// indicating the start of a session, and starts to accept viewers
     async fn start(&self);
     /// get a new peer request
-    async fn accept_peer_request(&self) -> Option<(String, AuthenticationPayload)>;
+    async fn accept_peer_request(&self) -> Option<(String, String, AuthenticationPayload)>;
     /// make a new peer
     async fn make_new_peer(&self, uuid: String) -> Box<dyn SignallerPeer>;
     /// reject peer connection request
     async fn reject_peer_request(&self, viewer_id: String, reason: DeclineReason);
     /// get room id
     fn get_room_id(&self) -> Option<String>;
+    /// get leave message. returns uuid of the viewer left.
+    async fn blocking_wait_leave_message(&self) -> String;
 }
 
 #[async_trait]
 pub trait SignallerPeer: DynClone + Send + Sync + 'static {
     /// send an offer to the peer
-    async fn send_offer(&self, offer: &RTCSessionDescription);
+    async fn send_offer(&self, offer: &RTCSessionDescription, ice_servers: Vec<IceServer>);
     /// receive an answer the that peer
     async fn recv_answer(&self) -> Option<RTCSessionDescription>;
     /// receive an ice message from the peer
     async fn recv_ice_message(&self) -> Option<RTCIceCandidateInit>;
     /// send an ice message to the peer
     async fn send_ice_message(&self, ice: RTCIceCandidateInit);
+    /// get uuid
+    fn get_uuid(&self) -> String;
 }
 
 #[derive(Default, Debug, Serialize, Deserialize, Clone)]
@@ -49,6 +53,7 @@ pub enum DeclineReason {
     Unknown = 0,
     IncorrectPassword = 1,
     NoCredentials = 2,
+    UserDeclined = 3,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, IntoStaticStr, EnumIter, EnumDiscriminants)]
@@ -59,6 +64,7 @@ pub enum SignallerMessage {
         sdp: RTCSessionDescription,
         from: String,
         to: String,
+        ice_servers: Vec<IceServer>,
     },
     Answer {
         sdp: RTCSessionDescription,
@@ -66,6 +72,7 @@ pub enum SignallerMessage {
     },
     Join {
         from: String, // viewer uuid
+        name: String, // viewer name
         auth: AuthenticationPayload,
     },
     Start {},
@@ -87,4 +94,5 @@ pub enum SignallerMessage {
     KeepAlive {},
 }
 
+use crate::config::IceServer;
 pub use websocket_signaller::WebSocketSignaller;

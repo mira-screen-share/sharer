@@ -45,9 +45,18 @@ impl WebRTCOutput {
         }
     }
 
+    pub async fn kick_peer(&self, uuid: &String) {
+        let mut peers = self.peers.lock().await;
+        let peer = peers.iter().find(|p| p.get_uuid() == *uuid);
+        if let Some(peer) = peer {
+            peer.kick().await;
+            peers.retain(|p| p.get_uuid() != *uuid);
+        }
+    }
+
     pub async fn new(
         signaller: Arc<dyn Signaller + Send + Sync>,
-        authenticator: Box<dyn Authenticator>,
+        authenticator: Arc<dyn Authenticator>,
         encoder_force_idr: &mut Arc<AtomicBool>,
         input_handler: Arc<InputHandler>,
         config: &Config,
@@ -109,6 +118,7 @@ impl WebRTCOutput {
         let video_track_clone = video_track.clone();
         let audio_track_clone = audio_track.clone();
         let webrtc_config = Self::make_config(config);
+        let ice_servers = config.ice_servers.clone();
         signaller.start().await;
 
         // handle incoming connections
@@ -117,24 +127,33 @@ impl WebRTCOutput {
 
             // handle new requests
             tokio::spawn(async move {
-                while let Some((peer, auth)) = signaller.accept_peer_request().await {
-                    match authenticator.authenticate(&auth) {
-                        None => {
-                            peer_sender
-                                .send(signaller.make_new_peer(peer).await)
-                                .await
-                                .unwrap_or_else(|_| {
-                                    info!("Failed to send authenticated peer to peer_receiver");
-                                });
-                        }
-                        Some(reason) => {
-                            info!(
-                                "Failed to authenticate peer: uuid={} reason={:?}",
-                                peer, reason
-                            );
-                            signaller.reject_peer_request(peer, reason).await;
-                        }
-                    }
+                while let Some((peer_uuid, peer_name, auth)) = signaller.accept_peer_request().await
+                {
+                    let auther = authenticator.clone();
+                    let sender_clone = peer_sender.clone();
+                    let signaller_clone = signaller.clone();
+                    tokio::spawn(async move {
+                        match auther
+                            .authenticate(peer_uuid.clone(), peer_name.clone(), &auth)
+                            .await
+                        {
+                            None => {
+                                sender_clone
+                                    .send(signaller_clone.make_new_peer(peer_uuid).await)
+                                    .await
+                                    .unwrap_or_else(|_| {
+                                        info!("Failed to send authenticated peer to peer_receiver");
+                                    });
+                            }
+                            Some(reason) => {
+                                info!(
+                                    "Failed to authenticate peer: uuid={} name={} reason={:?}",
+                                    peer_uuid, peer_name, reason
+                                );
+                                signaller_clone.reject_peer_request(peer_uuid, reason).await;
+                            }
+                        };
+                    });
                 }
             });
 
@@ -146,6 +165,7 @@ impl WebRTCOutput {
                 let audio_track_clone = audio_track_clone.clone();
                 let webrtc_config = webrtc_config.clone();
                 let input_handler = input_handler.clone();
+                let ice_servers = ice_servers.clone();
                 tokio::spawn(async move {
                     let peer = WebRTCPeer::new(
                         Arc::new(api_clone.new_peer_connection(webrtc_config).await.unwrap()),
@@ -154,6 +174,7 @@ impl WebRTCOutput {
                         input_handler,
                         video_track_clone,
                         audio_track_clone,
+                        ice_servers,
                     )
                     .await
                     .expect("Failed to create peer");

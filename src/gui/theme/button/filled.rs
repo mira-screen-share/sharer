@@ -1,8 +1,9 @@
 use iced::widget::button::{Appearance, StyleSheet};
 use iced::widget::{button, horizontal_space, row};
 use iced::{Background, Color};
+use std::default::Default;
 
-use crate::gui::theme::button::Style::{Danger, Primary, Secondary};
+use crate::gui::theme::button::Style::*;
 use crate::gui::theme::button::{Style, Themed};
 use crate::gui::theme::color::ColorExt;
 use crate::gui::theme::icon::Icon;
@@ -76,9 +77,11 @@ impl StyleSheet for FilledButton {
         };
 
         match self.style {
+            Default => from(palette.surface, palette.on_surface),
             Primary => from(palette.primary, palette.on_primary),
             Secondary => from(palette.secondary, palette.on_secondary),
             Danger => from(palette.error, palette.on_error),
+            Success => from(palette.success, palette.on_success),
         }
     }
 
@@ -86,9 +89,11 @@ impl StyleSheet for FilledButton {
         let palette = style.palette();
         let base = self.active(style);
         let state = match self.style {
+            Default => palette.on_surface,
             Primary => palette.on_primary,
             Secondary => palette.on_secondary,
             Danger => palette.on_error,
+            Success => palette.on_success,
         };
 
         Appearance {

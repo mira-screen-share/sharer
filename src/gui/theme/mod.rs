@@ -24,6 +24,7 @@ pub enum Theme {
 }
 
 /// Material Design 3 Color System
+/// https://m3.material.io/theme-builder
 /// https://m3.material.io/styles/color/the-color-system/tokens#7fd4440e-986d-443f-8b3a-4933bff16646
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Palette {
@@ -59,6 +60,8 @@ pub struct Palette {
     pub error_container: Color,
     pub on_error: Color,
     pub on_error_container: Color,
+    pub success: Color,
+    pub on_success: Color,
     pub outline: Color,
     pub outline_variant: Color,
     pub shadow: Color,
@@ -101,6 +104,8 @@ impl Palette {
             error_container: Color::from_hex("F9DEDC"),
             on_error: Color::from_hex("FFFFFF"),
             on_error_container: Color::from_hex("410E0B"),
+            success: Color::from_hex("486726"),
+            on_success: Color::from_hex("FFFFFF"),
             outline: Color::from_hex("79747E"),
             outline_variant: Color::from_hex("C4C7C5"),
             shadow: Color::from_hex("000000"),
@@ -143,11 +148,58 @@ impl Palette {
             error_container: Color::from_hex("8C1D18"),
             on_error: Color::from_hex("601410"),
             on_error_container: Color::from_hex("F9DEDC"),
+            success: Color::from_hex("ADD284"),
+            on_success: Color::from_hex("1D3700"),
             outline: Color::from_hex("938F99"),
             outline_variant: Color::from_hex("444746"),
             shadow: Color::from_hex("000000"),
             surface_tint: Color::from_hex("D0BCFF"),
             scrim: Color::from_hex("000000"),
+        }
+    }
+
+    pub fn get_palette_color(self, palette_color: &PaletteColor) -> Color {
+        use PaletteColor::*;
+        match palette_color {
+            Primary => self.primary,
+            PrimaryContainer => self.primary_container,
+            OnPrimary => self.on_primary,
+            OnPrimaryContainer => self.on_primary_container,
+            InversePrimary => self.inverse_primary,
+            Secondary => self.secondary,
+            SecondaryContainer => self.secondary_container,
+            OnSecondary => self.on_secondary,
+            OnSecondaryContainer => self.on_secondary_container,
+            Tertiary => self.tertiary,
+            TertiaryContainer => self.tertiary_container,
+            OnTertiary => self.on_tertiary,
+            OnTertiaryContainer => self.on_tertiary_container,
+            Surface => self.surface,
+            SurfaceDim => self.surface_dim,
+            SurfaceBright => self.surface_bright,
+            SurfaceContainerLowest => self.surface_container_lowest,
+            SurfaceContainerLow => self.surface_container_low,
+            SurfaceContainer => self.surface_container,
+            SurfaceContainerHigh => self.surface_container_high,
+            SurfaceContainerHighest => self.surface_container_highest,
+            SurfaceVariant => self.surface_variant,
+            OnSurface => self.on_surface,
+            OnSurfaceVariant => self.on_surface_variant,
+            InverseSurface => self.inverse_surface,
+            InverseOnSurface => self.inverse_on_surface,
+            Background => self.background,
+            OnBackground => self.on_background,
+            Error => self.error,
+            ErrorContainer => self.error_container,
+            OnError => self.on_error,
+            OnErrorContainer => self.on_error_container,
+            Success => self.success,
+            OnSuccess => self.on_success,
+            Outline => self.outline,
+            OutlineVariant => self.outline_variant,
+            Shadow => self.shadow,
+            SurfaceTint => self.surface_tint,
+            Scrim => self.scrim,
         }
     }
 }
@@ -170,6 +222,81 @@ impl application::StyleSheet for Theme {
         application::Appearance {
             background_color: palette.background,
             text_color: palette.on_background,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum PaletteColor {
+    Primary,
+    PrimaryContainer,
+    OnPrimary,
+    OnPrimaryContainer,
+    InversePrimary,
+    Secondary,
+    SecondaryContainer,
+    OnSecondary,
+    OnSecondaryContainer,
+    Tertiary,
+    TertiaryContainer,
+    OnTertiary,
+    OnTertiaryContainer,
+    Surface,
+    SurfaceDim,
+    SurfaceBright,
+    SurfaceContainerLowest,
+    SurfaceContainerLow,
+    SurfaceContainer,
+    SurfaceContainerHigh,
+    SurfaceContainerHighest,
+    SurfaceVariant,
+    OnSurface,
+    OnSurfaceVariant,
+    InverseSurface,
+    InverseOnSurface,
+    Background,
+    OnBackground,
+    Error,
+    ErrorContainer,
+    OnError,
+    OnErrorContainer,
+    Success,
+    OnSuccess,
+    Outline,
+    OutlineVariant,
+    Shadow,
+    SurfaceTint,
+    Scrim,
+}
+
+impl PaletteColor {
+    pub fn on(self) -> PaletteColor {
+        use PaletteColor::*;
+        match self {
+            Primary => OnPrimary,
+            PrimaryContainer => OnPrimaryContainer,
+            Secondary => OnSecondary,
+            SecondaryContainer => OnSecondaryContainer,
+            Tertiary => OnTertiary,
+            TertiaryContainer => OnTertiaryContainer,
+            Surface => OnSurface,
+            SurfaceDim => OnSurface,
+            SurfaceBright => OnSurface,
+            SurfaceContainerLowest => OnSurface,
+            SurfaceContainerLow => OnSurface,
+            SurfaceContainer => OnSurface,
+            SurfaceContainerHigh => OnSurface,
+            SurfaceContainerHighest => OnSurface,
+            SurfaceVariant => OnSurfaceVariant,
+            InverseSurface => InverseOnSurface,
+            Background => OnBackground,
+            Error => OnError,
+            ErrorContainer => OnErrorContainer,
+            Success => OnSuccess,
+            Outline => OutlineVariant,
+            SurfaceTint => OnSurface,
+            Scrim => OnBackground,
+            _ => OnSurfaceVariant,
         }
     }
 }

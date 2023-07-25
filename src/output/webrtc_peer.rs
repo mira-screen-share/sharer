@@ -2,6 +2,11 @@ use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
 use log::{debug, info};
+use rtcp::packet::unmarshal;
+use rtcp::payload_feedbacks::full_intra_request::FullIntraRequest;
+use rtcp::payload_feedbacks::picture_loss_indication::PictureLossIndication;
+use rtcp::payload_feedbacks::receiver_estimated_maximum_bitrate::ReceiverEstimatedMaximumBitrate;
+use rtcp::receiver_report::ReceiverReport;
 use webrtc::ice_transport::ice_candidate::RTCIceCandidate;
 use webrtc::peer_connection::peer_connection_state::RTCPeerConnectionState;
 use webrtc::peer_connection::RTCPeerConnection;
@@ -13,9 +18,14 @@ use webrtc::track::track_local::track_local_static_sample::TrackLocalStaticSampl
 
 use crate::inputs::InputHandler;
 use crate::signaller::SignallerPeer;
+
+use crate::config::IceServer;
 use crate::Result;
 
-pub struct WebRTCPeer {}
+pub struct WebRTCPeer {
+    uuid: String,
+    peer_connection: Arc<RTCPeerConnection>,
+}
 
 impl WebRTCPeer {
     pub async fn new(
@@ -25,9 +35,11 @@ impl WebRTCPeer {
         input_handler: Arc<InputHandler>,
         video_track: Arc<TrackLocalStaticSample>,
         audio_track: Arc<TrackLocalStaticSample>,
+        ice_servers: Vec<IceServer>,
     ) -> Result<Self> {
         debug!("Initializing a new WebRTC peer");
 
+        let uuid = signaller_peer.get_uuid();
         let rtp_sender = peer_connection.add_track(video_track).await?;
 
         peer_connection.add_track(audio_track).await?;
@@ -104,7 +116,7 @@ impl WebRTCPeer {
         let offer = peer_connection.create_offer(None).await?;
         peer_connection.set_local_description(offer.clone()).await?;
         trace!("Making an offer: {}", offer.sdp);
-        signaller_peer.send_offer(&offer).await;
+        signaller_peer.send_offer(&offer, ice_servers).await;
 
         info!("Waiting any answers from signaller");
         let answer = signaller_peer.recv_answer().await.unwrap();
@@ -127,6 +139,19 @@ impl WebRTCPeer {
         });
 
         info!("WebRTC peer initialized");
-        Ok(Self {})
+        Ok(Self {
+            uuid,
+            peer_connection,
+        })
+    }
+
+    pub fn get_uuid(&self) -> String {
+        self.uuid.clone()
+    }
+
+    pub async fn kick(&self) {
+        self.peer_connection.close().await.unwrap_or_else(|e| {
+            error!("Failed to close peer connection: {}", e);
+        });
     }
 }

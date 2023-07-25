@@ -14,9 +14,11 @@ mod icon;
 #[derive(Default)]
 pub enum Style {
     #[default]
+    Default,
     Primary,
     Secondary,
     Danger,
+    Success,
 }
 
 pub trait Themed: StyleSheet<Style = Theme> {}

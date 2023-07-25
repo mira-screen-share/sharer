@@ -3,15 +3,29 @@ use iced::widget::text::{Appearance, StyleSheet};
 use crate::gui::resource;
 use crate::gui::theme::icon::Icon;
 use crate::gui::theme::widget::Text;
-use crate::gui::theme::Theme;
+use crate::gui::theme::{PaletteColor, Theme};
 
 pub trait Themed: StyleSheet<Style = Theme> {}
 
-impl StyleSheet for Theme {
-    type Style = ();
+#[derive(Clone, Copy, Debug, Default)]
+pub enum Style {
+    #[default]
+    Text,
+    Label,
+    Colored(PaletteColor),
+}
 
-    fn appearance(&self, _style: Self::Style) -> Appearance {
-        Default::default()
+impl StyleSheet for Theme {
+    type Style = Style;
+
+    fn appearance(&self, style: Self::Style) -> Appearance {
+        Appearance {
+            color: match style {
+                Style::Text => None,
+                Style::Label => Some(self.palette().on_surface_variant),
+                Style::Colored(color) => Some(self.palette().get_palette_color(&color)),
+            },
+        }
     }
 }
 

@@ -1,10 +1,10 @@
 use std::sync::Arc;
 
-use crate::auth::PasswordAuthenticator;
 use clap::Parser;
 use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
 
+use crate::auth::{ComplexAuthenticator, PasswordAuthenticator, ViewerManager};
 #[allow(unused_imports)]
 use crate::capture::audio::AudioCapture;
 use crate::capture::display::DisplaySelector;
@@ -44,6 +44,7 @@ pub struct Capturer {
     notify_update: Arc<dyn Fn() + Send + Sync>,
     capture: Arc<Mutex<ScreenCaptureImpl>>,
     room_password: String,
+    viewer_manager: Arc<ViewerManager>,
 }
 
 impl Capturer {
@@ -53,10 +54,15 @@ impl Capturer {
             config: config.clone(),
             shutdown_token_opt: None,
             signaller: Arc::new(Mutex::new(None)),
-            notify_update,
+            notify_update: notify_update.clone(),
             capture: Arc::new(Mutex::new(ScreenCaptureImpl::new(config.clone()).unwrap())),
             room_password: "".to_string(),
+            viewer_manager: Arc::new(ViewerManager::new(notify_update)),
         }
+    }
+
+    pub fn get_viewer_manager(&self) -> Arc<ViewerManager> {
+        self.viewer_manager.clone()
     }
 
     pub fn run(&mut self) {
@@ -135,6 +141,17 @@ impl Capturer {
         }
     }
 
+    async fn handle_left_viewers(
+        signaller: Arc<dyn Signaller + Send + Sync>,
+        view_manager: Arc<ViewerManager>,
+    ) {
+        loop {
+            let left_viewer = signaller.blocking_wait_leave_message().await;
+            info!("Viewer left: {}", left_viewer);
+            view_manager.viewer_left(&left_viewer).await;
+        }
+    }
+
     fn capture(
         &mut self,
         args: Args,
@@ -145,7 +162,9 @@ impl Capturer {
         let signaller_opt = self.signaller.clone();
         let notify_update = self.notify_update.clone();
         let capture = self.capture.clone();
-        let password_auth = PasswordAuthenticator::random().unwrap();
+
+        let password_auth = Arc::new(PasswordAuthenticator::random().unwrap());
+        let viewer_manager = self.viewer_manager.clone();
         self.room_password = password_auth.password();
 
         tokio::spawn(async move {
@@ -157,6 +176,12 @@ impl Capturer {
                         .await
                         .unwrap(),
                 );
+
+                tokio::spawn(Self::handle_left_viewers(
+                    signaller.clone(),
+                    viewer_manager.clone(),
+                ));
+
                 signaller_opt.lock().await.replace(signaller.clone());
                 let resolution = capture.display().resolution();
                 let mut encoder =
@@ -169,15 +194,20 @@ impl Capturer {
                 let output: Arc<Mutex<dyn OutputSink + Send>> = if let Some(path) = args.file {
                     Arc::new(Mutex::new(FileOutput::new(&path)))
                 } else {
-                    WebRTCOutput::new(
+                    let webrtc = WebRTCOutput::new(
                         signaller,
-                        Box::new(password_auth),
+                        Arc::new(ComplexAuthenticator::new(vec![
+                            password_auth,
+                            viewer_manager.clone(),
+                        ])),
                         &mut encoder.force_idr,
                         input_handler.clone(),
                         &config,
                     )
                     .await
-                    .unwrap()
+                    .unwrap();
+                    viewer_manager.set_webrtc_output(webrtc.clone()).await;
+                    webrtc
                 };
 
                 #[cfg(target_os = "windows")]
@@ -195,6 +225,7 @@ impl Capturer {
             // Cleanup
             capture.lock().await.stop_capture().await.unwrap();
             signaller_opt.lock().await.take();
+            viewer_manager.clear().await;
 
             notify_update(); // Update when capture stops
         });
