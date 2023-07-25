@@ -115,17 +115,8 @@ fn default_max_fps() -> u32 {
 }
 
 fn default_ice_servers() -> Vec<IceServer> {
-    vec![
-        IceServer {
-            urls: vec!["stun:stun.l.google.com:19302".to_string()],
-            ..Default::default()
-        },
-        IceServer {
-            // TURN server from [Open Relay Project](https://openrelayproject.org)
-            urls: vec!["turn:openrelay.metered.ca:80".to_string()],
-            username: "openrelayproject".to_string(),
-            credential: "openrelayproject".to_string(),
-            credential_type: IceCredentialType::Password,
-        },
-    ]
+    vec![IceServer {
+        urls: vec!["stun:stun.l.google.com:19302".to_string()],
+        ..Default::default()
+    }]
 }

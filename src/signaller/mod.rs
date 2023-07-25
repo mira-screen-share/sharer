@@ -24,7 +24,7 @@ pub trait Signaller: Send + 'static {
 #[async_trait]
 pub trait SignallerPeer: DynClone + Send + Sync + 'static {
     /// send an offer to the peer
-    async fn send_offer(&self, offer: &RTCSessionDescription);
+    async fn send_offer(&self, offer: &RTCSessionDescription, ice_servers: Vec<IceServer>);
     /// receive an answer the that peer
     async fn recv_answer(&self) -> Option<RTCSessionDescription>;
     /// receive an ice message from the peer
@@ -59,6 +59,7 @@ pub enum SignallerMessage {
         sdp: RTCSessionDescription,
         from: String,
         to: String,
+        ice_servers: Vec<IceServer>,
     },
     Answer {
         sdp: RTCSessionDescription,
@@ -87,4 +88,5 @@ pub enum SignallerMessage {
     KeepAlive {},
 }
 
+use crate::config::IceServer;
 pub use websocket_signaller::WebSocketSignaller;
