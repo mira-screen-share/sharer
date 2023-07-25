@@ -176,13 +176,13 @@ impl Signaller for WebSocketSignaller {
         self.room_id.lock().unwrap().replace(room);
         (self.notify_update)();
     }
-    async fn accept_peer_request(&self) -> Option<(String, AuthenticationPayload)> {
+    async fn accept_peer_request(&self) -> Option<(String, String, AuthenticationPayload)> {
         blocking_recv!(
             self,
-            SignallerMessage::Join { from, auth },
+            SignallerMessage::Join { from, name, auth },
             SignallerMessageDiscriminants::Join
         );
-        Some((from, auth))
+        Some((from, name, auth))
     }
     async fn make_new_peer(&self, uuid: String) -> Box<dyn SignallerPeer> {
         Box::new(WebSocketSignallerPeer {

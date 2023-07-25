@@ -126,15 +126,19 @@ impl WebRTCOutput {
 
             // handle new requests
             tokio::spawn(async move {
-                while let Some((peer, auth)) = signaller.accept_peer_request().await {
+                while let Some((peer_uuid, peer_name, auth)) = signaller.accept_peer_request().await
+                {
                     let auther = authenticator.clone();
                     let sender_clone = peer_sender.clone();
                     let signaller_clone = signaller.clone();
                     tokio::spawn(async move {
-                        match auther.authenticate(peer.clone(), &auth).await {
+                        match auther
+                            .authenticate(peer_uuid.clone(), peer_name.clone(), &auth)
+                            .await
+                        {
                             None => {
                                 sender_clone
-                                    .send(signaller_clone.make_new_peer(peer).await)
+                                    .send(signaller_clone.make_new_peer(peer_uuid).await)
                                     .await
                                     .unwrap_or_else(|_| {
                                         info!("Failed to send authenticated peer to peer_receiver");
@@ -142,10 +146,10 @@ impl WebRTCOutput {
                             }
                             Some(reason) => {
                                 info!(
-                                    "Failed to authenticate peer: uuid={} reason={:?}",
-                                    peer, reason
+                                    "Failed to authenticate peer: uuid={} name={} reason={:?}",
+                                    peer_uuid, peer_name, reason
                                 );
-                                signaller_clone.reject_peer_request(peer, reason).await;
+                                signaller_clone.reject_peer_request(peer_uuid, reason).await;
                             }
                         };
                     });

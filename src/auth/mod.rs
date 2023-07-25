@@ -19,6 +19,7 @@ pub trait Authenticator: Send + Sync {
     async fn authenticate(
         &self,
         uuid: String,
+        name: String,
         payload: &AuthenticationPayload,
     ) -> Option<DeclineReason>;
 }
@@ -63,6 +64,7 @@ impl Authenticator for PasswordAuthenticator {
     async fn authenticate(
         &self,
         _uuid: String,
+        _name: String,
         payload: &AuthenticationPayload,
     ) -> Option<DeclineReason> {
         match payload {
@@ -156,11 +158,12 @@ impl Authenticator for ViewerManager {
     async fn authenticate(
         &self,
         uuid: String,
+        name: String,
         _payload: &AuthenticationPayload,
     ) -> Option<DeclineReason> {
         let viewer = ViewerIdentifier {
             uuid: uuid.clone(),
-            name: uuid.clone(),
+            name,
         }; // todo: get name
         self.pending_viewers.lock().await.push(viewer.clone());
         let (sender, mut receiver) = tokio::sync::mpsc::channel(1);
@@ -199,10 +202,14 @@ impl Authenticator for ComplexAuthenticator {
     async fn authenticate(
         &self,
         uuid: String,
+        name: String,
         payload: &AuthenticationPayload,
     ) -> Option<DeclineReason> {
         for authenticator in &self.authenticators {
-            if let Some(reason) = authenticator.authenticate(uuid.clone(), payload).await {
+            if let Some(reason) = authenticator
+                .authenticate(uuid.clone(), name.clone(), payload)
+                .await
+            {
                 return Some(reason);
             }
         }

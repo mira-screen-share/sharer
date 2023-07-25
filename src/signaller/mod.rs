@@ -12,7 +12,7 @@ pub trait Signaller: Send + 'static {
     /// indicating the start of a session, and starts to accept viewers
     async fn start(&self);
     /// get a new peer request
-    async fn accept_peer_request(&self) -> Option<(String, AuthenticationPayload)>;
+    async fn accept_peer_request(&self) -> Option<(String, String, AuthenticationPayload)>;
     /// make a new peer
     async fn make_new_peer(&self, uuid: String) -> Box<dyn SignallerPeer>;
     /// reject peer connection request
@@ -71,6 +71,7 @@ pub enum SignallerMessage {
     },
     Join {
         from: String, // viewer uuid
+        name: String, // viewer name
         auth: AuthenticationPayload,
     },
     Start {},
