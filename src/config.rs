@@ -1,11 +1,13 @@
-use crate::Result;
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::{Read, Write};
 use std::path::Path;
+
+use serde::{Deserialize, Serialize};
 use webrtc::ice_transport::ice_credential_type::RTCIceCredentialType;
 use webrtc::ice_transport::ice_server::RTCIceServer;
+
+use crate::Result;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Config {
@@ -39,6 +41,7 @@ pub enum IceCredentialType {
     #[default]
     Password,
     Oauth,
+    Twilio, // TODO refactor
 }
 
 #[derive(Default, Clone, Debug, Serialize, Deserialize)]
@@ -58,6 +61,7 @@ impl From<IceCredentialType> for RTCIceCredentialType {
             IceCredentialType::Unspecified => RTCIceCredentialType::Unspecified,
             IceCredentialType::Password => RTCIceCredentialType::Password,
             IceCredentialType::Oauth => RTCIceCredentialType::Oauth,
+            IceCredentialType::Twilio => RTCIceCredentialType::Password,
         }
     }
 }

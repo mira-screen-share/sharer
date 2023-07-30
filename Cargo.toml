@@ -35,6 +35,8 @@ iced_aw = { version = "0.5.2", features = ["tabs"] }
 rand = "0.8.5"
 fern = "0.6.2"
 humantime = "2.1.0"
+twilio-rs = "0.1.1"
+base64 = "0.21.2"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 libc = "0.2.108"
