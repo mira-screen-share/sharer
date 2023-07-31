@@ -5,14 +5,10 @@ use std::time::Duration;
 use async_trait::async_trait;
 use bytes::Bytes;
 use log::info;
-use serde_json::Value;
 use tokio::sync::Mutex;
-use twilio::TwilioAuthentication;
 use webrtc::api::interceptor_registry::register_default_interceptors;
 use webrtc::api::media_engine::MediaEngine;
 use webrtc::api::APIBuilder;
-use webrtc::ice_transport::ice_credential_type::RTCIceCredentialType;
-use webrtc::ice_transport::ice_server::RTCIceServer;
 use webrtc::interceptor::registry::Registry;
 use webrtc::media::Sample;
 use webrtc::peer_connection::configuration::RTCConfiguration;
@@ -20,7 +16,7 @@ use webrtc::rtp_transceiver::rtp_codec::RTCRtpCodecCapability;
 use webrtc::track::track_local::track_local_static_sample::TrackLocalStaticSample;
 
 use crate::auth::Authenticator;
-use crate::config::{Config, IceCredentialType, IceServer};
+use crate::config::Config;
 use crate::inputs::InputHandler;
 use crate::output::WebRTCPeer;
 use crate::signaller::Signaller;
@@ -37,20 +33,14 @@ pub struct WebRTCOutput {
 }
 
 impl WebRTCOutput {
-    async fn make_config(config: &Config) -> RTCConfiguration {
+    fn make_config(config: &Config) -> RTCConfiguration {
         RTCConfiguration {
-            ice_servers: futures_util::future::join_all(
-                config.ice_servers.clone().into_iter().map(|s| async {
-                    match s.credential_type {
-                        IceCredentialType::Twilio => get_twilio_ice_servers(s).await,
-                        _ => Some(s.into()),
-                    }
-                }),
-            )
-            .await
-            .iter()
-            .filter_map(|s| s.clone())
-            .collect(),
+            ice_servers: config
+                .ice_servers
+                .clone()
+                .into_iter()
+                .map(|s| s.into())
+                .collect(),
             ..Default::default()
         }
     }
@@ -127,7 +117,8 @@ impl WebRTCOutput {
         let encoder_force_idr = encoder_force_idr.clone();
         let video_track_clone = video_track.clone();
         let audio_track_clone = audio_track.clone();
-        let webrtc_config = Self::make_config(config).await;
+        let config = config.fetch_ice_servers().await;
+        let webrtc_config = Self::make_config(&config);
         let ice_servers = config.ice_servers.clone();
         signaller.start().await;
 
@@ -223,38 +214,5 @@ impl OutputSink for WebRTCOutput {
             .await
             .expect("TODO: panic message");
         Ok(())
-    }
-}
-
-async fn get_twilio_ice_servers(s: IceServer) -> Option<RTCIceServer> {
-    if s.credential_type != IceCredentialType::Twilio {
-        return None;
-    }
-    let client = twilio::TwilioClient::new(
-        "https://api.twilio.com",
-        TwilioAuthentication::BasicAuth {
-            basic_auth: base64::encode(format!("{}:{}", s.username, s.credential).as_bytes()),
-        },
-    );
-    let response = client.create_token(s.username.as_str()).send().await;
-    match response {
-        Ok(token) => Some(RTCIceServer {
-            urls: token
-                .ice_servers
-                .unwrap_or_default()
-                .iter()
-                .map(|s| match s {
-                    Value::Object(s) => s.get("url").unwrap().as_str().unwrap().to_owned(),
-                    _ => panic!("Expected object"),
-                })
-                .collect(),
-            username: token.username.unwrap(),
-            credential: token.password.unwrap(),
-            credential_type: RTCIceCredentialType::Password,
-        }),
-        Err(e) => {
-            error!("Failed to get Twilio ICE servers: {:?}", e);
-            None
-        }
     }
 }

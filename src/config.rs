@@ -4,6 +4,8 @@ use std::io::{Read, Write};
 use std::path::Path;
 
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
+use twilio::TwilioAuthentication;
 use webrtc::ice_transport::ice_credential_type::RTCIceCredentialType;
 use webrtc::ice_transport::ice_server::RTCIceServer;
 
@@ -53,6 +55,27 @@ pub struct IceServer {
     pub credential: String,
     #[serde(default)]
     pub credential_type: IceCredentialType,
+}
+
+impl Config {
+    pub async fn fetch_ice_servers(&self) -> Self {
+        Self {
+            ice_servers: futures_util::future::join_all(self.ice_servers.clone().into_iter().map(
+                |s| async {
+                    match s.credential_type {
+                        IceCredentialType::Twilio => get_twilio_ice_servers(s).await,
+                        _ => vec![s],
+                    }
+                },
+            ))
+            .await
+            .iter()
+            .flatten()
+            .map(|s| s.clone().into())
+            .collect(),
+            ..self.clone()
+        }
+    }
 }
 
 impl From<IceCredentialType> for RTCIceCredentialType {
@@ -123,4 +146,40 @@ fn default_ice_servers() -> Vec<IceServer> {
         urls: vec!["stun:stun.l.google.com:19302".to_string()],
         ..Default::default()
     }]
+}
+
+async fn get_twilio_ice_servers(s: IceServer) -> Vec<IceServer> {
+    if s.credential_type != IceCredentialType::Twilio {
+        return vec![];
+    }
+    let client = twilio::TwilioClient::new(
+        "https://api.twilio.com",
+        TwilioAuthentication::BasicAuth {
+            basic_auth: base64::encode(format!("{}:{}", s.username, s.credential).as_bytes()),
+        },
+    );
+    let response = client.create_token(s.username.as_str()).send().await;
+    match response {
+        Ok(token) => token
+            .ice_servers
+            .unwrap_or_default()
+            .iter()
+            .map(|s| match s {
+                Value::Object(s) => {
+                    let url = s.get("url").unwrap().as_str().unwrap().to_owned();
+                    IceServer {
+                        urls: vec![url],
+                        username: token.username.clone().unwrap(),
+                        credential: token.password.clone().unwrap(),
+                        credential_type: IceCredentialType::Password,
+                    }
+                }
+                _ => panic!("Expected object"),
+            })
+            .collect(),
+        Err(e) => {
+            error!("Failed to get Twilio ICE servers: {:?}", e);
+            vec![]
+        }
+    }
 }
