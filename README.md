@@ -23,6 +23,8 @@ as a starting point.
 
 GPLv3
 
+Note that files under `src/capture/macos` are also dual-licensed under MIT.
+
 ## Attributions
 * Some code is adapted from [scrap](https://github.com/quadrupleslap/scrap), which is licensed under the MIT license.
 * Some code from [MirrorX](https://github.com/MirrorX-Desktop/MirrorX), licensed under GPLv3.
