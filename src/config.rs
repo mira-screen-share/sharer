@@ -3,6 +3,7 @@ use std::fs::File;
 use std::io::{Read, Write};
 use std::path::Path;
 
+use base64::Engine;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use twilio::TwilioAuthentication;
@@ -152,10 +153,14 @@ async fn get_twilio_ice_servers(s: IceServer) -> Vec<IceServer> {
     if s.credential_type != IceCredentialType::Twilio {
         return vec![];
     }
+    let base64_engine = base64::engine::GeneralPurpose::new(
+        &base64::alphabet::STANDARD,
+        base64::engine::general_purpose::PAD,
+    );
     let client = twilio::TwilioClient::new(
         "https://api.twilio.com",
         TwilioAuthentication::BasicAuth {
-            basic_auth: base64::encode(format!("{}:{}", s.username, s.credential).as_bytes()),
+            basic_auth: base64_engine.encode(format!("{}:{}", s.username, s.credential).as_bytes()),
         },
     );
     let response = client.create_token(s.username.as_str()).send().await;
