@@ -2,6 +2,7 @@ use std::path::Path;
 use std::sync::Arc;
 
 use clap::Parser;
+use directories::ProjectDirs;
 use futures_util::SinkExt;
 use iced::widget::row;
 use iced::Alignment::Center;
@@ -42,7 +43,26 @@ impl Application for App {
 
     fn new(_flags: ()) -> (Self, Command<Message>) {
         let args = capturer::Args::parse();
-        let config = config::load(Path::new(&args.config)).unwrap();
+        let config_path = if let Some(config_path) = &args.config {
+            Path::new(config_path).to_path_buf()
+        } else {
+            if cfg!(target_os = "windows") {
+                Path::new("config.toml").to_path_buf()
+            } else if cfg!(target_os = "macos") {
+                let config_dir = ProjectDirs::from("", "", "Mira Sharer")
+                    .unwrap()
+                    .config_dir()
+                    .to_path_buf();
+                if !config_dir.exists() {
+                    std::fs::create_dir_all(&config_dir).unwrap();
+                }
+                config_dir.join("config.toml")
+            } else {
+                panic!("Unsupported OS")
+            }
+        };
+
+        let config = config::load(config_path.as_path()).unwrap();
         let (intermediate_update_sender, intermediate_update_receiver) = channel(10);
         let intermediate_update_sender = Box::leak(Box::new(intermediate_update_sender));
         let capturer = Capturer::new(
