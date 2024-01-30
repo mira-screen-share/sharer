@@ -29,8 +29,8 @@ pub struct Args {
     #[arg(long)]
     file: Option<String>,
     /// Config file path
-    #[arg(short, long, default_value = "config.toml")]
-    pub(crate) config: String,
+    #[arg(short, long)]
+    pub(crate) config: Option<String>,
     /// Disable remote control
     #[arg(long, default_value = "false")]
     disable_control: bool,

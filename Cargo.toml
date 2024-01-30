@@ -3,6 +3,11 @@ name = "mira_sharer"
 version = "0.1.0"
 edition = "2021"
 license = "GPL-3.0-or-later"
+description = "A screen sharing application and remote control software."
+
+[package.metadata.bundle]
+name = "Mira Sharer"
+identifier = "app.mirashare"
 
 [dependencies]
 anyhow = "1.0"
@@ -37,6 +42,7 @@ fern = "0.6.2"
 humantime = "2.1.0"
 twilio-rs = "0.1.1"
 base64 = "0.21.2"
+directories = "5.0"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 libc = "0.2.108"
