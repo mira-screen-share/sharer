@@ -44,7 +44,8 @@ pub enum IceCredentialType {
     #[default]
     Password,
     Oauth,
-    Twilio, // TODO refactor
+    Twilio,    // TODO refactor
+    Signaller, // TODO refactor
 }
 
 #[derive(Default, Clone, Debug, Serialize, Deserialize)]
@@ -59,12 +60,19 @@ pub struct IceServer {
 }
 
 impl Config {
+    async fn fetch_ice_servers_from_signaller(&self) -> Vec<IceServer> {
+        vec![]
+    }
+
     pub async fn fetch_ice_servers(&self) -> Self {
         Self {
             ice_servers: futures_util::future::join_all(self.ice_servers.clone().into_iter().map(
                 |s| async {
                     match s.credential_type {
                         IceCredentialType::Twilio => get_twilio_ice_servers(s).await,
+                        IceCredentialType::Signaller => {
+                            self.fetch_ice_servers_from_signaller().await
+                        }
                         _ => vec![s],
                     }
                 },
@@ -86,6 +94,7 @@ impl From<IceCredentialType> for RTCIceCredentialType {
             IceCredentialType::Password => RTCIceCredentialType::Password,
             IceCredentialType::Oauth => RTCIceCredentialType::Oauth,
             IceCredentialType::Twilio => RTCIceCredentialType::Password,
+            IceCredentialType::Signaller => RTCIceCredentialType::Password,
         }
     }
 }
@@ -143,10 +152,16 @@ fn default_max_fps() -> u32 {
 }
 
 fn default_ice_servers() -> Vec<IceServer> {
-    vec![IceServer {
-        urls: vec!["stun:stun.l.google.com:19302".to_string()],
-        ..Default::default()
-    }]
+    vec![
+        IceServer {
+            urls: vec!["stun:stun.l.google.com:19302".to_string()],
+            ..Default::default()
+        },
+        IceServer {
+            credential_type: IceCredentialType::Signaller,
+            ..Default::default()
+        },
+    ]
 }
 
 async fn get_twilio_ice_servers(s: IceServer) -> Vec<IceServer> {
