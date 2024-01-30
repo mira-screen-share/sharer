@@ -7,6 +7,15 @@ use strum_macros::{EnumDiscriminants, EnumIter, IntoStaticStr};
 use webrtc::ice_transport::ice_candidate::RTCIceCandidateInit;
 use webrtc::peer_connection::sdp::session_description::RTCSessionDescription;
 
+#[derive(Default, Clone, Debug, Serialize, Deserialize)]
+pub struct SignallerIceServer {
+    pub url: String,
+    #[serde(default)]
+    pub username: String,
+    #[serde(default)]
+    pub password: String,
+}
+
 #[async_trait]
 pub trait Signaller: Send + 'static {
     /// indicating the start of a session, and starts to accept viewers
@@ -21,6 +30,8 @@ pub trait Signaller: Send + 'static {
     fn get_room_id(&self) -> Option<String>;
     /// get leave message. returns uuid of the viewer left.
     async fn blocking_wait_leave_message(&self) -> String;
+    /// fetch ice servers
+    async fn fetch_ice_servers(&self) -> Vec<SignallerIceServer>;
 }
 
 #[async_trait]
@@ -92,6 +103,10 @@ pub enum SignallerMessage {
         to: String,
     },
     KeepAlive {},
+    IceServers {},
+    IceServersResponse {
+        ice_servers: Vec<SignallerIceServer>,
+    },
 }
 
 use crate::config::IceServer;

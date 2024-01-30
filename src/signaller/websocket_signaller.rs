@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use crate::config::IceServer;
 use async_trait::async_trait;
 use futures_util::stream::{SplitSink, SplitStream};
 use futures_util::{SinkExt, StreamExt};
@@ -16,8 +15,9 @@ use tokio_tungstenite::{
 use webrtc::ice_transport::ice_candidate::RTCIceCandidateInit;
 use webrtc::peer_connection::sdp::session_description::RTCSessionDescription;
 
+use crate::config::IceServer;
 use crate::signaller::{
-    AuthenticationPayload, DeclineReason, Signaller, SignallerMessage,
+    AuthenticationPayload, DeclineReason, Signaller, SignallerIceServer, SignallerMessage,
     SignallerMessageDiscriminants, SignallerPeer,
 };
 use crate::Result;
@@ -206,6 +206,19 @@ impl Signaller for WebSocketSignaller {
             SignallerMessageDiscriminants::Leave
         );
         from
+    }
+    async fn fetch_ice_servers(&self) -> Vec<SignallerIceServer> {
+        self.send_queue
+            .send(SignallerMessage::IceServers {})
+            .await
+            .unwrap();
+        trace!("Waiting for ice servers from signaller");
+        blocking_recv!(
+            self,
+            SignallerMessage::IceServersResponse { ice_servers },
+            SignallerMessageDiscriminants::IceServersResponse
+        );
+        ice_servers
     }
 }
 

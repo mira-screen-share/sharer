@@ -117,7 +117,7 @@ impl WebRTCOutput {
         let encoder_force_idr = encoder_force_idr.clone();
         let video_track_clone = video_track.clone();
         let audio_track_clone = audio_track.clone();
-        let config = config.fetch_ice_servers().await;
+        let config = config.fetch_ice_servers(signaller.clone()).await;
         let webrtc_config = Self::make_config(&config);
         let ice_servers = config.ice_servers.clone();
         signaller.start().await;
