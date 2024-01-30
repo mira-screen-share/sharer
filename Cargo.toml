@@ -3,12 +3,11 @@ name = "mira_sharer"
 version = "0.1.0"
 edition = "2021"
 license = "GPL-3.0-or-later"
-description = "Mira Sharer"
+description = "A screen sharing application and remote control software."
 
 [package.metadata.bundle]
 name = "Mira Sharer"
 identifier = "app.mirashare"
-version = "0.1.0"
 
 [dependencies]
 anyhow = "1.0"
