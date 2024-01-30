@@ -18,10 +18,10 @@ bundle-macos:
 		--options runtime \
 		-vvvvv \
 		-f \
-		-s $(SIGNER) \
+		-s "$(SIGNER)" \
 		/Users/mark/repo/mira/sharer/target/release/bundle/osx/Mira\ Sharer.app/Contents/Frameworks/* \
 		/Users/mark/repo/mira/sharer/target/release/bundle/osx/Mira\ Sharer.app
 	rm -f Mira\ Sharer.dmg
 	create-dmg target/release/bundle/osx/Mira\ Sharer.app/ || true
 	mv Mira*.dmg Mira\ Sharer.dmg
-	xcrun notarytool submit Mira\ Sharer.dmg --keychain-profile $(KEYCHAIN_PROFILE) --wait
+	xcrun notarytool submit Mira\ Sharer.dmg --keychain-profile "$(KEYCHAIN_PROFILE)" --wait
