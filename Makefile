@@ -1,7 +1,12 @@
+SIGNER=
+KEYCHAIN_PROFILE=
+
 default:
 	@echo "."
 
 bundle-macos:
+	if [ -z "$(SIGNER)" ]; then echo "SIGNER not set"; exit 1; fi
+	if [ -z "$(KEYCHAIN_PROFILE)" ]; then echo "KEYCHAIN_PROFILE not set"; exit 1; fi
 	cargo bundle --release
 	dylibbundler \
 		-b \
@@ -13,10 +18,10 @@ bundle-macos:
 		--options runtime \
 		-vvvvv \
 		-f \
-		-s "Developer ID Application: Anhai Wang (MPPUFL3L6R)" \
+		-s $(SIGNER) \
 		/Users/mark/repo/mira/sharer/target/release/bundle/osx/Mira\ Sharer.app/Contents/Frameworks/* \
 		/Users/mark/repo/mira/sharer/target/release/bundle/osx/Mira\ Sharer.app
 	rm -f Mira\ Sharer.dmg
 	create-dmg target/release/bundle/osx/Mira\ Sharer.app/ || true
 	mv Mira*.dmg Mira\ Sharer.dmg
-	xcrun notarytool submit Mira\ Sharer.dmg --keychain-profile "default" --wait
+	xcrun notarytool submit Mira\ Sharer.dmg --keychain-profile $(KEYCHAIN_PROFILE) --wait
