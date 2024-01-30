@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::fs::File;
 use std::io::{Read, Write};
 use std::path::Path;
+use std::sync::Arc;
 
 use base64::Engine;
 use serde::{Deserialize, Serialize};
@@ -10,6 +11,7 @@ use twilio::TwilioAuthentication;
 use webrtc::ice_transport::ice_credential_type::RTCIceCredentialType;
 use webrtc::ice_transport::ice_server::RTCIceServer;
 
+use crate::signaller::{Signaller, SignallerIceServer};
 use crate::Result;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -59,19 +61,39 @@ pub struct IceServer {
     pub credential_type: IceCredentialType,
 }
 
+impl Into<IceServer> for SignallerIceServer {
+    fn into(self) -> IceServer {
+        IceServer {
+            urls: vec![self.url],
+            username: self.username,
+            credential: self.password,
+            credential_type: IceCredentialType::Password,
+        }
+    }
+}
+
 impl Config {
-    async fn fetch_ice_servers_from_signaller(&self) -> Vec<IceServer> {
-        vec![]
+    async fn fetch_ice_servers_from_signaller(
+        &self,
+        signaller: Arc<dyn Signaller + Send + Sync>,
+    ) -> Vec<IceServer> {
+        signaller
+            .fetch_ice_servers()
+            .await
+            .iter()
+            .map(|s| s.clone().into())
+            .collect()
     }
 
-    pub async fn fetch_ice_servers(&self) -> Self {
+    pub async fn fetch_ice_servers(&self, signaller: Arc<dyn Signaller + Send + Sync>) -> Self {
         Self {
             ice_servers: futures_util::future::join_all(self.ice_servers.clone().into_iter().map(
                 |s| async {
                     match s.credential_type {
                         IceCredentialType::Twilio => get_twilio_ice_servers(s).await,
                         IceCredentialType::Signaller => {
-                            self.fetch_ice_servers_from_signaller().await
+                            self.fetch_ice_servers_from_signaller(signaller.clone())
+                                .await
                         }
                         _ => vec![s],
                     }
