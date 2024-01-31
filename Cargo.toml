@@ -9,6 +9,19 @@ description = "A screen sharing application and remote control software."
 name = "Mira Sharer"
 identifier = "app.mirashare"
 osx_minimum_system_version = "13.0"
+icon = [
+    "resources/icons/mira.icns",
+    "resources/icons/16x16.png",
+    "resources/icons/32x32.png",
+    "resources/icons/128x128.png",
+    "resources/icons/256x256.png",
+    "resources/icons/512x512.png",
+    "resources/icons/16x16@2x.png",
+    "resources/icons/32x32@2x.png",
+    "resources/icons/128x128@2x.png",
+    "resources/icons/256x256@2x.png",
+    "resources/icons/512x512@2x.png",
+]
 
 [dependencies]
 anyhow = "1.0"
