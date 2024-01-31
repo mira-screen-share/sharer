@@ -16,6 +16,7 @@ mod webrtc_output;
 mod webrtc_peer;
 
 pub use file_output::FileOutput;
+#[allow(unused_imports)]
 pub use noop_output::NoOpOutput;
 pub use webrtc_output::WebRTCOutput;
 pub use webrtc_peer::WebRTCPeer;

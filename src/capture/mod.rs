@@ -50,4 +50,5 @@ pub mod display;
 mod yuv_convert;
 
 use crate::config::Config;
+#[allow(unused_imports)]
 pub use yuv_convert::YuvConverter;
