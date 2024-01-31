@@ -8,6 +8,7 @@ description = "A screen sharing application and remote control software."
 [package.metadata.bundle]
 name = "Mira Sharer"
 identifier = "app.mirashare"
+osx_minimum_system_version = "13.0"
 
 [dependencies]
 anyhow = "1.0"
