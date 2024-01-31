@@ -95,9 +95,19 @@ impl ScreenRecorder {
     pub fn can_record() -> bool {
         let (tx, rx) = std::sync::mpsc::channel::<bool>();
         unsafe {
+            #[cfg(target_arch = "x86_64")]
+            let exclude_desktop_windows = 0;
+            #[cfg(target_arch = "x86_64")]
+            let on_screen_windows_only = 1;
+
+            #[cfg(target_arch = "aarch64")]
+            let exclude_desktop_windows = false;
+            #[cfg(target_arch = "aarch64")]
+            let on_screen_windows_only = true;
+
             SCShareableContent::getShareableContentExcludingDesktopWindows_onScreenWindowsOnly_completionHandler_(
-                false,
-                true,
+                exclude_desktop_windows,
+                on_screen_windows_only,
                 objc_closure!(move |_content: id, error: id| {
                     let result = error.is_null();
                     tx.send(result).unwrap();
@@ -219,8 +229,18 @@ impl ScreenRecorder {
             let config = SCStreamConfiguration(SCStreamConfiguration::alloc().init());
 
             // Configure audio capture.
-            config.setCapturesAudio_(self.is_audio_capture_enabled);
-            config.setExcludesCurrentProcessAudio_(self.is_app_audio_excluded);
+            #[cfg(target_arch = "x86_64")]
+            let is_audio_capture_enabled = if self.is_audio_capture_enabled { 1 } else { 0 };
+            #[cfg(target_arch = "x86_64")]
+            let is_app_audio_excluded = if self.is_app_audio_excluded { 1 } else { 0 };
+
+            #[cfg(target_arch = "aarch64")]
+            let is_audio_capture_enabled = self.is_audio_capture_enabled;
+            #[cfg(target_arch = "aarch64")]
+            let is_app_audio_excluded = self.is_app_audio_excluded;
+
+            config.setCapturesAudio_(is_audio_capture_enabled);
+            config.setExcludesCurrentProcessAudio_(is_app_audio_excluded);
 
             let (width, height) = self.resolution();
             config.setWidth_(width as _);
@@ -254,9 +274,19 @@ impl ScreenRecorder {
     fn refresh_available_content(&mut self) {
         let (result_tx, result_rx) = std::sync::mpsc::channel();
         unsafe {
+            #[cfg(target_arch = "x86_64")]
+            let exclude_desktop_windows = 0;
+            #[cfg(target_arch = "x86_64")]
+            let on_screen_windows_only = 1;
+
+            #[cfg(target_arch = "aarch64")]
+            let exclude_desktop_windows = false;
+            #[cfg(target_arch = "aarch64")]
+            let on_screen_windows_only = true;
+
             SCShareableContent::getShareableContentExcludingDesktopWindows_onScreenWindowsOnly_completionHandler_(
-                false,
-                true,
+                exclude_desktop_windows,
+                on_screen_windows_only,
                 objc_closure!(move |content: id, error: id| {
                     if !error.is_null() {
                         let error = from_nsstring!(NSError(error).localizedDescription());

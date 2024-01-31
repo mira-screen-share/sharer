@@ -48,7 +48,7 @@ directories = "5.0"
 [target.'cfg(target_os = "macos")'.dependencies]
 libc = "0.2.108"
 block = "0.1.6"
-apple-sys = { version = "0.2.0", features = ["AVFAudio", "CoreMedia", "ScreenCaptureKit"] }
+apple-sys = { git = "https://github.com/mira-screen-share/apple-sys", branch = "dev", features = ["AVFAudio", "CoreMedia", "ScreenCaptureKit"] }
 objc = "0.2.3"
 
 [target.'cfg(target_os = "windows")'.dependencies]

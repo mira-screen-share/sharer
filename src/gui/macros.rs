@@ -8,4 +8,5 @@ macro_rules! column_iced {
     );
 }
 
+#[allow(unused_imports)]
 pub use column_iced;
