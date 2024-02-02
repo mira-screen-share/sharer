@@ -45,6 +45,7 @@ async fn main() {
         window: iced::window::Settings {
             size: (640, 373),
             min_size: Some((400, 300)),
+            icon: Some(gui::resource::APP_ICON),
             ..Default::default()
         },
         ..Default::default()

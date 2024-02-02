@@ -1,2 +1,3 @@
 #define RT_MANIFEST 24
 1 RT_MANIFEST "mira_sharer.exe.manifest"
+MAINICON ICON "resources/icons/mira.ico"
