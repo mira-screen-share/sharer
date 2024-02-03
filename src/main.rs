@@ -45,7 +45,13 @@ async fn main() {
         window: iced::window::Settings {
             size: (640, 373),
             min_size: Some((400, 300)),
-            icon: Some(gui::resource::APP_ICON),
+            icon: Some(
+                iced::window::icon::from_file_data(
+                    include_bytes!("../resources/icons/256x256.png"),
+                    None,
+                )
+                .unwrap(),
+            ),
             ..Default::default()
         },
         ..Default::default()

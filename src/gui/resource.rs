@@ -19,7 +19,3 @@ pub mod font {
         bytes: include_bytes!("../../resources/Barlow-Bold.ttf"),
     };
 }
-
-pub const APP_ICON: iced::window::Icon = iced::window::Icon::from_file_data(
-    include_bytes!("../../resources/icons/mira.ico")
-);
