@@ -40,43 +40,61 @@ pub struct WebSocketSignaller {
     room_id: std::sync::Mutex<Option<String>>,
 
     notify_update: Arc<dyn Fn() + Send + Sync>,
+    shutdown_token: CancellationToken,
 }
 
 impl WebSocketSignaller {
     async fn process_incoming_message(
         mut read: SplitStream<WebSocketStream<MaybeTlsStream<TcpStream>>>,
         topics_tx: Arc<RwLock<HashMap<&'static str, broadcast::Sender<SignallerMessage>>>>,
+        shutdown_token: CancellationToken,
     ) {
-        while let Some(msg) = read.next().await {
-            if let Err(e) = msg {
-                error!("Error reading from websocket: {}", e);
-                break;
-            }
+        loop {
+            select! {
+                msg = read.next() => {
+                    if msg.is_none() {
+                        break
+                    };
 
-            trace!("Received websocket message: {:?}", msg);
-            let text = msg.unwrap().into_text().unwrap();
-            match serde_json::from_str::<SignallerMessage>(&text) {
-                Err(e) => {
-                    warn!(
-                        "Error deserializing websocket message: {}. Message: {}",
-                        e, text
-                    );
-                }
+                    let msg = msg.unwrap();
 
-                Ok(msg) => {
-                    debug!("Deserialized websocket message: {:#?}", msg);
-                    if let Some(tx) = topics_tx.read().await.get(msg.clone().into()) {
-                        tx.send(msg).unwrap();
+                    if let Err(e) = msg {
+                        error!("Error reading from websocket: {}", e);
+                        break;
+                    }
+
+                    trace!("Received websocket message: {:?}", msg);
+                    let text = msg.unwrap().into_text().unwrap();
+                    match serde_json::from_str::<SignallerMessage>(&text) {
+                        Err(e) => {
+                            warn!(
+                            "Error deserializing websocket message: {}. Message: {}",
+                            e, text);
+                        }
+
+                        Ok(msg) => {
+                            debug!("Deserialized websocket message: {:#?}", msg);
+                            if let Some(tx) = topics_tx.read().await.get(msg.clone().into()) {
+                                tx.send(msg).unwrap();
+                            }
+                        }
                     }
                 }
+                _ = shutdown_token.cancelled() => {
+                    break;
+                    }
             }
         }
     }
-
-    async fn keepalive(sender: Sender<SignallerMessage>) {
+    async fn keepalive(sender: Sender<SignallerMessage>, shutdown_token: CancellationToken) {
         let mut ticker = tokio::time::interval(std::time::Duration::from_secs(30));
         loop {
-            ticker.tick().await;
+            select! {
+                _ = ticker.tick() => {}
+                _ = shutdown_token.cancelled() => {
+                    break;
+                }
+            }
             if sender.send(SignallerMessage::KeepAlive {}).await.is_err() {
                 break;
             }
@@ -86,11 +104,19 @@ impl WebSocketSignaller {
     async fn process_outgoing(
         mut write: SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>,
         mut receiver: Receiver<SignallerMessage>,
+        shutdown_token: CancellationToken,
     ) {
-        while let Some(msg) = receiver.recv().await {
-            let text = serde_json::to_string(&msg).unwrap();
-            trace!("Sending websocket message: {:#?}", msg);
-            write.send(Message::text(text)).await.unwrap();
+        loop {
+            select! {
+                msg = receiver.recv() => {
+                    let text = serde_json::to_string(&msg).unwrap();
+                    trace!("Sending websocket message: {:#?}", msg);
+                    write.send(Message::text(text)).await.unwrap();
+                }
+                _ = shutdown_token.cancelled() => {
+                    break;
+                }
+            }
         }
         warn!("Send queue closed");
     }
@@ -108,6 +134,7 @@ impl WebSocketSignaller {
     }
 
     pub async fn new(url: &str, notify_update: Arc<dyn Fn() + Send + Sync>) -> Result<Self> {
+        let shutdown_token = CancellationToken::new();
         let (send_queue_sender, send_queue_receiver) = mpsc::channel::<SignallerMessage>(8);
 
         let topics_tx = Arc::new(RwLock::new(HashMap::new()));
@@ -129,13 +156,24 @@ impl WebSocketSignaller {
         let (write, read) = ws_stream.split();
 
         // handle all incoming websocket messages
-        tokio::spawn(Self::process_incoming_message(read, topics_tx.clone()));
+        tokio::spawn(Self::process_incoming_message(
+            read,
+            topics_tx.clone(),
+            shutdown_token.clone(),
+        ));
 
         // handle all outgoing websocket messages
-        tokio::spawn(Self::process_outgoing(write, send_queue_receiver));
+        tokio::spawn(Self::process_outgoing(
+            write,
+            send_queue_receiver,
+            shutdown_token.clone(),
+        ));
 
         // send a keepalive packet every 30 secs
-        tokio::spawn(Self::keepalive(send_queue_sender.clone()));
+        tokio::spawn(Self::keepalive(
+            send_queue_sender.clone(),
+            shutdown_token.clone(),
+        ));
 
         Ok(Self {
             send_queue: send_queue_sender,
@@ -143,13 +181,14 @@ impl WebSocketSignaller {
             topics_rx,
             room_id: std::sync::Mutex::new(None),
             notify_update,
+            shutdown_token,
         })
     }
 }
 
 macro_rules! blocking_recv {
-    ($self:ident, $topic:pat, $discriminant:path) => {
-        let $topic = $self
+    ($self:ident, $topic:pat, $discriminant:path, $negative:block) => {
+        let Ok($topic) = $self
             .topics_rx
             .read()
             .await
@@ -159,9 +198,8 @@ macro_rules! blocking_recv {
             .await
             .recv()
             .await
-            .unwrap()
         else {
-            unreachable!()
+            $negative
         };
     };
 }
@@ -179,7 +217,10 @@ impl Signaller for WebSocketSignaller {
         blocking_recv!(
             self,
             SignallerMessage::StartResponse { room },
-            SignallerMessageDiscriminants::StartResponse
+            SignallerMessageDiscriminants::StartResponse,
+            {
+                return;
+            }
         );
         info!("Assigned room id {}", room);
         self.room_id.lock().unwrap().replace(room);
@@ -189,7 +230,10 @@ impl Signaller for WebSocketSignaller {
         blocking_recv!(
             self,
             SignallerMessage::Join { from, name, auth },
-            SignallerMessageDiscriminants::Join
+            SignallerMessageDiscriminants::Join,
+            {
+                return None;
+            }
         );
         Some((from, name, auth))
     }
@@ -245,7 +289,10 @@ impl Signaller for WebSocketSignaller {
         blocking_recv!(
             self,
             SignallerMessage::IceServersResponse { ice_servers },
-            SignallerMessageDiscriminants::IceServersResponse
+            SignallerMessageDiscriminants::IceServersResponse,
+            {
+                return Vec::new();
+            }
         );
         ice_servers
     }
@@ -267,6 +314,11 @@ impl Signaller for WebSocketSignaller {
             })
             .await
             .unwrap();
+    }
+    async fn close(&self) {
+        self.topics_tx.write().await.clear();
+        self.topics_rx.write().await.clear();
+        self.shutdown_token.cancel();
     }
 }
 
@@ -290,7 +342,10 @@ impl SignallerPeer for WebSocketSignallerPeer {
             blocking_recv!(
                 self,
                 SignallerMessage::Answer { sdp, .. },
-                SignallerMessageDiscriminants::Answer
+                SignallerMessageDiscriminants::Answer,
+                {
+                    return None;
+                }
             );
             Some(sdp)
         })
@@ -303,7 +358,10 @@ impl SignallerPeer for WebSocketSignallerPeer {
         blocking_recv!(
             self,
             SignallerMessage::Ice { ice, .. },
-            SignallerMessageDiscriminants::Ice
+            SignallerMessageDiscriminants::Ice,
+            {
+                return None;
+            }
         );
         Some(ice)
     }

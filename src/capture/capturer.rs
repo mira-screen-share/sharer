@@ -248,7 +248,9 @@ impl Capturer {
             capture.lock().await.stop_capture().await.unwrap();
             if let Some(signaller) = signaller_opt.lock().await.take() {
                 signaller.leave().await;
+                signaller.close().await;
             }
+
             viewer_manager.clear().await;
 
             notify_update(); // Update when capture stops

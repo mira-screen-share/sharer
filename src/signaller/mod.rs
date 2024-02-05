@@ -40,6 +40,8 @@ pub trait Signaller: Send + 'static {
     async fn leave(&self);
     /// Remove a viewer from the session
     async fn kick_viewer(&self, uuid: String);
+    /// close signaller
+    async fn close(&self);
 }
 
 #[async_trait]
