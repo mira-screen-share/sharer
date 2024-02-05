@@ -147,8 +147,20 @@ impl WebSocketSignaller {
 
 macro_rules! blocking_recv {
     ($self:ident, $topic:pat, $discriminant:path) => {
-        let $topic = $self.topics_rx.read().await.get($discriminant.into())
-                        .unwrap().lock().await.recv().await.unwrap() else { unreachable!() };
+        let $topic = $self
+            .topics_rx
+            .read()
+            .await
+            .get($discriminant.into())
+            .unwrap()
+            .lock()
+            .await
+            .recv()
+            .await
+            .unwrap()
+        else {
+            unreachable!()
+        };
     };
 }
 
@@ -219,6 +231,25 @@ impl Signaller for WebSocketSignaller {
             SignallerMessageDiscriminants::IceServersResponse
         );
         ice_servers
+    }
+    async fn leave(&self) {
+        trace!("Leaving session");
+        self.send_queue
+            .send(SignallerMessage::Leave {
+                from: self.get_room_id().unwrap(),
+            })
+            .await
+            .unwrap();
+    }
+    async fn kick_viewer(&self, uuid: String) {
+        trace!("Kicking viewer {}", uuid);
+        self.send_queue
+            .send(SignallerMessage::RoomClosed {
+                to: uuid,
+                room: self.get_room_id().unwrap(),
+            })
+            .await
+            .unwrap();
     }
 }
 

@@ -4,7 +4,7 @@ use clap::Parser;
 use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
 
-use crate::auth::{ComplexAuthenticator, PasswordAuthenticator, ViewerManager};
+use crate::auth::{ComplexAuthenticator, PasswordAuthenticator, ViewerIdentifier, ViewerManager};
 #[allow(unused_imports)]
 use crate::capture::audio::AudioCapture;
 use crate::capture::display::DisplaySelector;
@@ -63,6 +63,19 @@ impl Capturer {
 
     pub fn get_viewer_manager(&self) -> Arc<ViewerManager> {
         self.viewer_manager.clone()
+    }
+
+    pub async fn kick_viewer(&self, id: ViewerIdentifier) -> () {
+        match self.signaller.try_lock() {
+            Ok(signaller) => {
+                if let Some(signaller) = signaller.as_ref() {
+                    signaller.kick_viewer(id.uuid).await;
+                }
+            }
+            Err(e) => {
+                error!("Failed to lock signaller while kicking viewer: {}", e);
+            }
+        }
     }
 
     pub fn run(&mut self) {
@@ -224,7 +237,9 @@ impl Capturer {
 
             // Cleanup
             capture.lock().await.stop_capture().await.unwrap();
-            signaller_opt.lock().await.take();
+            if let Some(signaller) = signaller_opt.lock().await.take() {
+                signaller.leave().await;
+            }
             viewer_manager.clear().await;
 
             notify_update(); // Update when capture stops

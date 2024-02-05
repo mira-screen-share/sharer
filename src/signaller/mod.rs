@@ -32,6 +32,10 @@ pub trait Signaller: Send + 'static {
     async fn blocking_wait_leave_message(&self) -> String;
     /// fetch ice servers
     async fn fetch_ice_servers(&self) -> Vec<SignallerIceServer>;
+    /// indicating the leaving of a session
+    async fn leave(&self);
+    /// Remove a viewer from the session
+    async fn kick_viewer(&self, uuid: String);
 }
 
 #[async_trait]
@@ -94,6 +98,10 @@ pub enum SignallerMessage {
         ice: RTCIceCandidateInit,
         from: String,
         to: String,
+    },
+    RoomClosed {
+        to: String,
+        room: String,
     },
     Leave {
         from: String,
