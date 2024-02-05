@@ -5,3 +5,4 @@
 third_party
 *.exe
 *.dmg
+.idea/
