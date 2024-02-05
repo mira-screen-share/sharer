@@ -157,11 +157,19 @@ impl Capturer {
     async fn handle_left_viewers(
         signaller: Arc<dyn Signaller + Send + Sync>,
         view_manager: Arc<ViewerManager>,
+        shutdown_token: CancellationToken,
     ) {
         loop {
-            let left_viewer = signaller.blocking_wait_leave_message().await;
-            info!("Viewer left: {}", left_viewer);
-            view_manager.viewer_left(&left_viewer).await;
+            if shutdown_token.is_cancelled() {
+                break;
+            }
+            if let Some(left_viewer) = signaller
+                .blocking_wait_leave_message(shutdown_token.clone())
+                .await
+            {
+                info!("Viewer left: {}", left_viewer);
+                view_manager.viewer_left(&left_viewer).await;
+            }
         }
     }
 
@@ -193,6 +201,7 @@ impl Capturer {
                 tokio::spawn(Self::handle_left_viewers(
                     signaller.clone(),
                     viewer_manager.clone(),
+                    shutdown_token.clone(),
                 ));
 
                 signaller_opt.lock().await.replace(signaller.clone());

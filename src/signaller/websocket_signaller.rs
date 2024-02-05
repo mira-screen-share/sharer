@@ -6,12 +6,14 @@ use futures_util::stream::{SplitSink, SplitStream};
 use futures_util::{SinkExt, StreamExt};
 use strum::IntoEnumIterator;
 use tokio::net::TcpStream;
+use tokio::select;
 use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::sync::{broadcast, mpsc, Mutex, RwLock};
 use tokio::time::timeout;
 use tokio_tungstenite::{
     connect_async, tungstenite::protocol::Message, MaybeTlsStream, WebSocketStream,
 };
+use tokio_util::sync::CancellationToken;
 use webrtc::ice_transport::ice_candidate::RTCIceCandidateInit;
 use webrtc::peer_connection::sdp::session_description::RTCSessionDescription;
 
@@ -211,13 +213,28 @@ impl Signaller for WebSocketSignaller {
         let room = self.room_id.lock().unwrap();
         room.clone()
     }
-    async fn blocking_wait_leave_message(&self) -> String {
-        blocking_recv!(
-            self,
-            SignallerMessage::Leave { from },
-            SignallerMessageDiscriminants::Leave
-        );
-        from
+    async fn blocking_wait_leave_message(
+        &self,
+        shutdown_token: CancellationToken,
+    ) -> Option<String> {
+        let receivers = self.topics_rx.read().await;
+        let mut receiver = receivers
+            .get(SignallerMessageDiscriminants::Leave.into())
+            .unwrap()
+            .lock()
+            .await;
+        select! {
+            result = receiver.recv() => {
+                if let SignallerMessage::Leave { from } = result.unwrap() {
+                    Some(from)
+                } else {
+                    unreachable!()
+                }
+            }
+            _ = shutdown_token.cancelled() => {
+                None
+            }
+        }
     }
     async fn fetch_ice_servers(&self) -> Vec<SignallerIceServer> {
         self.send_queue

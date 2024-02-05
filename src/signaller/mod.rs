@@ -4,6 +4,7 @@ use async_trait::async_trait;
 use dyn_clone::DynClone;
 use serde::{Deserialize, Serialize};
 use strum_macros::{EnumDiscriminants, EnumIter, IntoStaticStr};
+use tokio_util::sync::CancellationToken;
 use webrtc::ice_transport::ice_candidate::RTCIceCandidateInit;
 use webrtc::peer_connection::sdp::session_description::RTCSessionDescription;
 
@@ -29,7 +30,10 @@ pub trait Signaller: Send + 'static {
     /// get room id
     fn get_room_id(&self) -> Option<String>;
     /// get leave message. returns uuid of the viewer left.
-    async fn blocking_wait_leave_message(&self) -> String;
+    async fn blocking_wait_leave_message(
+        &self,
+        shutdown_token: CancellationToken,
+    ) -> Option<String>;
     /// fetch ice servers
     async fn fetch_ice_servers(&self) -> Vec<SignallerIceServer>;
     /// indicating the leaving of a session
