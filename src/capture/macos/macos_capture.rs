@@ -92,7 +92,9 @@ impl ScreenCapture for MacOSCapture {
                             .await
                             .unwrap();
                     }
-                    _ = cancel_audio.cancelled() => {}
+                    _ = cancel_audio.cancelled() => {
+                        break;
+                    }
                 }
             }
         });
@@ -116,7 +118,9 @@ impl ScreenCapture for MacOSCapture {
                         profiler.done_processing(encoded_len);
                         ticker.tick().await;
                     }
-                    _ = cancel_video.cancelled() => {}
+                    _ = cancel_video.cancelled() => {
+                        break;
+                    }
                 }
             }
         });

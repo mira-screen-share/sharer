@@ -129,6 +129,7 @@ impl<'a> Component<'a> for SharingPage {
                 let viewer_manager = props.viewer_manager.clone();
                 tokio::task::block_in_place(move || {
                     handle.block_on(async move {
+                        props.capturer.kick_viewer(viewer_id.clone()).await;
                         viewer_manager.kick_viewer(viewer_id).await;
                     })
                 });
