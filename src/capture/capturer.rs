@@ -173,12 +173,7 @@ impl Capturer {
         }
     }
 
-    fn capture(
-        &mut self,
-        args: Args,
-        config: Config,
-        #[allow(unused_variables)] shutdown_token: CancellationToken,
-    ) {
+    fn capture(&mut self, args: Args, config: Config, shutdown_token: CancellationToken) {
         let profiler = PerformanceProfiler::new(args.profiler, config.max_fps);
         let signaller_opt = self.signaller.clone();
         let notify_update = self.notify_update.clone();
