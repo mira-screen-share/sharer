@@ -68,7 +68,7 @@ input (e.g. keyboard, mouse events) to the sharer to achieve control of the shar
 
 For screen capturing, we use `Windows.Graphics.Capture` on Windows, and `ScreenCaptureKit` on macOS. This requires at least Windows 10 v1803 and macOS 13.0.
 
-For encoding, by default x264 is used, however you can use other codecs/encoder or adjust its settings (quality, speed, compression, etc.) in the configuration file, `config.toml`.
+For encoding, by default x264 is used, however you can use other codecs/encoder or adjust its settings (quality, speed, compression, etc.) in the configuration file, `config.toml` (`~/Library/Application Support/Mira-Sharer/config.toml` for macOS).
 
 ## Q & A
 Q. Can you see my screens?
