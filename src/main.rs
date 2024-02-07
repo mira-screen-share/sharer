@@ -36,7 +36,7 @@ async fn main() {
         })
         .level(log::LevelFilter::Info)
         .level_for("wgpu_core", log::LevelFilter::Warn)
-        .level_for("wgpu_hal", log::LevelFilter::Warn)
+        .level_for("wgpu_hal", log::LevelFilter::Off)
         .level_for("iced_wgpu", log::LevelFilter::Warn)
         .chain(std::io::stdout())
         .apply()

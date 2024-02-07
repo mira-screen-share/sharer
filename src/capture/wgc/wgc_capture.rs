@@ -24,19 +24,19 @@ use tokio_util::sync::CancellationToken;
 
 pub struct WGCScreenCapture {
     config: Config,
-    engine: CaptureEngine,
+    engine: Option<CaptureEngine>,
     selected_display: Display,
     session: Option<GraphicsCaptureSession>,
+    item: GraphicsCaptureItem,
 }
 
 struct CaptureEngine {
-    item: GraphicsCaptureItem,
     frame_pool: Direct3D11CaptureFramePool,
     duplicator: YuvConverter,
 }
 
 impl CaptureEngine {
-    fn new(item: GraphicsCaptureItem) -> Self {
+    fn new(item: &GraphicsCaptureItem) -> Self {
         let item_size = item.Size().unwrap();
         let (device, d3d_device, d3d_context) = d3d::create_direct3d_devices_and_context().unwrap();
         let device = Arc::new(device);
@@ -55,7 +55,6 @@ impl CaptureEngine {
         )
         .unwrap();
         Self {
-            item,
             frame_pool,
             duplicator,
         }
@@ -67,17 +66,17 @@ impl ScreenCapture for WGCScreenCapture {
     fn new(config: Config) -> Result<ScreenCaptureImpl> {
         let selected_display = Display::online().unwrap()[0].clone();
         let item = selected_display.select()?;
-        let engine = CaptureEngine::new(item);
         Ok(Self {
             config,
-            engine,
+            engine: None,
             selected_display,
             session: None,
+            item,
         })
     }
 
     fn display(&self) -> &dyn DisplayInfo {
-        &self.engine.item
+        &self.item
     }
 
     async fn start_capture(
@@ -87,23 +86,20 @@ impl ScreenCapture for WGCScreenCapture {
         mut profiler: PerformanceProfiler,
         shutdown_token: CancellationToken,
     ) -> Result<()> {
-        let session = self
-            .engine
-            .frame_pool
-            .CreateCaptureSession(&self.engine.item)?;
+        let engine = CaptureEngine::new(&self.item);
+
+        let session = engine.frame_pool.CreateCaptureSession(&self.item)?;
 
         let (sender, mut receiver) = tokio::sync::mpsc::channel::<Direct3D11CaptureFrame>(1);
 
-        self.engine.frame_pool.FrameArrived(&TypedEventHandler::<
+        engine.frame_pool.FrameArrived(&TypedEventHandler::<
             Direct3D11CaptureFramePool,
             IInspectable,
         >::new({
             move |frame_pool, _| {
                 let frame_pool = frame_pool.as_ref().unwrap();
                 let frame = frame_pool.TryGetNextFrame()?;
-                sender
-                    .try_send(frame)
-                    .unwrap_or_else(move |err| warn!("Failed to send frame: {}", err.to_string()));
+                let _ = sender.try_send(frame);
                 Ok(())
             }
         }))?;
@@ -111,7 +107,7 @@ impl ScreenCapture for WGCScreenCapture {
         session.StartCapture()?;
         self.session.replace(session);
 
-        let mut duplicator = self.engine.duplicator.clone();
+        let mut duplicator = engine.duplicator.clone();
 
         let mut ticker =
             tokio::time::interval(Duration::from_millis((1000 / self.config.max_fps) as u64));
@@ -143,6 +139,8 @@ impl ScreenCapture for WGCScreenCapture {
             }
         });
 
+        self.engine.replace(engine);
+
         Ok(())
     }
 
@@ -150,6 +148,7 @@ impl ScreenCapture for WGCScreenCapture {
         if let Some(session) = self.session.take() {
             session.Close()?;
         }
+        self.engine.take();
         Ok(())
     }
 }
@@ -162,18 +161,12 @@ impl DisplaySelector for WGCScreenCapture {
     }
 
     fn select_display(&mut self, display: &Display) -> Result<()> {
-        self.engine = CaptureEngine::new(display.select()?);
+        self.engine = Some(CaptureEngine::new(&display.select()?));
         self.selected_display = display.clone();
         Ok(())
     }
 
     fn selected_display(&self) -> Result<Option<Self::Display>> {
         Ok(Some(self.selected_display.clone()))
-    }
-}
-
-impl Drop for CaptureEngine {
-    fn drop(&mut self) {
-        self.frame_pool.Close().unwrap();
     }
 }
