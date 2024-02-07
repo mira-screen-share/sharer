@@ -97,6 +97,8 @@ Then, simply run `cargo run --release`.
 Configuration file is by default `config.toml`. There are preset configs in `configs/` directory that you could use
 as a starting point.
 
+For macOS, the configuration file is located at `~/Library/Application Support/Mira-Sharer/config.toml`.
+
 ## License
 
 GPLv3
