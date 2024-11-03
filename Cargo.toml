@@ -41,7 +41,7 @@ dyn-clone = "1.0.4"
 uuid = "1.2.1"
 bytes = "1.2.1"
 enigo = { git = "https://github.com/mira-screen-share/enigo", branch = "master" }
-ac-ffmpeg = { git = "https://github.com/mira-screen-share/rust-ac-ffmpeg", branch = "dev" }
+ac-ffmpeg = { git = "https://github.com/angelcam/rust-ac-ffmpeg", branch = "master" }
 toml = "0.7.4"
 itertools = "0.10.5"
 howlong = "0.1.7"
@@ -50,7 +50,7 @@ cpal = "0.15.2"
 iced = { version = "0.9.0", features = ["tokio", "image", "svg"] }
 strum_macros = "0.24.3"
 strum = "0.24.1"
-iced_aw = { version = "0.5.2", features = ["tabs"] }
+iced_aw = { git = "https://github.com/iced-rs/iced_aw", tag = "V0.5.2" }
 rand = "0.8.5"
 fern = "0.6.2"
 humantime = "2.1.0"
@@ -61,7 +61,7 @@ directories = "5.0"
 [target.'cfg(target_os = "macos")'.dependencies]
 libc = "0.2.108"
 block = "0.1.6"
-apple-sys = { git = "https://github.com/mira-screen-share/apple-sys", branch = "dev", features = ["AVFAudio", "CoreMedia", "ScreenCaptureKit"] }
+apple-sys = { git = "https://github.com/youknowone/apple-sys", branch = "main", features = ["AVFAudio", "CoreMedia", "ScreenCaptureKit"] }
 objc = "0.2.3"
 
 [target.'cfg(target_os = "windows")'.dependencies]
