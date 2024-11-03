@@ -85,7 +85,8 @@ A. The signalling server we host does collect some metrics such as the number/le
 ## Build
 You need to have ffmpeg installed.
 
-* For macOS, you could use `brew install ffmpeg`.
+* For macOS, you could use `brew install ffmpeg@5` (later versions will not compile).
+  * You will also need to `cargo install apple-bindgen` and run `apple-bindgen CoreFoundation --sdk macosx`
 * For Windows, you need to download ffmpeg from [here](https://github.com/BtbN/FFmpeg-Builds/releases).
 Make sure you download a shared library build such as `ffmpeg-master-latest-win64-gpl-shared.zip`.
 Put it under `.\third_party\ffmpeg` so you have e.g. `.\third_party\ffmpeg\bin\ffmpeg.exe`.
