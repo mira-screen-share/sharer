@@ -37,7 +37,7 @@ struct CaptureEngine {
 
 impl CaptureEngine {
     fn new(item: &GraphicsCaptureItem) -> Self {
-        let item_size = item.Size().unwrap();
+        let item_size = item.clone().Size().unwrap();
         let (device, d3d_device, d3d_context) = d3d::create_direct3d_devices_and_context().unwrap();
         let device = Arc::new(device);
         let d3d_context = Arc::new(d3d_context);
