@@ -1,0 +1,34 @@
+name: Build and Test
+
+on: [push, pull_request]
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+        rust: [stable]
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Rust
+      uses: actions-rust-lang/setup-rust@v1
+      with:
+        rust-version: stable
+
+    # Windows 专用步骤
+    - name: Install Windows SDK
+      if: matrix.os == 'windows-latest'
+      run: choco install -y windows-sdk-10.1
+
+    - name: Build
+      run: cargo build --release
+
+    - name: Upload Artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: binary-${{ matrix.os }}
+        path: target/release/
