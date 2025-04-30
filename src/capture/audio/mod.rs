@@ -1,3 +1,7 @@
+#[cfg(target_os = "windows")]
+mod app_filter;
+#[cfg(target_os = "windows")]
+use crate::capture::audio::app_filter::is_kook_process;
 use std::sync::mpsc::Sender;
 use std::sync::Arc;
 use std::thread;
@@ -75,7 +79,43 @@ impl AudioCapture {
         cancel: CancellationToken,
     ) -> Result<()> {
         let host = cpal::default_host();
+        // 修改设备初始化部分
+        let output_device = host.default_output_device().expect("No output device");
+        let output_config = output_device.default_output_config().unwrap().config();
+        // 在构建输出流回调中添加过滤逻辑
+let output_stream = output_device.build_input_stream(
+    &output_config.into(),
+    move |data, _| {
+        #[cfg(target_os = "windows")]
+        {
+            // 获取当前音频会话进程ID
+            let session_manager = get_audio_session_manager();
+            let session = session_manager.GetSessionEnumerator().unwrap();
+            let count = session.GetCount().unwrap();
+            
+            let mut is_kook = false;
+            for i in 0..count {
+                let audio_session: IAudioSessionControl2 = session.GetSession(i).unwrap().cast().unwrap();
+                let pid = audio_session.GetProcessId().unwrap();
+                if is_kook_process(pid) {
+                    is_kook = true;
+                    break;
+                }
+            }
 
+            if !is_kook {
+                capturer.write_input_data(data);
+            }
+        }
+        #[cfg(not(target_os = "windows"))]
+        {
+            capturer.write_input_data(data);
+        }
+    },
+    |err| error!("Output stream error: {:?}", err),
+    None,
+)?;
+        
         let device = host
             .default_output_device()
             .expect("Failed to get default output device");
